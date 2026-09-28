@@ -321,6 +321,5 @@ public class AutoclaveRecipes implements Runnable {
             .duration(100 * SECONDS)
             .eut(TierEU.RECIPE_MAX)
             .addTo(autoclaveRecipes);
-
     }
 }

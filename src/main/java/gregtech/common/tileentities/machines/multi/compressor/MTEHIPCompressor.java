@@ -99,7 +99,7 @@ public class MTEHIPCompressor extends MTEExtendedPowerMultiBlockBase<MTEHIPCompr
                 .use(activeCoils(ofCoil(MTEHIPCompressor::setCoilLevel, MTEHIPCompressor::getCoilLevel))))
         .addElement(
             'G',
-            buildHatchAdder(MTEHIPCompressor.class).atLeast(InputBus, OutputBus, InputHatch)
+            buildHatchAdder(MTEHIPCompressor.class).atLeast(InputBus, OutputBus, InputHatch, OutputHatch)
                 .casingIndex(((BlockCasings10) GregTechAPI.sBlockCasings10).getTextureIndex(5))
                 .hint(2)
                 .buildAndChain(onElementPass(MTEHIPCompressor::onCasingAdded, ofBlock(GregTechAPI.sBlockCasings10, 5))))
@@ -255,6 +255,7 @@ public class MTEHIPCompressor extends MTEExtendedPowerMultiBlockBase<MTEHIPCompr
             .addInputBus("1+", "Any side pipe casing", 2)
             .addInputHatch("0+", "Any side pipe casing", 2)
             .addOutputBus("1+", "Any side pipe casing", 2)
+            .addOutputHatch("0+", "Any side pipe casing", 2)
             .addStructureInfo("")
             .addSubChannel(GTStructureChannels.HEATING_COIL)
             .addSubChannel(GTStructureChannels.BOROGLASS)
@@ -288,8 +289,8 @@ public class MTEHIPCompressor extends MTEExtendedPowerMultiBlockBase<MTEHIPCompr
         checkCasingMin(errors, mCasingAmount, 95);
         checkHasEnergyHatch(errors);
         checkHasMaintenanceHatch(errors);
-        checkHasInputBus(errors);
-        checkHasOutputBus(errors);
+        checkHasAnyInput(errors);
+        checkHasAnyOutput(errors);
     }
 
     @Override

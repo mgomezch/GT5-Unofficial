@@ -183,6 +183,11 @@ public class MaterialsIDMap extends Int2ObjectOpenHashMap<Materials> {
         r(232, Materials.DenseSteam);
         r(233, Materials.DenseSuperheatedSteam);
         r(234, Materials.DenseSupercriticalSteam);
+        r(235, Materials.HeavyWater);
+        r(236, Materials.HighPressureDistilledWater);
+        r(237, Materials.HighPressureHeavyWater);
+        r(238, Materials.HeavyWaterSteam);
+        r(239, Materials.HighPressureHeavyWaterSteam);
         r(241, Materials.PlatinumGroupSludge);
         r(242, Materials.WeedEX9000);
         r(243, Materials.PotassiumHydroxide);

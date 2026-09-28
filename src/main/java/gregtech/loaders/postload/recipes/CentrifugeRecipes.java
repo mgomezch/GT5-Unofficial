@@ -516,6 +516,13 @@ public class CentrifugeRecipes implements Runnable {
             .addTo(centrifugeRecipes);
 
         GTValues.RA.stdBuilder()
+            .fluidInputs(Materials.HeavyWater.getFluid(1_000))
+            .fluidOutputs(Materials.Deuterium.getGas(1_000), Materials.Oxygen.getGas(500))
+            .duration(15 * SECONDS)
+            .eut(TierEU.RECIPE_LuV)
+            .addTo(centrifugeRecipes);
+
+        GTValues.RA.stdBuilder()
             .fluidInputs(Materials.Helium.getGas(80))
             .fluidOutputs(Materials.Helium3.getGas(5))
             .duration(8 * SECONDS)

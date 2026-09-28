@@ -4646,6 +4646,14 @@ public class ChemicalRecipes implements Runnable {
             .addTo(multiblockChemicalReactorRecipes);
 
         GTValues.RA.stdBuilder()
+            .circuit(22)
+            .fluidInputs(Materials.Deuterium.getGas(16_000), Materials.Oxygen.getGas(8_000))
+            .fluidOutputs(Materials.HeavyWater.getFluid(8_000))
+            .duration(4 * SECONDS)
+            .eut(TierEU.RECIPE_LV)
+            .addTo(multiblockChemicalReactorRecipes);
+
+        GTValues.RA.stdBuilder()
             .itemInputs(Materials.PotassiumNitrade.getDust(10), Materials.ChromiumTrioxide.getDust(8))
             .itemOutputs(Materials.Potassiumdichromate.getDust(11))
             .fluidOutputs(Materials.NitricOxide.getGas(2_000), Materials.Oxygen.getGas(3_000))

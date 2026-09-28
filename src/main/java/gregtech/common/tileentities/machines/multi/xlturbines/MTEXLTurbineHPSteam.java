@@ -81,6 +81,15 @@ public class MTEXLTurbineHPSteam extends MTEXLTurbineBase {
         return tt;
     }
 
+    public int excessHeavyWater = 0;
+
+    private int condenseHeavyWater(int steam) {
+        excessHeavyWater += steam;
+        int water = excessHeavyWater / gregtech.api.enums.GTValues.STEAM_PER_WATER;
+        excessHeavyWater %= gregtech.api.enums.GTValues.STEAM_PER_WATER;
+        return water;
+    }
+
     @Override
     long fluidIntoPower(ArrayList<FluidStack> aFluids, TurbineStatCalculator turbine) {
         long tEU = 0;
@@ -93,6 +102,7 @@ public class MTEXLTurbineHPSteam extends MTEXLTurbineBase {
             * (looseFit ? turbine.getOptimalLooseSteamFlow() : turbine.getOptimalSteamFlow());
         int remainingFlow = MathUtils.safeInt((long) (realOptFlow * 1.25f));
         boolean hasConsumedSteam = false;
+        boolean isUsingHeavyWaterSteam = false;
 
         storedFluid = 0;
         for (int i = 0; i < aFluids.size() && remainingFlow > 0; i++) {
@@ -104,7 +114,7 @@ public class MTEXLTurbineHPSteam extends MTEXLTurbineBase {
                     if (!hasConsumedSteam) {
                         hasConsumedSteam = true;
                         isUsingDenseSteam = false;
-                    } else if (isUsingDenseSteam) {
+                    } else if (isUsingDenseSteam || isUsingHeavyWaterSteam) {
                         continue;
                     }
                     flow = Math.min(aFluids.get(i).amount, remainingFlow);
@@ -121,6 +131,19 @@ public class MTEXLTurbineHPSteam extends MTEXLTurbineBase {
                         } catch (Exception ignored) {}
                         achievement = true;
                     }
+                }
+                case "fluid.heavywatersteam" -> {
+                    if (!hasConsumedSteam) {
+                        hasConsumedSteam = true;
+                        isUsingHeavyWaterSteam = true;
+                    } else if (!isUsingHeavyWaterSteam) {
+                        continue;
+                    }
+                    flow = Math.min(aFluids.get(i).amount, remainingFlow);
+                    depleteInput(new FluidStack(aFluids.get(i), flow));
+                    storedFluid += flow;
+                    remainingFlow -= flow;
+                    totalFlow += flow;
                 }
                 case "fluid.densesuperheatedsteam" -> {
                     if (!hasConsumedSteam) {
@@ -147,7 +170,12 @@ public class MTEXLTurbineHPSteam extends MTEXLTurbineBase {
         }
         if (totalFlow <= 0) return 0;
         tEU = totalFlow;
-        if (isUsingDenseSteam) {
+        if (isUsingHeavyWaterSteam) {
+            int waterToOutput = condenseHeavyWater(totalFlow);
+            if (waterToOutput > 0) {
+                addOutputPartial(Materials.HeavyWater.getFluid(waterToOutput));
+            }
+        } else if (isUsingDenseSteam) {
             addOutputPartial(Materials.DenseSteam.getGas((long) steamFlowForNextSteam));
         } else {
             addOutputPartial(Materials.Steam.getGas(totalFlow));

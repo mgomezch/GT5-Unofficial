@@ -64,7 +64,7 @@ public class MTEIndustrialCompressor extends MTEExtendedPowerMultiBlockBase<MTEI
             //spotless:on
         .addElement(
             'C',
-            buildHatchAdder(MTEIndustrialCompressor.class).atLeast(InputBus, InputHatch, OutputBus)
+            buildHatchAdder(MTEIndustrialCompressor.class).atLeast(InputBus, InputHatch, OutputBus, OutputHatch)
                 .casingIndex(((BlockCasings10) GregTechAPI.sBlockCasings10).getTextureIndex(5))
                 .hint(2)
                 .buildAndChain(
@@ -133,6 +133,7 @@ public class MTEIndustrialCompressor extends MTEExtendedPowerMultiBlockBase<MTEI
             .addInputBus("1+", "Any side pipe casing", 2)
             .addInputHatch("0+", "Any side pipe casing", 2)
             .addOutputBus("1+", "Any side pipe casing", 2)
+            .addOutputHatch("0+", "Any side pipe casing", 2)
             .addStructureInfo("")
             .addSubChannel(GTStructureChannels.BOROGLASS)
             .toolTipFinisher(Ollie);
@@ -163,8 +164,8 @@ public class MTEIndustrialCompressor extends MTEExtendedPowerMultiBlockBase<MTEI
         checkCasingMin(errors, mCasingAmount, 95);
         checkHasEnergyHatch(errors);
         checkHasMaintenanceHatch(errors);
-        checkHasInputBus(errors);
-        checkHasOutputBus(errors);
+        checkHasAnyInput(errors);
+        checkHasAnyOutput(errors);
     }
 
     @Override

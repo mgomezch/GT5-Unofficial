@@ -940,6 +940,65 @@ public class RecipeLoader2 {
             FluidRegistry.getFluidStack("supercriticalsteam", 3_200_000),
             1600);
 
+        // Heavy Water EHE recipes
+        MyRecipeAdder.instance.addExtremeHeatExchangerRecipe(
+            Materials.Lava.getFluid(160_000),
+            FluidRegistry.getFluidStack("ic2pahoehoelava", 160_000),
+            Materials.HeavyWater.getFluid(80_000),
+            Materials.HeavyWaterSteam.getGas(12_800_000),
+            Materials.HighPressureHeavyWaterSteam.getGas(12_800_000),
+            80000);
+
+        MyRecipeAdder.instance.addExtremeHeatExchangerRecipe(
+            FluidRegistry.getFluidStack("ic2hotcoolant", 128_000),
+            GTModHandler.getIC2Coolant(128_000),
+            Materials.HeavyWater.getFluid(160_000),
+            Materials.HeavyWaterSteam.getGas(25_600_000),
+            Materials.HighPressureHeavyWaterSteam.getGas(25_600_000),
+            8000);
+
+        MyRecipeAdder.instance.addExtremeHeatExchangerRecipe(
+            FluidRegistry.getFluidStack("molten.solarsalthot", 3_200),
+            FluidRegistry.getFluidStack("molten.solarsaltcold", 3_200),
+            Materials.HeavyWater.getFluid(20_000),
+            Materials.HeavyWaterSteam.getGas(3_200_000),
+            Materials.HighPressureHeavyWaterSteam.getGas(3_200_000),
+            1600);
+
+        // High-Pressure Distilled Water EHE recipes
+        MyRecipeAdder.instance.addExtremeHeatExchangerRecipe(
+            FluidRegistry.getFluidStack("ic2hotcoolant", 128_000),
+            GTModHandler.getIC2Coolant(128_000),
+            Materials.HighPressureDistilledWater.getFluid(160_000),
+            FluidRegistry.getFluidStack("supercriticalsteam", 25_600_000),
+            FluidRegistry.getFluidStack("supercriticalsteam", 25_600_000),
+            8000);
+
+        MyRecipeAdder.instance.addExtremeHeatExchangerRecipe(
+            Materials.Lava.getFluid(160_000),
+            FluidRegistry.getFluidStack("ic2pahoehoelava", 160_000),
+            Materials.HighPressureDistilledWater.getFluid(80_000),
+            FluidRegistry.getFluidStack("supercriticalsteam", 12_800_000),
+            FluidRegistry.getFluidStack("supercriticalsteam", 12_800_000),
+            80000);
+
+        // High-Pressure Heavy Water EHE recipes
+        MyRecipeAdder.instance.addExtremeHeatExchangerRecipe(
+            FluidRegistry.getFluidStack("ic2hotcoolant", 128_000),
+            GTModHandler.getIC2Coolant(128_000),
+            Materials.HighPressureHeavyWater.getFluid(160_000),
+            Materials.HighPressureHeavyWaterSteam.getGas(25_600_000),
+            Materials.HighPressureHeavyWaterSteam.getGas(25_600_000),
+            8000);
+
+        MyRecipeAdder.instance.addExtremeHeatExchangerRecipe(
+            Materials.Lava.getFluid(160_000),
+            FluidRegistry.getFluidStack("ic2pahoehoelava", 160_000),
+            Materials.HighPressureHeavyWater.getFluid(80_000),
+            Materials.HighPressureHeavyWaterSteam.getGas(12_800_000),
+            Materials.HighPressureHeavyWaterSteam.getGas(12_800_000),
+            80000);
+
         GTValues.RA.stdBuilder()
             .itemInputs(GTOreDictUnificator.get(OrePrefixes.crushedPurified, Materials.Lepidolite, 1))
             .fluidInputs(Materials.HydrochloricAcid.getFluid(1_000))

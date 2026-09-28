@@ -2082,7 +2082,18 @@ public enum MetaTileEntityIDs {
     Hatch_Air_Intake_Atmospheric(32765),
     GT_Framer_LV(32050),
     GT_Framer_MV(32051),
-    GT_Framer_HV(32052);
+    GT_Framer_HV(32052),
+    NUCLEAR_BUS(32100),
+    NUCLEAR_HATCH_LV(32101),
+    NUCLEAR_HATCH_MV(32102),
+    NUCLEAR_HATCH_HV(32103),
+    NUCLEAR_HATCH_EV(32104),
+    NUCLEAR_HATCH_IV(32105),
+    NUCLEAR_HATCH_LuV(32106),
+    NUCLEAR_HATCH_ZPM(32107),
+    NUCLEAR_HATCH_UV(32108),
+    NUCLEAR_HATCH_UHV(32109),
+    NUCLEAR_REACTOR(32115);
 
     public final int ID;
 

@@ -7613,6 +7613,11 @@ public class MaterialsInit {
         Materials.DenseSteam = loadDenseSteam();
         Materials.DenseSuperheatedSteam = loadDenseSuperheatedSteam();
         Materials.DenseSupercriticalSteam = loadDenseSupercriticalSteam();
+        Materials.HeavyWater = loadHeavyWater();
+        Materials.HighPressureDistilledWater = loadHighPressureDistilledWater();
+        Materials.HighPressureHeavyWater = loadHighPressureHeavyWater();
+        Materials.HeavyWaterSteam = loadHeavyWaterSteam();
+        Materials.HighPressureHeavyWaterSteam = loadHighPressureHeavyWaterSteam();
         Materials.OilExtraHeavy = loadOilExtraHeavy();
         Materials.OilHeavy = loadOilHeavy();
         Materials.OilLight = loadOilLight();
@@ -7652,6 +7657,61 @@ public class MaterialsInit {
             .setColor(Dyes.dyeWhite)
             .constructMaterial()
             .setGasTemperature(600);
+    }
+
+    private static Materials loadHeavyWater() {
+        return new MaterialBuilder().setName("HeavyWater")
+            .setDefaultLocalName("Heavy Water")
+            .setIconSet(TextureSet.SET_FLUID)
+            .setColor(Dyes.dyeLightBlue)
+            .setARGB(0x000044cc)
+            .setChemicalFormula("D2O")
+            .addCell()
+            .addFluid()
+            .constructMaterial();
+    }
+
+    private static Materials loadHighPressureDistilledWater() {
+        return new MaterialBuilder().setName("HighPressureDistilledWater")
+            .setDefaultLocalName("High-Pressure Distilled Water")
+            .setIconSet(TextureSet.SET_FLUID)
+            .setColor(Dyes.dyeLightBlue)
+            .setARGB(0x003366ff)
+            .addCell()
+            .addFluid()
+            .constructMaterial();
+    }
+
+    private static Materials loadHighPressureHeavyWater() {
+        return new MaterialBuilder().setName("HighPressureHeavyWater")
+            .setDefaultLocalName("High-Pressure Heavy Water")
+            .setIconSet(TextureSet.SET_FLUID)
+            .setColor(Dyes.dyeBlue)
+            .setARGB(0x00002288)
+            .setChemicalFormula("D2O")
+            .addCell()
+            .addFluid()
+            .constructMaterial();
+    }
+
+    private static Materials loadHeavyWaterSteam() {
+        return new MaterialBuilder().setName("HeavyWaterSteam")
+            .setDefaultLocalName("Heavy Water Steam")
+            .addCell()
+            .addGas()
+            .setColor(Dyes.dyeLightBlue)
+            .constructMaterial()
+            .setGasTemperature(600);
+    }
+
+    private static Materials loadHighPressureHeavyWaterSteam() {
+        return new MaterialBuilder().setName("HighPressureHeavyWaterSteam")
+            .setDefaultLocalName("High-Pressure Heavy Water Steam")
+            .addCell()
+            .addGas()
+            .setColor(Dyes.dyeBlue)
+            .constructMaterial()
+            .setGasTemperature(800);
     }
 
     private static Materials loadOilExtraHeavy() {

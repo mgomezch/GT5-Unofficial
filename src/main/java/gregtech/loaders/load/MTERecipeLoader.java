@@ -3862,6 +3862,31 @@ public class MTERecipeLoader implements Runnable {
             new Object[] { "PCP", "FAF", "PCP", 'P', OrePrefixes.plate.get(Materials.Titanium), 'C',
                 OrePrefixes.circuit.get(Materials.IV), 'F', ItemList.FluidRegulator_EV.get(1L), 'A',
                 ItemRegistry.acidGens[2] });
+
+        // Modular Nuclear Reactor
+        GTModHandler.addCraftingRecipe(
+            ItemList.Machine_Nuclear_Reactor.get(1L),
+            GTModHandler.RecipeBits.BITS | GTModHandler.RecipeBits.DO_NOT_CHECK_FOR_COLLISIONS,
+            new Object[] { "CPC", "EME", "CPC", 'M', ItemList.Hull_EV.get(1L), 'C',
+                OrePrefixes.circuit.get(Materials.EV), 'P', OrePrefixes.plateDense.get(Materials.Lead), 'E',
+                ItemList.Casing_RadiationProof.get(1L) });
+
+        // Nuclear Bus
+        GTModHandler.addCraftingRecipe(
+            ItemList.Hatch_Nuclear_Bus.get(1L),
+            GTModHandler.RecipeBits.BITS | GTModHandler.RecipeBits.DO_NOT_CHECK_FOR_COLLISIONS,
+            new Object[] { "RCR", "IOB", "RPR", 'I', ItemList.Hatch_Input_Bus_HV.get(1L), 'O',
+                ItemList.Hatch_Output_Bus_HV.get(1L), 'B', ItemList.Casing_RadiationProof.get(1L), 'C',
+                OrePrefixes.circuit.get(Materials.HV), 'P', OrePrefixes.plateDense.get(Materials.Lead), 'R',
+                OrePrefixes.plate.get(Materials.Lead) });
+
+        // Nuclear Hatch (LV)
+        GTModHandler.addCraftingRecipe(
+            ItemList.Hatch_Nuclear_LV.get(1L),
+            GTModHandler.RecipeBits.BITS | GTModHandler.RecipeBits.DO_NOT_CHECK_FOR_COLLISIONS,
+            new Object[] { " P ", "IOB", " P ", 'I', ItemList.Hatch_Input_LV.get(1L), 'O',
+                ItemList.Hatch_Output_LV.get(1L), 'B', ItemList.Casing_RadiationProof.get(1L), 'P',
+                OrePrefixes.plateDense.get(Materials.Lead) });
     }
 
     private static void registerShapelessCraftingRecipes() {

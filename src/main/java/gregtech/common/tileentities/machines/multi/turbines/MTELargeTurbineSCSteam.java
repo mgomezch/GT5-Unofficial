@@ -77,19 +77,30 @@ public class MTELargeTurbineSCSteam extends MTELargeTurbineBase {
         storedFluid = 0;
 
         FluidStack tSCSteam = FluidRegistry.getFluidStack("supercriticalsteam", 1);
-        if (tSCSteam == null) return 0;
+        FluidStack tHPSCSteam = Materials.HighPressureHeavyWaterSteam.getGas(1);
+        int totalFlowSCSteam = 0;
+        int totalFlowHPSCSteam = 0;
 
         for (int i = 0; i < aFluids.size() && remainingFlow > 0; i++) {
             FluidStack aFluidStack = aFluids.get(i);
             if (aFluidStack == null) continue;
 
-            if (tSCSteam.isFluidEqual(aFluidStack)) {
+            if (tSCSteam != null && tSCSteam.isFluidEqual(aFluidStack)) {
                 int flow = Math.min(aFluidStack.amount, remainingFlow);
                 depleteInput(new FluidStack(aFluidStack, flow));
 
                 storedFluid += aFluidStack.amount;
                 remainingFlow -= flow;
                 totalFlow += flow;
+                totalFlowSCSteam += flow;
+            } else if (tHPSCSteam != null && tHPSCSteam.isFluidEqual(aFluidStack)) {
+                int flow = Math.min(aFluidStack.amount, remainingFlow);
+                depleteInput(new FluidStack(aFluidStack, flow));
+
+                storedFluid += aFluidStack.amount;
+                remainingFlow -= flow;
+                totalFlow += flow;
+                totalFlowHPSCSteam += flow;
             } else if (GTModHandler.isAnySteam(aFluidStack)) {
                 depleteInput(new FluidStack(aFluidStack, aFluidStack.amount));
             }
@@ -98,7 +109,12 @@ public class MTELargeTurbineSCSteam extends MTELargeTurbineBase {
         if (totalFlow <= 0) return 0;
 
         tEU = totalFlow;
-        addOutputPartial(FluidRegistry.getFluidStack("ic2superheatedsteam", totalFlow));
+        if (totalFlowSCSteam > 0) {
+            addOutputPartial(FluidRegistry.getFluidStack("ic2superheatedsteam", totalFlowSCSteam));
+        }
+        if (totalFlowHPSCSteam > 0) {
+            addOutputPartial(Materials.HeavyWaterSteam.getGas(totalFlowHPSCSteam));
+        }
 
         float turbineEfficiency = looseFit ? turbine.getLooseSteamEfficiency() : turbine.getSteamEfficiency();
 

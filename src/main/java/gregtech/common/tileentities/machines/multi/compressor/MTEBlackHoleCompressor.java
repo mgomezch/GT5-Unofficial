@@ -9,6 +9,7 @@ import static gregtech.api.enums.HatchElement.ExoticEnergy;
 import static gregtech.api.enums.HatchElement.InputBus;
 import static gregtech.api.enums.HatchElement.InputHatch;
 import static gregtech.api.enums.HatchElement.OutputBus;
+import static gregtech.api.enums.HatchElement.OutputHatch;
 import static gregtech.api.enums.Textures.BlockIcons.OVERLAY_MULTI_BLACKHOLE;
 import static gregtech.api.enums.Textures.BlockIcons.OVERLAY_MULTI_BLACKHOLE_ACTIVE;
 import static gregtech.api.enums.Textures.BlockIcons.OVERLAY_MULTI_BLACKHOLE_ACTIVE_GLOW;
@@ -136,7 +137,13 @@ public class MTEBlackHoleCompressor extends MTEExtendedPowerMultiBlockBase<MTEBl
         .addElement(
             'B',
             buildHatchAdder(MTEBlackHoleCompressor.class)
-                .atLeast(Energy.or(ExoticEnergy), InputBus, OutputBus, InputHatch, SpecialHatchElement.UtilityHatch)
+                .atLeast(
+                    Energy.or(ExoticEnergy),
+                    InputBus,
+                    OutputBus,
+                    InputHatch,
+                    OutputHatch,
+                    SpecialHatchElement.UtilityHatch)
                 .casingIndex(((BlockCasings10) GregTechAPI.sBlockCasings10).getTextureIndex(12))
                 .hint(1)
                 .buildAndChain(
@@ -427,7 +434,7 @@ public class MTEBlackHoleCompressor extends MTEExtendedPowerMultiBlockBase<MTEBl
             .addMiscHatch("0+", "Black Hole Utility Hatch", "Any absorbent casing", 1)
             .addEnergyHatch("1+", "Any absorbent casing", 1)
             .addInputAny("1+", "Any absorbent casing (inputs), the casing behind each laser (spacetime)", 1, 2)
-            .addOutputBus("1+", "Any absorbent casing", 1)
+            .addOutputAny("1+", "Any absorbent casing", 1)
             .toolTipFinisher(Ollie, "BucketBrigade");
         return tt;
     }
@@ -467,7 +474,7 @@ public class MTEBlackHoleCompressor extends MTEExtendedPowerMultiBlockBase<MTEBl
             }
         }
         checkHasAnyInput(errors);
-        checkHasOutputBus(errors);
+        checkHasAnyOutput(errors);
     }
 
     @Override

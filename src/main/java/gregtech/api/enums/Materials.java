@@ -529,6 +529,11 @@ public class Materials implements IColorModulationContainer, IOreMaterial {
     public static Materials DenseSteam;
     public static Materials DenseSuperheatedSteam;
     public static Materials DenseSupercriticalSteam;
+    public static Materials HeavyWater;
+    public static Materials HighPressureDistilledWater;
+    public static Materials HighPressureHeavyWater;
+    public static Materials HeavyWaterSteam;
+    public static Materials HighPressureHeavyWaterSteam;
     public static Materials OilExtraHeavy;
     public static Materials OilHeavy;
     public static Materials OilLight;

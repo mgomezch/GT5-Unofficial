@@ -277,6 +277,9 @@ import gregtech.common.tileentities.machines.multi.nanochip.modules.MTEPartProce
 import gregtech.common.tileentities.machines.multi.nanochip.modules.MTESplitterModule;
 import gregtech.common.tileentities.machines.multi.nanochip.modules.MTESuperconductorSplitterModule;
 import gregtech.common.tileentities.machines.multi.nanochip.modules.MTEWireTracerModule;
+import gregtech.common.tileentities.machines.multi.nuclear.MTEHatchNuclearBus;
+import gregtech.common.tileentities.machines.multi.nuclear.MTEHatchNuclearHatch;
+import gregtech.common.tileentities.machines.multi.nuclear.MTENuclearReactor;
 import gregtech.common.tileentities.machines.multi.pcb.MTEPCBBioChamber;
 import gregtech.common.tileentities.machines.multi.pcb.MTEPCBCoolingTower;
 import gregtech.common.tileentities.machines.multi.pcb.MTEPCBFactory;
@@ -3846,7 +3849,7 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
                 .setSlotsCount(1, 1)
                 .setSound(SoundResource.GTCEU_LOOP_COMPRESSOR)
                 .setOverlays("COMPRESSOR")
-                .setFluidSlots(true, false)
+                .setFluidSlots(true, true)
                 .build()
                 .getStackForm(1L));
 
@@ -3859,7 +3862,7 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
                 .setSlotsCount(1, 1)
                 .setSound(SoundResource.GTCEU_LOOP_COMPRESSOR)
                 .setOverlays("COMPRESSOR")
-                .setFluidSlots(true, false)
+                .setFluidSlots(true, true)
                 .build()
                 .getStackForm(1L));
 
@@ -3872,7 +3875,7 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
                 .setSlotsCount(1, 1)
                 .setSound(SoundResource.GTCEU_LOOP_COMPRESSOR)
                 .setOverlays("COMPRESSOR")
-                .setFluidSlots(true, false)
+                .setFluidSlots(true, true)
                 .build()
                 .getStackForm(1L));
 
@@ -3885,7 +3888,7 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
                 .setSlotsCount(1, 1)
                 .setSound(SoundResource.GTCEU_LOOP_COMPRESSOR)
                 .setOverlays("COMPRESSOR")
-                .setFluidSlots(true, false)
+                .setFluidSlots(true, true)
                 .build()
                 .getStackForm(1L));
 
@@ -3898,7 +3901,7 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
                 .setSlotsCount(1, 1)
                 .setSound(SoundResource.GTCEU_LOOP_COMPRESSOR)
                 .setOverlays("COMPRESSOR")
-                .setFluidSlots(true, false)
+                .setFluidSlots(true, true)
                 .build()
                 .getStackForm(1L));
 
@@ -3911,7 +3914,7 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
                 .setSlotsCount(1, 1)
                 .setSound(SoundResource.GTCEU_LOOP_COMPRESSOR)
                 .setOverlays("COMPRESSOR")
-                .setFluidSlots(true, false)
+                .setFluidSlots(true, true)
                 .build()
                 .getStackForm(1L));
 
@@ -3924,7 +3927,7 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
                 .setSlotsCount(1, 1)
                 .setSound(SoundResource.GTCEU_LOOP_COMPRESSOR)
                 .setOverlays("COMPRESSOR")
-                .setFluidSlots(true, false)
+                .setFluidSlots(true, true)
                 .build()
                 .getStackForm(1L));
 
@@ -3937,7 +3940,7 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
                 .setSlotsCount(1, 1)
                 .setSound(SoundResource.GTCEU_LOOP_COMPRESSOR)
                 .setOverlays("COMPRESSOR")
-                .setFluidSlots(true, false)
+                .setFluidSlots(true, true)
                 .build()
                 .getStackForm(1L));
 
@@ -3950,7 +3953,7 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
                 .setSlotsCount(1, 1)
                 .setSound(SoundResource.GTCEU_LOOP_COMPRESSOR)
                 .setOverlays("COMPRESSOR")
-                .setFluidSlots(true, false)
+                .setFluidSlots(true, true)
                 .build()
                 .getStackForm(1L));
 
@@ -3963,7 +3966,7 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
                 .setSlotsCount(1, 1)
                 .setSound(SoundResource.GTCEU_LOOP_COMPRESSOR)
                 .setOverlays("COMPRESSOR")
-                .setFluidSlots(true, false)
+                .setFluidSlots(true, true)
                 .build()
                 .getStackForm(1L));
 
@@ -3976,7 +3979,7 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
                 .setSlotsCount(1, 1)
                 .setSound(SoundResource.GTCEU_LOOP_COMPRESSOR)
                 .setOverlays("COMPRESSOR")
-                .setFluidSlots(true, false)
+                .setFluidSlots(true, true)
                 .build()
                 .getStackForm(1L));
 
@@ -3989,7 +3992,7 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
                 .setSlotsCount(1, 1)
                 .setSound(SoundResource.GTCEU_LOOP_COMPRESSOR)
                 .setOverlays("COMPRESSOR")
-                .setFluidSlots(true, false)
+                .setFluidSlots(true, true)
                 .build()
                 .getStackForm(1L));
 
@@ -8053,6 +8056,43 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
                 .getStackForm(1L));
     }
 
+    private static void registerNuclearReactor() {
+        ItemList.Hatch_Nuclear_Bus
+            .set(new MTEHatchNuclearBus(NUCLEAR_BUS.ID, "hatch.nuclear.bus", "Nuclear Bus", 4).getStackForm(1L));
+
+        ItemList.Hatch_Nuclear_LV.set(
+            new MTEHatchNuclearHatch(NUCLEAR_HATCH_LV.ID, "hatch.nuclear.fluid.tier.01", "Basic Nuclear Hatch", 1)
+                .getStackForm(1L));
+        ItemList.Hatch_Nuclear_MV.set(
+            new MTEHatchNuclearHatch(NUCLEAR_HATCH_MV.ID, "hatch.nuclear.fluid.tier.02", "Advanced Nuclear Hatch", 2)
+                .getStackForm(1L));
+        ItemList.Hatch_Nuclear_HV.set(
+            new MTEHatchNuclearHatch(NUCLEAR_HATCH_HV.ID, "hatch.nuclear.fluid.tier.03", "Turbo Nuclear Hatch", 3)
+                .getStackForm(1L));
+        ItemList.Hatch_Nuclear_EV.set(
+            new MTEHatchNuclearHatch(NUCLEAR_HATCH_EV.ID, "hatch.nuclear.fluid.tier.04", "Elite Nuclear Hatch", 4)
+                .getStackForm(1L));
+        ItemList.Hatch_Nuclear_IV.set(
+            new MTEHatchNuclearHatch(NUCLEAR_HATCH_IV.ID, "hatch.nuclear.fluid.tier.05", "Master Nuclear Hatch", 5)
+                .getStackForm(1L));
+        ItemList.Hatch_Nuclear_LuV.set(
+            new MTEHatchNuclearHatch(NUCLEAR_HATCH_LuV.ID, "hatch.nuclear.fluid.tier.06", "Ultimate Nuclear Hatch", 6)
+                .getStackForm(1L));
+        ItemList.Hatch_Nuclear_ZPM.set(
+            new MTEHatchNuclearHatch(NUCLEAR_HATCH_ZPM.ID, "hatch.nuclear.fluid.tier.07", "Epic Nuclear Hatch", 7)
+                .getStackForm(1L));
+        ItemList.Hatch_Nuclear_UV.set(
+            new MTEHatchNuclearHatch(NUCLEAR_HATCH_UV.ID, "hatch.nuclear.fluid.tier.08", "Legendary Nuclear Hatch", 8)
+                .getStackForm(1L));
+        ItemList.Hatch_Nuclear_UHV.set(
+            new MTEHatchNuclearHatch(NUCLEAR_HATCH_UHV.ID, "hatch.nuclear.fluid.tier.09", "Divine Nuclear Hatch", 9)
+                .getStackForm(1L));
+
+        ItemList.Machine_Nuclear_Reactor.set(
+            new MTENuclearReactor(NUCLEAR_REACTOR.ID, "multimachine.nuclearreactor", "Nuclear Fission Reactor")
+                .getStackForm(1L));
+    }
+
     private static void registerQuadrupleInputHatch() {
         ItemList.Hatch_Input_Multi_2x2_EV.set(
             new MTEHatchMultiInput(QUADRUPLE_INPUT_HATCHES_EV.ID, 4, "hatch.multi.input.tier.01", "", 4)
@@ -9365,6 +9405,7 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
         registerDynamoHatch();
         registerEnergyHatch();
         registerInputHatch();
+        registerNuclearReactor();
         registerQuadrupleInputHatch();
         registerOutputHatch();
         registerVoidHatch();

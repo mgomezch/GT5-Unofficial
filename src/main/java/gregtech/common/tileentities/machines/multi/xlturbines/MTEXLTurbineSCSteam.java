@@ -94,6 +94,9 @@ public class MTEXLTurbineSCSteam extends MTEXLTurbineBase {
             * (looseFit ? turbine.getOptimalLooseSteamFlow() : turbine.getOptimalSteamFlow());
         int remainingFlow = MathUtils.safeInt((long) (realOptFlow * 1.25f));
 
+        boolean isUsingDenseSteam = false;
+        boolean isUsingHPSCSteam = false;
+
         storedFluid = 0;
         FluidStack tSCSteam = FluidRegistry.getFluidStack("supercriticalsteam", 1);
         for (int i = 0; i < aFluids.size() && remainingFlow > 0; i++) {
@@ -104,7 +107,7 @@ public class MTEXLTurbineSCSteam extends MTEXLTurbineBase {
                 if (!hasConsumedSteam) {
                     hasConsumedSteam = true;
                     isUsingDenseSteam = false;
-                } else if (isUsingDenseSteam) {
+                } else if (isUsingDenseSteam || isUsingHPSCSteam) {
                     continue;
                 }
                 flow = Math.min(aFluids.get(i).amount, remainingFlow);
@@ -112,29 +115,44 @@ public class MTEXLTurbineSCSteam extends MTEXLTurbineBase {
                 storedFluid += flow;
                 remainingFlow -= flow;
                 totalFlow += flow;
-            } else if (fluidName.equals("fluid.densesupercriticalsteam")) {
-                if (!hasConsumedSteam) {
-                    hasConsumedSteam = true;
-                    isUsingDenseSteam = true;
-                } else if (!isUsingDenseSteam) {
-                    continue;
+            } else if (fluidName.equals("fluid.highpressureheavywatersteam")
+                || GTUtility.areFluidsEqual(aFluids.get(i), Materials.HighPressureHeavyWaterSteam.getGas(1), true)) {
+                    if (!hasConsumedSteam) {
+                        hasConsumedSteam = true;
+                        isUsingHPSCSteam = true;
+                    } else if (!isUsingHPSCSteam) {
+                        continue;
+                    }
+                    flow = Math.min(aFluids.get(i).amount, remainingFlow);
+                    depleteInput(new FluidStack(aFluids.get(i), flow));
+                    storedFluid += flow;
+                    remainingFlow -= flow;
+                    totalFlow += flow;
+                } else if (fluidName.equals("fluid.densesupercriticalsteam")) {
+                    if (!hasConsumedSteam) {
+                        hasConsumedSteam = true;
+                        isUsingDenseSteam = true;
+                    } else if (!isUsingDenseSteam) {
+                        continue;
+                    }
+                    denseFlow = Math
+                        .min(aFluids.get(i).amount, MathUtils.safeInt((long) Math.ceil(remainingFlow / 1000.0d)));
+                    if (denseFlow <= 0) {
+                        continue;
+                    }
+                    int effectiveFlow = Math.min(remainingFlow, denseFlow * 1000);
+                    depleteInput(new FluidStack(aFluids.get(i), denseFlow));
+                    storedFluid += denseFlow;
+                    remainingFlow -= effectiveFlow;
+                    totalFlow += effectiveFlow;
+                    steamFlowForNextSteam += denseFlow;
                 }
-                denseFlow = Math
-                    .min(aFluids.get(i).amount, MathUtils.safeInt((long) Math.ceil(remainingFlow / 1000.0d)));
-                if (denseFlow <= 0) {
-                    continue;
-                }
-                int effectiveFlow = Math.min(remainingFlow, denseFlow * 1000);
-                depleteInput(new FluidStack(aFluids.get(i), denseFlow));
-                storedFluid += denseFlow;
-                remainingFlow -= effectiveFlow;
-                totalFlow += effectiveFlow;
-                steamFlowForNextSteam += denseFlow;
-            }
         }
         if (totalFlow <= 0) return 0;
         tEU = totalFlow;
-        if (isUsingDenseSteam) {
+        if (isUsingHPSCSteam) {
+            addOutputPartial(Materials.HeavyWaterSteam.getGas(totalFlow));
+        } else if (isUsingDenseSteam) {
             addOutputPartial(Materials.DenseSuperheatedSteam.getGas((long) steamFlowForNextSteam));
         } else {
             addOutputPartial(FluidRegistry.getFluidStack("ic2superheatedsteam", totalFlow));

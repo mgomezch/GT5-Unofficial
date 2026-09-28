@@ -344,5 +344,21 @@ public class CompressorRecipes implements Runnable {
             .duration(15 * SECONDS)
             .eut(2)
             .addTo(compressorRecipes);
+
+        // Pressurize Distilled Water -> High-Pressure Distilled Water
+        GTValues.RA.stdBuilder()
+            .fluidInputs(GTModHandler.getDistilledWater(1_000))
+            .fluidOutputs(Materials.HighPressureDistilledWater.getFluid(1_000))
+            .duration(10 * SECONDS)
+            .eut(TierEU.RECIPE_EV)
+            .addTo(compressorRecipes);
+
+        // Pressurize Heavy Water -> High-Pressure Heavy Water
+        GTValues.RA.stdBuilder()
+            .fluidInputs(Materials.HeavyWater.getFluid(1_000))
+            .fluidOutputs(Materials.HighPressureHeavyWater.getFluid(1_000))
+            .duration(10 * SECONDS)
+            .eut(TierEU.RECIPE_LuV)
+            .addTo(compressorRecipes);
     }
 }

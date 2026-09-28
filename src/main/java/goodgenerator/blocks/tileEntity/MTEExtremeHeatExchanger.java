@@ -328,7 +328,7 @@ public class MTEExtremeHeatExchanger extends TTMultiblockBase implements ISurviv
     public double getUnitSteamPower(String steam) {
         return switch (steam) {
             case "steam" -> 0.5;
-            case "ic2superheatedsteam", "supercriticalsteam", "densesupercriticalsteam" -> 1;
+            case "ic2superheatedsteam", "supercriticalsteam", "densesupercriticalsteam", "heavywatersteam", "fluid.heavywatersteam", "highpressureheavywatersteam", "fluid.highpressureheavywatersteam" -> 1;
             default -> -1;
         };
     }

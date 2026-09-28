@@ -6906,5 +6906,52 @@ public class AssemblerRecipes implements Runnable {
             .duration(5 * SECONDS)
             .eut(4)
             .addTo(assemblerRecipes);
+
+        // Modular Nuclear Reactor
+        GTValues.RA.stdBuilder()
+            .itemInputs(
+                ItemList.Hull_EV.get(1L),
+                ItemList.Casing_RadiationProof.get(4L),
+                GTOreDictUnificator.get(OrePrefixes.circuit, Materials.EV, 2L),
+                GTOreDictUnificator.get(OrePrefixes.plateDense, Materials.Lead, 4L),
+                ItemList.Sensor_EV.get(2L),
+                ItemList.Emitter_EV.get(2L))
+            .circuit(1)
+            .itemOutputs(ItemList.Machine_Nuclear_Reactor.get(1L))
+            .fluidInputs(Materials.Polytetrafluoroethylene.getMolten(4 * INGOTS))
+            .duration(30 * SECONDS)
+            .eut(TierEU.RECIPE_EV)
+            .addTo(assemblerRecipes);
+
+        // Nuclear Bus
+        GTValues.RA.stdBuilder()
+            .itemInputs(
+                ItemList.Casing_RadiationProof.get(1L),
+                ItemList.Hatch_Input_Bus_HV.get(1L),
+                ItemList.Hatch_Output_Bus_HV.get(1L),
+                GTOreDictUnificator.get(OrePrefixes.circuit, Materials.HV, 2L),
+                GTOreDictUnificator.get(OrePrefixes.plateDense, Materials.Lead, 2L))
+            .circuit(1)
+            .itemOutputs(ItemList.Hatch_Nuclear_Bus.get(1L))
+            .fluidInputs(Materials.Polytetrafluoroethylene.getMolten(2 * INGOTS))
+            .duration(20 * SECONDS)
+            .eut(TierEU.RECIPE_HV)
+            .addTo(assemblerRecipes);
+
+        // Nuclear Hatches (LV to UHV)
+        for (int t = 1; t <= 9; t++) {
+            GTValues.RA.stdBuilder()
+                .itemInputs(
+                    ItemList.HATCHES_INPUT[t].get(1L),
+                    ItemList.HATCHES_OUTPUT[t].get(1L),
+                    ItemList.Casing_RadiationProof.get(1L),
+                    GTOreDictUnificator.get(OrePrefixes.plateDense, Materials.Lead, 1L))
+                .circuit(1)
+                .itemOutputs(ItemList.HATCHES_NUCLEAR[t - 1].get(1L))
+                .fluidInputs(Materials.Polytetrafluoroethylene.getMolten(1 * INGOTS))
+                .duration(15 * SECONDS)
+                .eut(GTValues.VP[t])
+                .addTo(assemblerRecipes);
+        }
     }
 }

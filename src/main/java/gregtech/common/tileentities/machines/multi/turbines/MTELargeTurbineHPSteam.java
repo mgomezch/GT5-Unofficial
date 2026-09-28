@@ -100,6 +100,15 @@ public class MTELargeTurbineHPSteam extends MTELargeTurbineBase {
         return tt;
     }
 
+    public int excessHeavyWater = 0;
+
+    private int condenseHeavyWater(int steam) {
+        excessHeavyWater += steam;
+        int water = excessHeavyWater / gregtech.api.enums.GTValues.STEAM_PER_WATER;
+        excessHeavyWater %= gregtech.api.enums.GTValues.STEAM_PER_WATER;
+        return water;
+    }
+
     @Override
     public int fluidIntoPower(ArrayList<FluidStack> aFluids, TurbineStatCalculator turbine) {
         int tEU = 0;
@@ -111,14 +120,20 @@ public class MTELargeTurbineHPSteam extends MTELargeTurbineBase {
         int remainingFlow = GTUtility.safeInt((long) (realOptFlow * (0.5f * turbine.getOverflowEfficiency() + 1.5)));
 
         storedFluid = 0;
+        int totalFlowSteam = 0;
+        int totalFlowHeavyWaterSteam = 0;
+
         for (int i = 0; i < aFluids.size() && remainingFlow > 0; i++) {
             final FluidStack aFluidStack = aFluids.get(i);
+            if (aFluidStack == null) continue;
+            boolean isHeavyWaterSteam = aFluidStack.isFluidEqual(Materials.HeavyWaterSteam.getGas(1));
             if (GTModHandler.isSuperHeatedSteam(aFluidStack)) {
                 flow = Math.min(aFluidStack.amount, remainingFlow);
                 depleteInput(new FluidStack(aFluidStack, flow));
                 this.storedFluid += aFluidStack.amount;
                 remainingFlow -= flow;
                 totalFlow += flow;
+                totalFlowSteam += flow;
                 if (!achievement) {
                     try {
                         GTMod.achievements.issueAchievement(
@@ -131,6 +146,13 @@ public class MTELargeTurbineHPSteam extends MTELargeTurbineBase {
                     } catch (Exception ignored) {}
                     achievement = true;
                 }
+            } else if (isHeavyWaterSteam) {
+                flow = Math.min(aFluidStack.amount, remainingFlow);
+                depleteInput(new FluidStack(aFluidStack, flow));
+                this.storedFluid += aFluidStack.amount;
+                remainingFlow -= flow;
+                totalFlow += flow;
+                totalFlowHeavyWaterSteam += flow;
             } else if (GTModHandler.isAnySteam(aFluidStack)) {
                 // Consume regular steam as waste but don't count it toward power
                 depleteInput(new FluidStack(aFluidStack, aFluidStack.amount));
@@ -141,7 +163,15 @@ public class MTELargeTurbineHPSteam extends MTELargeTurbineBase {
 
         tEU = totalFlow;
         // HP steam outputs regular steam instead of distilled water
-        addOutputPartial(Materials.Steam.getGas(totalFlow));
+        if (totalFlowSteam > 0) {
+            addOutputPartial(Materials.Steam.getGas(totalFlowSteam));
+        }
+        if (totalFlowHeavyWaterSteam > 0) {
+            int waterToOutput = condenseHeavyWater(totalFlowHeavyWaterSteam);
+            if (waterToOutput > 0) {
+                addOutputPartial(Materials.HeavyWater.getFluid(waterToOutput));
+            }
+        }
 
         if (totalFlow == GTUtility.safeInt((long) realOptFlow)) {
             tEU = GTUtility
