@@ -407,4 +407,63 @@ public class NuclearSimulationEngineTest {
         boolean refilled = hatch.refillCoolant();
         assertTrue(refilled, "IC2 coolant must never trigger thermal shock explosion when refilling dry hot hatch");
     }
+
+    @Test
+    void testBetavoltaicGenerationAndSaturation() {
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile cellHV = new gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile(
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.BETAVOLTAIC_HV);
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile cellEV = new gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile(
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.BETAVOLTAIC_EV);
+
+        // 1. Check absorption properties
+        assertEquals(1.0, cellHV.getAbsorptionProbability(NeutronType.FAST));
+        assertEquals(1.0, cellHV.getAbsorptionProbability(NeutronType.THERMAL));
+        assertEquals(0.0, cellHV.getScatteringProbability(NeutronType.FAST));
+        assertEquals(0.0, cellHV.getModerationProbability());
+
+        // 2. Feed fast vs thermal neutrons and check 4x weight
+        cellHV.onNeutronAbsorbed(NeutronType.FAST, 10);
+        cellHV.nuclearTick(1.0);
+        long fastEU = cellHV.getDirectEUProduced();
+
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile cellHVThermal = new gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile(
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.BETAVOLTAIC_HV);
+        cellHVThermal.onNeutronAbsorbed(NeutronType.THERMAL, 10);
+        cellHVThermal.nuclearTick(1.0);
+        long thermalEU = cellHVThermal.getDirectEUProduced();
+
+        assertTrue(fastEU > thermalEU * 2, "Fast neutrons must generate significantly more EU than thermal neutrons");
+
+        // 3. Saturation: HV caps around 1024 EU/t (2A HV)
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile cellHVSat = new gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile(
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.BETAVOLTAIC_HV);
+        cellHVSat.onNeutronAbsorbed(NeutronType.FAST, 1000);
+        cellHVSat.nuclearTick(1.0);
+        assertEquals(1024, cellHVSat.getDirectEUProduced(), "HV Betavoltaic cell must cap at 1024 EU/t (2A HV)");
+        assertTrue(cellHVSat.getTemperature() > 24.0, "Excess energy beyond saturation must convert into heat");
+
+        // 4. EV caps around 4096 EU/t (2A EV)
+        cellEV.onNeutronAbsorbed(NeutronType.FAST, 1000);
+        cellEV.nuclearTick(1.0);
+        assertEquals(4096, cellEV.getDirectEUProduced(), "EV Betavoltaic cell must cap at 4096 EU/t (2A EV)");
+
+        // 5. Grid integration test with fuel and betavoltaic
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid grid = new gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid(
+            3,
+            3,
+            NuclearSimulationEngine.PIPE_TIER_ELECTRUM);
+        grid.setTile(
+            1,
+            1,
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.FUEL_URANIUM_QUAD);
+        grid.setTile(
+            0,
+            1,
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.BETAVOLTAIC_EV);
+        grid.step();
+
+        assertTrue(grid.getFlowDirectEU() > 0, "Grid must accumulate Betavoltaic direct EU");
+        assertEquals(grid.getFlowDirectEU(), grid.getLastPowerResult().directPowerEUt);
+        assertEquals(grid.getFlowDirectEU(), grid.getLastPowerResult().totalPowerEUt);
+    }
 }

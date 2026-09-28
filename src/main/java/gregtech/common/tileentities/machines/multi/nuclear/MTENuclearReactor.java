@@ -10,6 +10,8 @@ import static gregtech.api.casing.Casings.OsmiumItemPipeCasing;
 import static gregtech.api.casing.Casings.PlatinumItemPipeCasing;
 import static gregtech.api.casing.Casings.QuantiumItemPipeCasing;
 import static gregtech.api.casing.Casings.RadiationProofMachineCasing;
+import static gregtech.api.enums.HatchElement.Dynamo;
+import static gregtech.api.enums.HatchElement.ExoticDynamo;
 import static gregtech.api.enums.HatchElement.Maintenance;
 import static gregtech.api.util.GTStructureUtility.buildHatchAdder;
 import static gregtech.api.util.GTStructureUtility.ofHatchAdder;
@@ -92,6 +94,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     public int mThermalAbsorbed = 0;
     public int mEscapedNeutrons = 0;
     public double mEfficiency = 1.0;
+    public long mDirectPowerEUt = 0;
 
     @Nullable
     public static Integer getPipeTierFromBlock(Block block, int meta) {
@@ -209,7 +212,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                 .addElement(
                     'c',
                     ofChain(
-                        buildHatchAdder(MTENuclearReactor.class).atLeast(Maintenance)
+                        buildHatchAdder(MTENuclearReactor.class).atLeast(Maintenance, Dynamo.or(ExoticDynamo))
                             .casingIndex(CASING_INDEX)
                             .build(),
                         RadiationProofMachineCasing.asElement()))
@@ -246,6 +249,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             .addInfo(" - Quantium: Heavy Water -> Heavy Water Steam (Max 2200 °C)")
             .addInfo(" - Fluxed Electrum: HP Heavy Water -> HW Supercritical Steam (Max 2600 °C)")
             .addInfo(" - Black Plutonium: All coolants supported (Max 3200 °C)")
+            .addInfo("Accepts Dynamo and Multi-Amp Dynamo Hatches for direct Betavoltaic EU output")
+            .addInfo(" - Betavoltaic Cells convert absorbed neutron flux directly to EU (HV 2A, EV 2A)")
             .addInfo(EnumChatFormatting.RED + "WARNING: Regular water does not work!")
             .addInfo(EnumChatFormatting.RED + "WARNING: Adding water to a dry running hatch causes an explosion!")
             .addInfo(EnumChatFormatting.RED + "WARNING: Core melts down if temperature exceeds casing rating!")
@@ -258,6 +263,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                 false)
             .addOtherStructurePart("Nuclear Bus / Hatch", "Top layer core positions", 1)
             .addMaintenanceHatch("Any outer casing", 1)
+            .addDynamoHatch("Any outer casing (Optional for Betavoltaic direct EU)", 1)
             .toolTipFinisher(EnumChatFormatting.AQUA + "GTNH x Modern Industrialization");
         return tt;
     }
@@ -418,8 +424,13 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     public void onPostTick(IGregTechTileEntity aBaseMetaTileEntity, long aTick) {
         super.onPostTick(aBaseMetaTileEntity, aTick);
 
-        if (aBaseMetaTileEntity.isServerSide() && mMachine && mGrid != null && (aTick % 20 == 0)) {
-            updateNuclearTilesPipeTier();
+        if (aBaseMetaTileEntity.isServerSide() && mMachine) {
+            if (mDirectPowerEUt > 0) {
+                addEnergyOutputMultipleDynamos(mDirectPowerEUt, true);
+            }
+
+            if (mGrid != null && (aTick % 20 == 0)) {
+                updateNuclearTilesPipeTier();
 
             // Check dry hatch coolant injection
             boolean hasHighPressureCoolant = false;
@@ -464,6 +475,18 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             mEscapedNeutrons = res.neutronsEscaped;
             mEfficiency = NuclearSimulationEngine.calculateEfficiency(mAvgTemp);
 
+            // Sum direct EU from betavoltaic cells across the grid
+            long directEU = 0;
+            for (int x = 0; x < gridSize; x++) {
+                for (int y = 0; y < gridSize; y++) {
+                    INuclearTile tile = mGrid[x][y];
+                    if (tile instanceof MTEHatchNuclearBus bus) {
+                        directEU += bus.mDirectEUProduced;
+                    }
+                }
+            }
+            mDirectPowerEUt = directEU;
+
             // Check casing-dependent maximum operating temperature
             double maxTemp = NuclearSimulationEngine.getMaxOperatingTemperature(mPipeTier);
             if (mCoreTemp > maxTemp) {
@@ -477,6 +500,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             }
         }
     }
+}
 
     @Override
     public void saveNBTData(NBTTagCompound aNBT) {
@@ -486,6 +510,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         aNBT.setInteger("gridSize", gridSize);
         aNBT.setInteger("coreDimension", coreDimension);
         aNBT.setInteger("mPipeTier", mPipeTier);
+        aNBT.setLong("mDirectPowerEUt", mDirectPowerEUt);
     }
 
     @Override
@@ -496,6 +521,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         gridSize = aNBT.getInteger("gridSize");
         coreDimension = aNBT.getInteger("coreDimension");
         mPipeTier = aNBT.getInteger("mPipeTier");
+        mDirectPowerEUt = aNBT.getLong("mDirectPowerEUt");
     }
 
     @Override
@@ -535,7 +561,10 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                     .setDefaultColor(Color.rgb(200, 200, 200))
                     .setPos(12, 53))
             .widget(
-                new TextWidget().setStringSupplier(() -> "Pipes: " + getPipeTierName(mPipeTier))
+                new TextWidget().setStringSupplier(
+                    () -> (mDirectPowerEUt > 0)
+                        ? String.format("Pipes: %s | Beta: %d EU/t", getPipeTierName(mPipeTier), mDirectPowerEUt)
+                        : "Pipes: " + getPipeTierName(mPipeTier))
                     .setDefaultColor(Color.rgb(180, 220, 180))
                     .setPos(12, 64))
             .widget(new TextWidget().setStringSupplier(() -> {

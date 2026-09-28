@@ -514,6 +514,27 @@ public class NuclearSimulationCLI {
         sb.append("\"powerEUt\":")
             .append(String.format(java.util.Locale.US, "%.1f", power))
             .append(",");
+        sb.append("\"directPowerEUt\":")
+            .append(String.format(java.util.Locale.US, "%.1f", p != null ? p.directPowerEUt : 0.0))
+            .append(",");
+        sb.append("\"totalTurbinesNeeded\":")
+            .append(String.format(java.util.Locale.US, "%.2f", p != null ? (p.xlstTurbinesNeeded + p.xlstHpTurbinesNeeded + p.xlstScTurbinesNeeded) : 0.0))
+            .append(",");
+        sb.append("\"xlstTurbinesNeeded\":")
+            .append(String.format(java.util.Locale.US, "%.2f", p != null ? p.xlstTurbinesNeeded : 0.0))
+            .append(",");
+        sb.append("\"xlstHpTurbinesNeeded\":")
+            .append(String.format(java.util.Locale.US, "%.2f", p != null ? p.xlstHpTurbinesNeeded : 0.0))
+            .append(",");
+        sb.append("\"xlstScTurbinesNeeded\":")
+            .append(String.format(java.util.Locale.US, "%.2f", p != null ? p.xlstScTurbinesNeeded : 0.0))
+            .append(",");
+        sb.append("\"eheMode\":\"")
+            .append(p != null ? p.eheMode : "Inactive")
+            .append("\",");
+        sb.append("\"eheSteamProduced\":")
+            .append(String.format(java.util.Locale.US, "%.1f", p != null ? p.eheSteamProduced : 0.0))
+            .append(",");
         sb.append("\"voltageTier\":\"")
             .append(getVoltageTier(power))
             .append("\",");
@@ -800,6 +821,11 @@ public class NuclearSimulationCLI {
                 System.out.println(
                     "    - XLST Power:       "
                         + String.format("%.1f EU/t (%.2f turbines needed)", p.xlstPowerEUt, p.xlstTurbinesNeeded));
+            }
+            if (p.directPowerEUt > 0) {
+                System.out.println(
+                    "    - Betavoltaic Direct EU: "
+                        + String.format("%.1f EU/t (%s)", p.directPowerEUt, getVoltageTier(p.directPowerEUt)));
             }
             if (!"NONE".equals(p.eheMode)) {
                 System.out.println(

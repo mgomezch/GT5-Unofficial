@@ -48,6 +48,7 @@ public class StandaloneNuclearGrid {
     private double flowHeavyWaterSteam = 0;
     private double flowHPHeavyWaterSteam = 0;
     private double flowHotCoolant = 0;
+    private double flowDirectEU = 0;
 
     private TurbineCalculator.PowerEstimationResult lastPowerResult = new TurbineCalculator.PowerEstimationResult();
 
@@ -327,6 +328,7 @@ public class StandaloneNuclearGrid {
         flowHeavyWaterSteam = 0;
         flowHPHeavyWaterSteam = 0;
         flowHotCoolant = 0;
+        flowDirectEU = 0;
 
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
@@ -334,6 +336,7 @@ public class StandaloneNuclearGrid {
                 cumSteam += tile.getTotalSteamProduced();
                 dCount += tile.getTotalDeuteriumProduced();
                 tCount += tile.getTotalTritiumProduced();
+                flowDirectEU += tile.getDirectEUProduced();
 
                 int tickProduced = tile.getLastTickProduced();
                 if (tickProduced > 0) {
@@ -360,6 +363,7 @@ public class StandaloneNuclearGrid {
             flowHeavyWaterSteam,
             flowHPHeavyWaterSteam,
             flowHotCoolant,
+            flowDirectEU,
             turbineMaterial,
             turbineSize,
             turbineFitting);
@@ -755,6 +759,10 @@ public class StandaloneNuclearGrid {
 
     public double getFlowHotCoolant() {
         return flowHotCoolant;
+    }
+
+    public double getFlowDirectEU() {
+        return flowDirectEU;
     }
 
     public TurbineCalculator.PowerEstimationResult getLastPowerResult() {

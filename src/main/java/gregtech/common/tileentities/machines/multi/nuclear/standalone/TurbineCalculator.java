@@ -106,6 +106,7 @@ public class TurbineCalculator {
         public double xlstPowerEUt = 0;
         public double xlstHpPowerEUt = 0;
         public double xlstScPowerEUt = 0;
+        public double directPowerEUt = 0;
 
         public String eheMode = "Inactive";
         public double eheSteamProduced = 0;
@@ -121,7 +122,7 @@ public class TurbineCalculator {
 
     public static PowerEstimationResult calculatePower(double regularSteamFlow, double superheatedSteamFlow,
         double supercriticalSteamFlow, double heavyWaterSteamFlow, double hpHeavyWaterSteamFlow, double hotCoolantFlow,
-        TurbineMaterial material, TurbineSize size, FittingMode mode) {
+        double directPowerEU, TurbineMaterial material, TurbineSize size, FittingMode mode) {
         PowerEstimationResult res = new PowerEstimationResult();
 
         boolean isTight = (mode == FittingMode.TIGHT);
@@ -175,7 +176,24 @@ public class TurbineCalculator {
             res.xlstTurbinesNeeded = (res.optFlowPerTurbine > 0) ? (regularSteamFlow / res.optFlowPerTurbine) : 0;
         }
 
-        res.totalPowerEUt = res.xlstScPowerEUt + res.xlstHpPowerEUt + res.xlstPowerEUt;
+        res.directPowerEUt = directPowerEU;
+        res.totalPowerEUt = res.xlstScPowerEUt + res.xlstHpPowerEUt + res.xlstPowerEUt + directPowerEU;
         return res;
+    }
+
+    public static PowerEstimationResult calculatePower(double regularSteamFlow, double superheatedSteamFlow,
+        double supercriticalSteamFlow, double heavyWaterSteamFlow, double hpHeavyWaterSteamFlow, double hotCoolantFlow,
+        TurbineMaterial material, TurbineSize size, FittingMode mode) {
+        return calculatePower(
+            regularSteamFlow,
+            superheatedSteamFlow,
+            supercriticalSteamFlow,
+            heavyWaterSteamFlow,
+            hpHeavyWaterSteamFlow,
+            hotCoolantFlow,
+            0.0,
+            material,
+            size,
+            mode);
     }
 }

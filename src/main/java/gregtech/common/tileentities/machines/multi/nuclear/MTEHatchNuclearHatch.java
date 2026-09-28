@@ -356,18 +356,22 @@ public class MTEHatchNuclearHatch extends MTEHatch implements INuclearTile {
             String name = mInputFluid.getFluid()
                 .getName()
                 .toLowerCase();
+            boolean isHP = name.contains("highpressure");
+            int chance = isHP ? Math.min(100, count * 10) : Math.min(100, count * 5);
+            int yield = isHP ? 2 : 1;
+
             if (name.contains("distilledwater")) {
-                if (getRandomNumber(100) < Math.min(100, count * 5)) {
+                if (getRandomNumber(100) < chance) {
                     mInputFluid.amount -= 1;
                     if (mInputFluid.amount <= 0) mInputFluid = null;
-                    addOutputFluid("deuterium", 1);
+                    addOutputFluid("deuterium", yield);
                     markTileDirty();
                 }
             } else if (name.contains("heavywater")) {
-                if (getRandomNumber(100) < Math.min(100, count * 5)) {
+                if (getRandomNumber(100) < chance) {
                     mInputFluid.amount -= 1;
                     if (mInputFluid.amount <= 0) mInputFluid = null;
-                    addOutputFluid("tritium", 1);
+                    addOutputFluid("tritium", yield);
                     markTileDirty();
                 }
             }
@@ -410,7 +414,7 @@ public class MTEHatchNuclearHatch extends MTEHatch implements INuclearTile {
         if (name.contains("highpressureheavywater") && !name.contains("steam")) {
             minOperatingTemp = NuclearSimulationEngine.hpWaterBoilingPoint;
             heatPerMB = NuclearSimulationEngine.coolingHeatPerLiter * 4.0;
-            steamRatio = 160;
+            steamRatio = 320;
             outputFluidName = "fluid.highpressureheavywatersteam";
         } else if (name.contains("heavywater") && !name.contains("steam")) {
             minOperatingTemp = 100.0;
@@ -420,7 +424,7 @@ public class MTEHatchNuclearHatch extends MTEHatch implements INuclearTile {
         } else if (name.contains("highpressuredistilledwater") && !name.contains("steam")) {
             minOperatingTemp = NuclearSimulationEngine.hpWaterBoilingPoint;
             heatPerMB = NuclearSimulationEngine.coolingHeatPerLiter * 2.0;
-            steamRatio = 160;
+            steamRatio = 320;
             outputFluidName = "ic2superheatedsteam";
         } else if (name.contains("distilledwater")) {
             minOperatingTemp = 100.0;

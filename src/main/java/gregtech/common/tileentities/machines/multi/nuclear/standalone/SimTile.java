@@ -35,7 +35,9 @@ public class SimTile implements INuclearTile {
         CONTROL_ROD("Boron Control Rod", "CR"),
         COOLANT_CELL_10K("10k Coolant Cell", "C1"),
         COOLANT_CELL_60K("60k Coolant Cell", "C6"),
-        COOLANT_CELL_360K("360k Coolant Cell", "C3");
+        COOLANT_CELL_360K("360k Coolant Cell", "C3"),
+        BETAVOLTAIC_HV("Betavoltaic Cell (HV)", "BH"),
+        BETAVOLTAIC_EV("Betavoltaic Cell (EV)", "BV");
 
         public final String displayName;
         public final String code;
@@ -89,6 +91,13 @@ public class SimTile implements INuclearTile {
     private int maxCellHeat = 0;
     private int currentCellHeat = 0;
 
+    // Betavoltaic direct EU state
+    private long directEUProduced = 0;
+
+    public long getDirectEUProduced() {
+        return directEUProduced;
+    }
+
     // Transient flux stats
     private int fastFlux = 0;
     private int thermalFlux = 0;
@@ -115,6 +124,7 @@ public class SimTile implements INuclearTile {
         this.totalTritiumProduced = 0;
         this.lastThermalAbsorbed = 0;
         this.durabilityLossAccumulator = 0.0;
+        this.directEUProduced = 0;
 
         switch (this.type) {
             case FUEL_URANIUM_SINGLE, FUEL_URANIUM_DUAL, FUEL_URANIUM_QUAD -> {
@@ -215,9 +225,14 @@ public class SimTile implements INuclearTile {
             case HATCH_DISTILLED_WATER, HATCH_HP_DISTILLED_WATER, HATCH_HEAVY_WATER, HATCH_HP_HEAVY_WATER -> 0.25;
             case COOLANT_CELL_10K, COOLANT_CELL_60K, COOLANT_CELL_360K -> 0.40;
             case REFLECTOR_BERYLLIUM, REFLECTOR_CARBON -> 0.15;
+            case BETAVOLTAIC_HV, BETAVOLTAIC_EV -> 0.10;
             case FUEL_URANIUM_SINGLE, FUEL_URANIUM_DUAL, FUEL_URANIUM_QUAD, FUEL_MOX_SINGLE, FUEL_MOX_DUAL, FUEL_MOX_QUAD, FUEL_THORIUM_SINGLE, FUEL_THORIUM_DUAL, FUEL_THORIUM_QUAD, FUEL_NAQUADAH -> 0.05;
             default -> 0.02;
         };
+    }
+
+    public boolean isBetavoltaic() {
+        return type == TileType.BETAVOLTAIC_HV || type == TileType.BETAVOLTAIC_EV;
     }
 
     @Override
@@ -265,6 +280,9 @@ public class SimTile implements INuclearTile {
 
     @Override
     public double getAbsorptionProbability(NeutronType nType) {
+        if (isBetavoltaic()) {
+            return 1.0;
+        }
         if (type == TileType.CONTROL_ROD) {
             return (nType == NeutronType.THERMAL) ? 0.95 : 0.85;
         }
@@ -289,6 +307,9 @@ public class SimTile implements INuclearTile {
 
     @Override
     public double getScatteringProbability(NeutronType nType) {
+        if (isBetavoltaic()) {
+            return 0.0;
+        }
         if (type == TileType.REFLECTOR_BERYLLIUM || type == TileType.REFLECTOR_CARBON) {
             return 0.95;
         }
@@ -307,6 +328,9 @@ public class SimTile implements INuclearTile {
 
     @Override
     public double getModerationProbability() {
+        if (isBetavoltaic()) {
+            return 0.0;
+        }
         if (type == TileType.REFLECTOR_BERYLLIUM || type == TileType.REFLECTOR_CARBON) {
             return 0.65;
         }
@@ -335,14 +359,20 @@ public class SimTile implements INuclearTile {
         // Fast neutron capture transmutation
         if (nType == NeutronType.FAST && isHatch() && inputFluidAmount > 0) {
             if (type == TileType.HATCH_DISTILLED_WATER || type == TileType.HATCH_HP_DISTILLED_WATER) {
-                if (RAND.nextInt(100) < Math.min(100, count * 5)) {
+                boolean isHP = (type == TileType.HATCH_HP_DISTILLED_WATER);
+                int chance = isHP ? Math.min(100, count * 10) : Math.min(100, count * 5);
+                int yield = isHP ? 2 : 1;
+                if (RAND.nextInt(100) < chance) {
                     inputFluidAmount -= 1;
-                    totalDeuteriumProduced += 1;
+                    totalDeuteriumProduced += yield;
                 }
             } else if (type == TileType.HATCH_HEAVY_WATER || type == TileType.HATCH_HP_HEAVY_WATER) {
-                if (RAND.nextInt(100) < Math.min(100, count * 5)) {
+                boolean isHP = (type == TileType.HATCH_HP_HEAVY_WATER);
+                int chance = isHP ? Math.min(100, count * 10) : Math.min(100, count * 5);
+                int yield = isHP ? 2 : 1;
+                if (RAND.nextInt(100) < chance) {
                     inputFluidAmount -= 1;
-                    totalTritiumProduced += 1;
+                    totalTritiumProduced += yield;
                 }
             }
         }
@@ -375,6 +405,22 @@ public class SimTile implements INuclearTile {
                     depleted = true;
                 }
             }
+        }
+
+        // Betavoltaic direct EU generation & excess heat
+        if (isBetavoltaic()) {
+            long maxEU = (type == TileType.BETAVOLTAIC_EV) ? 4096 : 1024;
+            double weightedFlux = fastAbsorbed * 4.0 + thermalAbsorbed * 1.0;
+            double satFlux = 60.0;
+            long genEU = (long) Math.round(maxEU * Math.tanh(weightedFlux / satFlux));
+            this.directEUProduced = genEU;
+            double totalEnergy = weightedFlux * 20.0;
+            double excessHeat = Math.max(0.0, totalEnergy - genEU);
+            if (excessHeat > 0.0) {
+                addHeat(excessHeat);
+            }
+        } else {
+            this.directEUProduced = 0;
         }
 
         fastFlux = 0;
@@ -448,12 +494,12 @@ public class SimTile implements INuclearTile {
                     case HATCH_HP_HEAVY_WATER -> {
                         boilingPoint = NuclearSimulationEngine.hpWaterBoilingPoint;
                         heatPerL = NuclearSimulationEngine.coolingHeatPerLiter * 4.0;
-                        steamRatio = 160;
+                        steamRatio = 320;
                     }
                     case HATCH_HP_DISTILLED_WATER -> {
                         boilingPoint = NuclearSimulationEngine.hpWaterBoilingPoint;
                         heatPerL = NuclearSimulationEngine.coolingHeatPerLiter * 2.0;
-                        steamRatio = 160;
+                        steamRatio = 320;
                     }
                     case HATCH_HEAVY_WATER -> {
                         boilingPoint = 100.0;

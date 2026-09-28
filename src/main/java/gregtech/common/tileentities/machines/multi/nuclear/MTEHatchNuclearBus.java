@@ -42,6 +42,7 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
     public int mFastAbsorbed = 0;
     public int mThermalAbsorbed = 0;
     public int mLastNeutronsGenerated = 0;
+    public long mDirectEUProduced = 0;
 
     private final IReactor mDummyReactor = new DummyReactor(this);
 
@@ -158,6 +159,7 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
     public double getHeatTransferCoeff() {
         ItemStack stack = mInventory[SLOT_INPUT];
         if (stack == null) return 0.02;
+        if (isBetavoltaic()) return 0.10;
         String name = stack.getUnlocalizedName()
             .toLowerCase();
         if (name.contains("coolant") || name.contains("vent")) return 0.40;
@@ -165,6 +167,23 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
         if (name.contains("fuel") || name.contains("uranium") || name.contains("mox") || name.contains("thorium"))
             return 0.05;
         return 0.03;
+    }
+
+    public boolean isBetavoltaic() {
+        ItemStack stack = mInventory[SLOT_INPUT];
+        if (stack == null) return false;
+        String name = stack.getUnlocalizedName()
+            .toLowerCase();
+        return name.contains("betavoltaic") || name.contains("betacell") || name.contains("neutronovoltaic");
+    }
+
+    public int getBetavoltaicTier() {
+        ItemStack stack = mInventory[SLOT_INPUT];
+        if (stack == null) return 0;
+        String name = stack.getUnlocalizedName()
+            .toLowerCase();
+        if (name.contains("ev") || name.contains("extreme") || name.contains("tier2") || name.contains("t2")) return 2;
+        return 1; // HV default
     }
 
     @Override
@@ -210,6 +229,9 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
 
     @Override
     public double getAbsorptionProbability(NeutronType type) {
+        if (isBetavoltaic()) {
+            return 1.0;
+        }
         ItemStack stack = mInventory[SLOT_INPUT];
         if (stack == null) return 0.01;
         String name = stack.getUnlocalizedName()
@@ -227,6 +249,9 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
 
     @Override
     public double getScatteringProbability(NeutronType type) {
+        if (isBetavoltaic()) {
+            return 0.0;
+        }
         ItemStack stack = mInventory[SLOT_INPUT];
         if (stack == null) return 0.02;
         String name = stack.getUnlocalizedName()
@@ -239,6 +264,9 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
 
     @Override
     public double getModerationProbability() {
+        if (isBetavoltaic()) {
+            return 0.0;
+        }
         ItemStack stack = mInventory[SLOT_INPUT];
         if (stack == null) return 0.05;
         String name = stack.getUnlocalizedName()
@@ -285,17 +313,19 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
 
     @Override
     public void nuclearTick(double efficiency) {
-        // Reset transient flux counters for next tick's display
-        mFastFlux = 0;
-        mThermalFlux = 0;
-        mFastAbsorbed = 0;
-        mThermalAbsorbed = 0;
-
         ItemStack stack = mInventory[SLOT_INPUT];
-        if (stack == null) return;
+        if (stack == null) {
+            mDirectEUProduced = 0;
+            mFastFlux = 0;
+            mThermalFlux = 0;
+            mFastAbsorbed = 0;
+            mThermalAbsorbed = 0;
+            return;
+        }
 
         // 1. FUEL DEPLETION (Driven by neutron absorption & fission)
         if (isFuel()) {
+            mDirectEUProduced = 0;
             int damage = mFastAbsorbed * 1 + mThermalAbsorbed * 2 + Math.max(1, mLastNeutronsGenerated / 4);
             if (stack.getItem() instanceof ItemRadioactiveCell radCell) {
                 radCell.damageItemStack(stack, damage);
@@ -314,8 +344,23 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
                 damageComponent(damage);
             }
         }
-        // 2. COOLANT CELL HEAT ABSORPTION (Capacity-based scaling via IReactorComponent)
+        // 2. BETAVOLTAIC DIRECT EU GENERATION
+        else if (isBetavoltaic()) {
+            int tier = getBetavoltaicTier();
+            long maxEU = (tier >= 2) ? 4096 : 1024;
+            double weightedFlux = mFastAbsorbed * 4.0 + mThermalAbsorbed * 1.0;
+            double satFlux = 60.0;
+            long genEU = (long) Math.round(maxEU * Math.tanh(weightedFlux / satFlux));
+            mDirectEUProduced = genEU;
+            double totalEnergy = weightedFlux * 20.0;
+            double excessHeat = Math.max(0.0, totalEnergy - genEU);
+            if (excessHeat > 0.0) {
+                addHeat(excessHeat);
+            }
+        }
+        // 3. COOLANT CELL HEAT ABSORPTION (Capacity-based scaling via IReactorComponent)
         else if (stack.getItem() instanceof IReactorComponent comp && comp.canStoreHeat(mDummyReactor, stack, 0, 0)) {
+            mDirectEUProduced = 0;
             int maxHeat = comp.getMaxHeat(mDummyReactor, stack, 0, 0);
             int curHeat = comp.getCurrentHeat(mDummyReactor, stack, 0, 0);
             if (maxHeat > 0 && mTemperature > 50.0) {
@@ -341,8 +386,9 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
                 markTileDirty();
             }
         }
-        // 3. GENERIC COOLANT/VENT FALLBACK
+        // 4. GENERIC COOLANT/VENT FALLBACK
         else {
+            mDirectEUProduced = 0;
             String name = stack.getUnlocalizedName()
                 .toLowerCase();
             if (name.contains("coolant") && mTemperature > 50.0) {
@@ -355,6 +401,12 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
                 }
             }
         }
+
+        // Reset transient flux counters for next tick's display
+        mFastFlux = 0;
+        mThermalFlux = 0;
+        mFastAbsorbed = 0;
+        mThermalAbsorbed = 0;
     }
 
     private void damageComponent(int damage) {

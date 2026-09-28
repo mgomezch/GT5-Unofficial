@@ -211,11 +211,17 @@ public class NuclearSimulationWebServer {
             sb.append("\"flowHotCoolant\":")
                 .append(String.format(java.util.Locale.US, "%.1f", grid.getFlowHotCoolant()))
                 .append(",");
+            sb.append("\"flowDirectEU\":")
+                .append(String.format(java.util.Locale.US, "%.1f", grid.getFlowDirectEU()))
+                .append(",");
 
             TurbineCalculator.PowerEstimationResult p = grid.getLastPowerResult();
             sb.append("\"powerEstimate\":{");
             sb.append("\"totalPowerEUt\":")
                 .append(String.format(java.util.Locale.US, "%.1f", p.totalPowerEUt))
+                .append(",");
+            sb.append("\"directPowerEUt\":")
+                .append(String.format(java.util.Locale.US, "%.1f", p.directPowerEUt))
                 .append(",");
             sb.append("\"xlstPowerEUt\":")
                 .append(String.format(java.util.Locale.US, "%.1f", p.xlstPowerEUt))
@@ -942,7 +948,9 @@ public class NuclearSimulationWebServer {
               { type: "REFLECTOR_BERYLLIUM", name: "Beryllium Reflector", code: "RB", color: "#94a3b8" },
               { type: "REFLECTOR_CARBON", name: "Carbon Reflector", code: "RC", color: "#475569" },
               { type: "CONTROL_ROD", name: "Boron Control Rod", code: "CR", color: "#b91c1c" },
-              { type: "COOLANT_CELL_60K", name: "60k Coolant Cell", code: "C6", color: "#06b6d4" }
+              { type: "COOLANT_CELL_60K", name: "60k Coolant Cell", code: "C6", color: "#06b6d4" },
+              { type: "BETAVOLTAIC_HV", name: "Betavoltaic Cell (HV)", code: "BH", color: "#f59e0b" },
+              { type: "BETAVOLTAIC_EV", name: "Betavoltaic Cell (EV)", code: "BV", color: "#f97316" }
             ];
 
             const TURBINE_MATERIALS = [
