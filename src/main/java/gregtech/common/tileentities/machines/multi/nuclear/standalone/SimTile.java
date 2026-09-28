@@ -95,6 +95,11 @@ public class SimTile implements INuclearTile {
     private int fastAbsorbed = 0;
     private int thermalAbsorbed = 0;
     private int lastThermalAbsorbed = 0;
+    private String lastCoolingDetails = "";
+
+    public String getLastCoolingDetails() {
+        return lastCoolingDetails;
+    }
 
     public SimTile(TileType type) {
         setType(type);
@@ -199,7 +204,8 @@ public class SimTile implements INuclearTile {
     @Override
     public void addHeat(double heat) {
         this.heatEU += heat;
-        this.temperature += heat / NuclearSimulationEngine.EU_PER_DEGREE;
+        this.temperature = Math
+            .max(NuclearSimulationEngine.AMBIENT_TEMP, this.temperature + heat / NuclearSimulationEngine.EU_PER_DEGREE);
     }
 
     @Override
@@ -383,66 +389,123 @@ public class SimTile implements INuclearTile {
                 int heatToAbsorb = (int) Math
                     .min(tempDiff * NuclearSimulationEngine.EU_PER_DEGREE * 0.1, maxCellHeat - currentCellHeat);
                 currentCellHeat += heatToAbsorb;
-                temperature -= heatToAbsorb / NuclearSimulationEngine.EU_PER_DEGREE;
+                temperature = Math.max(
+                    NuclearSimulationEngine.AMBIENT_TEMP,
+                    temperature - heatToAbsorb / NuclearSimulationEngine.EU_PER_DEGREE);
             }
         }
 
-        // 3. Fluid cooling & boiling
+        // 3. Fluid cooling & heat exchange
         if (isHatch()) {
-            double boilingPoint = 100.0;
-            double heatPerL = NuclearSimulationEngine.coolingHeatPerLiter;
-            int steamRatio = 160;
+            if (type == TileType.HATCH_IC2_COOLANT) {
+                double operatingThreshold = NuclearSimulationEngine.AMBIENT_TEMP;
+                double heatPerL = NuclearSimulationEngine.ic2CoolantHeatPerLiter;
 
-            switch (type) {
-                case HATCH_HP_HEAVY_WATER -> {
-                    boilingPoint = NuclearSimulationEngine.hpWaterBoilingPoint;
-                    heatPerL = NuclearSimulationEngine.coolingHeatPerLiter * 4.0;
-                    steamRatio = 160;
-                }
-                case HATCH_HP_DISTILLED_WATER -> {
-                    boilingPoint = NuclearSimulationEngine.hpWaterBoilingPoint;
-                    heatPerL = NuclearSimulationEngine.coolingHeatPerLiter * 2.0;
-                    steamRatio = 160;
-                }
-                case HATCH_HEAVY_WATER -> {
-                    boilingPoint = 100.0;
-                    heatPerL = NuclearSimulationEngine.coolingHeatPerLiter;
-                    steamRatio = 160;
-                }
-                case HATCH_DISTILLED_WATER -> {
-                    boilingPoint = 100.0;
-                    heatPerL = NuclearSimulationEngine.coolingHeatPerLiter;
-                    steamRatio = 160;
-                }
-                case HATCH_IC2_COOLANT -> {
-                    boilingPoint = 100.0;
-                    heatPerL = NuclearSimulationEngine.coolingHeatPerLiter;
-                    steamRatio = 1;
-                }
-                default -> {}
-            }
+                if (inputFluidAmount > 0 && temperature > operatingThreshold) {
+                    double deltaT = temperature - operatingThreshold;
+                    double heatAvailable = deltaT * NuclearSimulationEngine.EU_PER_DEGREE;
+                    int maxCoolByHeat = (heatPerL > 0) ? (int) Math.floor(heatAvailable / heatPerL) : inputFluidAmount;
 
-            if (inputFluidAmount > 0 && temperature > boilingPoint) {
-                double deltaT = temperature - boilingPoint;
-                double frac = NuclearSimulationEngine.calculateTurnoverFraction(deltaT);
-                int desiredTurnover = Math.max(1, (int) Math.round(inputFluidCapacity * frac));
-                int mbToBoil = Math.min(inputFluidAmount, desiredTurnover);
+                    double frac = NuclearSimulationEngine.calculateTurnoverFraction(deltaT);
+                    int desiredTurnover = Math.max(1, (int) Math.round(inputFluidCapacity * frac));
+                    int mbToCool = Math.min(inputFluidAmount, Math.min(desiredTurnover, maxCoolByHeat));
 
-                if (mbToBoil > 0) {
-                    inputFluidAmount -= mbToBoil;
-                    int steamProduced = mbToBoil * steamRatio;
-                    lastTickProduced = steamProduced;
-                    outputFluidAmount += steamProduced;
-                    totalSteamProduced += steamProduced;
+                    if (mbToCool > 0) {
+                        inputFluidAmount -= mbToCool;
+                        lastTickProduced = mbToCool;
+                        outputFluidAmount += mbToCool;
+                        totalSteamProduced += mbToCool;
 
-                    double heatConsumed = mbToBoil * heatPerL;
-                    temperature -= heatConsumed / NuclearSimulationEngine.EU_PER_DEGREE;
+                        double heatConsumed = mbToCool * heatPerL;
+                        double tempDrop = heatConsumed / NuclearSimulationEngine.EU_PER_DEGREE;
+                        double tempBefore = temperature;
+                        temperature = Math.max(operatingThreshold, temperature - tempDrop);
+                        lastCoolingDetails = String.format(
+                            java.util.Locale.US,
+                            "IC2 Coolant %dL (cap %dL, frac %.2f, maxByHeat %dL), consumed %.1f EU, temp %.1f°C -> %.1f°C (drop %.1f°C)",
+                            mbToCool,
+                            inputFluidCapacity,
+                            frac,
+                            maxCoolByHeat,
+                            heatConsumed,
+                            tempBefore,
+                            temperature,
+                            tempDrop);
+                    }
                 }
-            }
 
-            if (inputFluidAmount <= 0) {
-                inputFluidAmount = 0;
-                wasDry = true;
+                if (inputFluidAmount <= 0) {
+                    inputFluidAmount = 0;
+                    wasDry = true;
+                }
+            } else {
+                // Phase-change boiling hatches (Distilled Water, HP Distilled Water, Heavy Water, HP Heavy Water)
+                double boilingPoint = 100.0;
+                double heatPerL = NuclearSimulationEngine.coolingHeatPerLiter;
+                int steamRatio = 160;
+
+                switch (type) {
+                    case HATCH_HP_HEAVY_WATER -> {
+                        boilingPoint = NuclearSimulationEngine.hpWaterBoilingPoint;
+                        heatPerL = NuclearSimulationEngine.coolingHeatPerLiter * 4.0;
+                        steamRatio = 160;
+                    }
+                    case HATCH_HP_DISTILLED_WATER -> {
+                        boilingPoint = NuclearSimulationEngine.hpWaterBoilingPoint;
+                        heatPerL = NuclearSimulationEngine.coolingHeatPerLiter * 2.0;
+                        steamRatio = 160;
+                    }
+                    case HATCH_HEAVY_WATER -> {
+                        boilingPoint = 100.0;
+                        heatPerL = NuclearSimulationEngine.coolingHeatPerLiter;
+                        steamRatio = 160;
+                    }
+                    case HATCH_DISTILLED_WATER -> {
+                        boilingPoint = 100.0;
+                        heatPerL = NuclearSimulationEngine.coolingHeatPerLiter;
+                        steamRatio = 160;
+                    }
+                    default -> {}
+                }
+
+                if (inputFluidAmount > 0 && temperature > boilingPoint) {
+                    double deltaT = temperature - boilingPoint;
+                    double heatAvailable = deltaT * NuclearSimulationEngine.EU_PER_DEGREE;
+                    int maxBoilByHeat = (heatPerL > 0) ? (int) Math.floor(heatAvailable / heatPerL) : inputFluidAmount;
+
+                    double frac = NuclearSimulationEngine.calculateTurnoverFraction(deltaT);
+                    int desiredTurnover = Math.max(1, (int) Math.round(inputFluidCapacity * frac));
+                    int mbToBoil = Math.min(inputFluidAmount, Math.min(desiredTurnover, maxBoilByHeat));
+
+                    if (mbToBoil > 0) {
+                        inputFluidAmount -= mbToBoil;
+                        int steamProduced = mbToBoil * steamRatio;
+                        lastTickProduced = steamProduced;
+                        outputFluidAmount += steamProduced;
+                        totalSteamProduced += steamProduced;
+
+                        double heatConsumed = mbToBoil * heatPerL;
+                        double tempDrop = heatConsumed / NuclearSimulationEngine.EU_PER_DEGREE;
+                        double tempBefore = temperature;
+                        temperature = Math.max(boilingPoint, temperature - tempDrop);
+                        lastCoolingDetails = String.format(
+                            java.util.Locale.US,
+                            "Boiled %dL (cap %dL, frac %.2f, maxByHeat %dL), consumed %.1f EU, temp %.1f°C -> %.1f°C (drop %.1f°C)",
+                            mbToBoil,
+                            inputFluidCapacity,
+                            frac,
+                            maxBoilByHeat,
+                            heatConsumed,
+                            tempBefore,
+                            temperature,
+                            tempDrop);
+                    }
+                }
+
+                if (inputFluidAmount <= 0) {
+                    inputFluidAmount = 0;
+                    wasDry = true;
+                }
             }
         }
     }

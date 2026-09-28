@@ -2,9 +2,15 @@ package gregtech.common.tileentities.machines.multi.nuclear;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class NuclearSimulationEngineTest {
+
+    @BeforeEach
+    void setUp() {
+        NuclearSimulationEngine.resetDefaultParameters();
+    }
 
     private static class MockNuclearTile implements INuclearTile {
 
@@ -100,11 +106,13 @@ public class NuclearSimulationEngineTest {
 
     @Test
     void testNegativeTemperatureEfficiencyCurve() {
+        NuclearSimulationEngine.setSimulationParameters(600.0, 2200.0, 1.0, 1.1, 18.0, 200.0);
         assertEquals(1.0, NuclearSimulationEngine.calculateEfficiency(20.0), 1e-6);
         assertEquals(1.0, NuclearSimulationEngine.calculateEfficiency(600.0), 1e-6);
         assertEquals(0.5, NuclearSimulationEngine.calculateEfficiency(1400.0), 1e-6);
         assertEquals(0.0, NuclearSimulationEngine.calculateEfficiency(2200.0), 1e-6);
         assertEquals(0.0, NuclearSimulationEngine.calculateEfficiency(3000.0), 1e-6);
+        NuclearSimulationEngine.resetDefaultParameters();
     }
 
     @Test
@@ -145,11 +153,14 @@ public class NuclearSimulationEngineTest {
     void testSelfStabilizationUnderHighTemp() {
         INuclearTile[][] grid = new INuclearTile[1][1];
         MockNuclearTile hotFuel = new MockNuclearTile(true, 100);
-        hotFuel.temperature = 2200.0;
+        hotFuel.temperature = NuclearSimulationEngine.tempThresholdHigh;
         grid[0][0] = hotFuel;
 
         NuclearSimulationEngine.SimulationResult res = NuclearSimulationEngine.simulate(grid, 1, 1);
-        assertEquals(0, res.totalNeutronsGenerated, "Reactivity should shut down completely at or above 2200 C");
+        assertEquals(
+            0,
+            res.totalNeutronsGenerated,
+            "Reactivity should shut down completely at or above tempThresholdHigh");
     }
 
     @Test
@@ -355,7 +366,7 @@ public class NuclearSimulationEngineTest {
         assertFalse(hatch.isWasDry());
 
         // Case 2: Hatch was dry, and hot (150°C > 100°C boiling threshold) -> thermal shock explosion!
-        hatch.setInputFluidAmount(16000);
+        hatch.setInputFluidAmount(0);
         hatch.setWasDry(true);
         hatch.setTemperature(150.0);
         // Step with hot dry hatch receiving coolant
@@ -364,5 +375,36 @@ public class NuclearSimulationEngineTest {
         assertTrue(
             grid.getExplosionReason()
                 .contains("Thermal Shock"));
+    }
+
+    @Test
+    void testIC2CoolantContinuousAmbientExchange() {
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid grid = new gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid(
+            3,
+            3,
+            NuclearSimulationEngine.PIPE_TIER_ELECTRUM);
+
+        grid.setTile(
+            1,
+            1,
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.HATCH_IC2_COOLANT);
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile hatch = grid.getTile(1, 1);
+
+        // Case 1: Coolant works below 100°C down to ambient (24°C)
+        hatch.setInputFluidAmount(2000);
+        hatch.setTemperature(80.0); // 80°C is below water boiling, but IC2 coolant must absorb heat!
+        grid.step();
+
+        assertTrue(
+            hatch.getTemperature() < 80.0,
+            "IC2 coolant must extract heat below 100°C down to ambient temperature");
+        assertTrue(hatch.getOutputFluidAmount() > 0, "IC2 coolant must produce hot coolant below 100°C");
+
+        // Case 2: Dry hatch at 300°C refilling IC2 coolant NEVER explodes
+        hatch.setInputFluidAmount(0);
+        hatch.setWasDry(true);
+        hatch.setTemperature(300.0);
+        boolean refilled = hatch.refillCoolant();
+        assertTrue(refilled, "IC2 coolant must never trigger thermal shock explosion when refilling dry hot hatch");
     }
 }

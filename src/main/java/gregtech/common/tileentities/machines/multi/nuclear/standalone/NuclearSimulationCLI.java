@@ -19,9 +19,12 @@ public class NuclearSimulationCLI {
 
     public static void main(String[] args) {
         String preset = "BASIC_ELECTRUM_5X5";
+        String layout = null;
         int size = 5;
         int ticks = 100;
         int tier = NuclearSimulationEngine.PIPE_TIER_ELECTRUM;
+        boolean tierSpecified = false;
+        boolean turbSpecified = false;
         boolean startWeb = false;
         int webPort = 8085;
         TurbineCalculator.TurbineMaterial turbMat = TurbineCalculator.TurbineMaterial.HSS_E;
@@ -29,6 +32,8 @@ public class NuclearSimulationCLI {
         TurbineCalculator.FittingMode turbFitting = TurbineCalculator.FittingMode.TIGHT;
         boolean jsonOutput = false;
         boolean batchMode = false;
+        boolean traceEnabled = false;
+        int traceSteps = 50;
 
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -42,6 +47,9 @@ public class NuclearSimulationCLI {
                             webPort = Integer.parseInt(args[++i]);
                         } catch (NumberFormatException ignored) {}
                     }
+                }
+                case "--layout" -> {
+                    if (i + 1 < args.length) layout = args[++i];
                 }
                 case "--preset" -> {
                     if (i + 1 < args.length) preset = args[++i];
@@ -62,8 +70,10 @@ public class NuclearSimulationCLI {
                 }
                 case "--tier" -> {
                     if (i + 1 < args.length) {
+                        tierSpecified = true;
                         String t = args[++i].toLowerCase();
-                        if (t.contains("plat")) tier = NuclearSimulationEngine.PIPE_TIER_PLATINUM;
+                        if (t.contains("elec")) tier = NuclearSimulationEngine.PIPE_TIER_ELECTRUM;
+                        else if (t.contains("plat")) tier = NuclearSimulationEngine.PIPE_TIER_PLATINUM;
                         else if (t.contains("osmi")) tier = NuclearSimulationEngine.PIPE_TIER_OSMIUM;
                         else if (t.contains("quan")) tier = NuclearSimulationEngine.PIPE_TIER_QUANTIUM;
                         else if (t.contains("flux")) tier = NuclearSimulationEngine.PIPE_TIER_FLUXED_ELECTRUM;
@@ -77,16 +87,19 @@ public class NuclearSimulationCLI {
                 }
                 case "--material", "--turb-mat" -> {
                     if (i + 1 < args.length) {
+                        turbSpecified = true;
                         turbMat = TurbineCalculator.TurbineMaterial.fromString(args[++i]);
                     }
                 }
                 case "--turb-size" -> {
                     if (i + 1 < args.length) {
+                        turbSpecified = true;
                         turbSize = TurbineCalculator.TurbineSize.fromString(args[++i]);
                     }
                 }
                 case "--fitting", "--turb-fit" -> {
                     if (i + 1 < args.length) {
+                        turbSpecified = true;
                         turbFitting = TurbineCalculator.FittingMode.fromString(args[++i]);
                     }
                 }
@@ -173,10 +186,32 @@ public class NuclearSimulationCLI {
                         } catch (NumberFormatException ignored) {}
                     }
                 }
+                case "--ambient-temp", "--ambient" -> {
+                    if (i + 1 < args.length) {
+                        try {
+                            NuclearSimulationEngine.setAmbientTemperature(Double.parseDouble(args[++i]));
+                        } catch (NumberFormatException ignored) {}
+                    }
+                }
+                case "--ic2-heat", "--ic2-cooling-heat" -> {
+                    if (i + 1 < args.length) {
+                        try {
+                            NuclearSimulationEngine.ic2CoolantHeatPerLiter = Double.parseDouble(args[++i]);
+                        } catch (NumberFormatException ignored) {}
+                    }
+                }
                 case "--burnup-mult" -> {
                     if (i + 1 < args.length) {
                         try {
                             NuclearSimulationEngine.fuelBurnupMultiplier = Double.parseDouble(args[++i]);
+                        } catch (NumberFormatException ignored) {}
+                    }
+                }
+                case "--trace" -> {
+                    traceEnabled = true;
+                    if (i + 1 < args.length && !args[i + 1].startsWith("-")) {
+                        try {
+                            traceSteps = Integer.parseInt(args[++i]);
                         } catch (NumberFormatException ignored) {}
                     }
                 }
@@ -202,9 +237,31 @@ public class NuclearSimulationCLI {
         }
 
         if (jsonOutput) {
-            runJsonSimulation(preset, size, tier, ticks, turbMat, turbSize, turbFitting);
+            runJsonSimulation(
+                preset,
+                layout,
+                size,
+                tier,
+                ticks,
+                turbMat,
+                turbSize,
+                turbFitting,
+                tierSpecified,
+                turbSpecified);
         } else {
-            runCliSimulation(preset, size, tier, ticks, turbMat, turbSize, turbFitting);
+            runCliSimulation(
+                preset,
+                layout,
+                size,
+                tier,
+                ticks,
+                turbMat,
+                turbSize,
+                turbFitting,
+                tierSpecified,
+                turbSpecified,
+                traceEnabled,
+                traceSteps);
         }
     }
 
@@ -217,12 +274,16 @@ public class NuclearSimulationCLI {
                 if (line.isEmpty() || line.equalsIgnoreCase("exit") || line.equalsIgnoreCase("quit")) break;
 
                 String preset = "BREEDER_7X7";
+                String layout = null;
                 int size = 7;
                 int tier = NuclearSimulationEngine.PIPE_TIER_PLATINUM;
                 int ticks = 300;
                 TurbineCalculator.TurbineMaterial turbMat = TurbineCalculator.TurbineMaterial.HSS_E;
                 TurbineCalculator.TurbineSize turbSize = TurbineCalculator.TurbineSize.LARGE;
                 TurbineCalculator.FittingMode turbFitting = TurbineCalculator.FittingMode.TIGHT;
+
+                boolean tierSpecified = false;
+                boolean turbSpecified = false;
 
                 String[] tokens = line.split("\\s+");
                 for (String token : tokens) {
@@ -233,14 +294,17 @@ public class NuclearSimulationCLI {
                     String v = token.substring(eq + 1);
                     switch (k) {
                         case "preset" -> preset = v;
+                        case "layout" -> layout = v;
                         case "size" -> {
                             try {
                                 size = Integer.parseInt(v);
                             } catch (Exception ignored) {}
                         }
                         case "tier" -> {
+                            tierSpecified = true;
                             String t = v.toLowerCase();
-                            if (t.contains("plat")) tier = NuclearSimulationEngine.PIPE_TIER_PLATINUM;
+                            if (t.contains("elec")) tier = NuclearSimulationEngine.PIPE_TIER_ELECTRUM;
+                            else if (t.contains("plat")) tier = NuclearSimulationEngine.PIPE_TIER_PLATINUM;
                             else if (t.contains("osmi")) tier = NuclearSimulationEngine.PIPE_TIER_OSMIUM;
                             else if (t.contains("quan")) tier = NuclearSimulationEngine.PIPE_TIER_QUANTIUM;
                             else if (t.contains("flux")) tier = NuclearSimulationEngine.PIPE_TIER_FLUXED_ELECTRUM;
@@ -313,18 +377,47 @@ public class NuclearSimulationCLI {
                                 NuclearSimulationEngine.coolingHeatPerLiter = Double.parseDouble(v);
                             } catch (Exception ignored) {}
                         }
+                        case "ambient_temp", "ambient" -> {
+                            try {
+                                NuclearSimulationEngine.setAmbientTemperature(Double.parseDouble(v));
+                            } catch (Exception ignored) {}
+                        }
+                        case "ic2_heat", "ic2_cooling_heat" -> {
+                            try {
+                                NuclearSimulationEngine.ic2CoolantHeatPerLiter = Double.parseDouble(v);
+                            } catch (Exception ignored) {}
+                        }
                         case "burnup_mult", "burnupmult" -> {
                             try {
                                 NuclearSimulationEngine.fuelBurnupMultiplier = Double.parseDouble(v);
                             } catch (Exception ignored) {}
                         }
-                        case "material", "turb_mat" -> turbMat = TurbineCalculator.TurbineMaterial.fromString(v);
-                        case "turb_size" -> turbSize = TurbineCalculator.TurbineSize.fromString(v);
-                        case "fitting", "turb_fit" -> turbFitting = TurbineCalculator.FittingMode.fromString(v);
+                        case "material", "turb_mat" -> {
+                            turbMat = TurbineCalculator.TurbineMaterial.fromString(v);
+                            turbSpecified = true;
+                        }
+                        case "turb_size" -> {
+                            turbSize = TurbineCalculator.TurbineSize.fromString(v);
+                            turbSpecified = true;
+                        }
+                        case "fitting", "turb_fit" -> {
+                            turbFitting = TurbineCalculator.FittingMode.fromString(v);
+                            turbSpecified = true;
+                        }
                         default -> {}
                     }
                 }
-                runJsonSimulation(preset, size, tier, ticks, turbMat, turbSize, turbFitting);
+                runJsonSimulation(
+                    preset,
+                    layout,
+                    size,
+                    tier,
+                    ticks,
+                    turbMat,
+                    turbSize,
+                    turbFitting,
+                    tierSpecified,
+                    turbSpecified);
                 System.out.flush();
             }
         } catch (java.io.IOException e) {
@@ -332,14 +425,23 @@ public class NuclearSimulationCLI {
         }
     }
 
-    private static void runJsonSimulation(String preset, int size, int tier, int ticks,
+    private static void runJsonSimulation(String preset, String layout, int size, int tier, int ticks,
         TurbineCalculator.TurbineMaterial turbMat, TurbineCalculator.TurbineSize turbSize,
-        TurbineCalculator.FittingMode turbFitting) {
+        TurbineCalculator.FittingMode turbFitting, boolean tierSpecified, boolean turbSpecified) {
         StandaloneNuclearGrid grid = new StandaloneNuclearGrid(size, size, tier);
-        grid.setTurbineMaterial(turbMat);
-        grid.setTurbineSize(turbSize);
-        grid.setTurbineFitting(turbFitting);
-        grid.loadPreset(preset);
+        if (layout != null && !layout.trim()
+            .isEmpty()) {
+            grid.loadLayout(layout);
+            if (tierSpecified) grid.setPipeTier(tier);
+        } else {
+            grid.loadPreset(preset);
+            if (tierSpecified) grid.setPipeTier(tier);
+        }
+        if (turbSpecified) {
+            grid.setTurbineMaterial(turbMat);
+            grid.setTurbineSize(turbSize);
+            grid.setTurbineFitting(turbFitting);
+        }
 
         int tickReached = 0;
         for (int t = 1; t <= ticks; t++) {
@@ -354,8 +456,9 @@ public class NuclearSimulationCLI {
         double avgLongevity = grid.getAvgFuelRodLongevityMinutes();
         int activeFuelRods = grid.getActiveFuelRodCount();
         int totalDurabilityLost = grid.getTotalDurabilityLost();
-        long tierVoltage = NuclearSimulationEngine.getPipeTierVoltage(tier);
-        String nominalTierName = NuclearSimulationEngine.getPipeTierVoltageName(tier);
+        int actualTier = grid.getPipeTier();
+        long tierVoltage = NuclearSimulationEngine.getPipeTierVoltage(actualTier);
+        String nominalTierName = NuclearSimulationEngine.getPipeTierVoltageName(actualTier);
         double targetPower60A = 60.0 * tierVoltage;
         double actualAmps = power / (double) tierVoltage;
 
@@ -364,11 +467,14 @@ public class NuclearSimulationCLI {
         sb.append("\"preset\":\"")
             .append(preset)
             .append("\",");
+        sb.append("\"layout\":\"")
+            .append(grid.toLayoutString())
+            .append("\",");
         sb.append("\"size\":")
-            .append(size)
+            .append(grid.getWidth())
             .append(",");
         sb.append("\"tier\":")
-            .append(tier)
+            .append(actualTier)
             .append(",");
         sb.append("\"ticksSimulated\":")
             .append(tickReached)
@@ -473,7 +579,13 @@ public class NuclearSimulationCLI {
             .append(NuclearSimulationEngine.coolantFeedRate)
             .append(",");
         sb.append("\"coolingHeatPerLiter\":")
-            .append(NuclearSimulationEngine.coolingHeatPerLiter);
+            .append(NuclearSimulationEngine.coolingHeatPerLiter)
+            .append(",");
+        sb.append("\"ambientTemp\":")
+            .append(NuclearSimulationEngine.ambientTemp)
+            .append(",");
+        sb.append("\"ic2CoolantHeatPerLiter\":")
+            .append(NuclearSimulationEngine.ic2CoolantHeatPerLiter);
         sb.append("}");
         System.out.println(sb.toString());
     }
@@ -483,7 +595,7 @@ public class NuclearSimulationCLI {
         System.out.println("Usage: gtnh-nuclear-sim [options]");
         System.out.println("Options:");
         System.out.println(
-            "  --preset <name>       Preset layout: BASIC_ELECTRUM_5X5, BREEDER_7X7, SUPERHEATED_POWER_7X7, CANDU_HEAVY_WATER_9X9, FLUXED_SUPERCRITICAL_9X9");
+            "  --preset <name>       Preset layout: BEST_ELECTRUM_5X5, BEST_PLATINUM_7X7, BEST_OSMIUM_7X7, BEST_QUANTIUM_9X9, BEST_FLUXED_9X9, BEST_PLUTONIUM_9X9");
         System.out.println("  --size <N>            Grid dimensions N x N (default 5)");
         System.out.println(
             "  --tier <name/#>       Pipe casing tier: electrum(0), platinum(1), osmium(2), quantium(3), fluxed(4), black_plutonium(5)");
@@ -499,37 +611,69 @@ public class NuclearSimulationCLI {
         System.out.println("  --feed-rate <L/t>     Coolant refill rate per tick (default 2000)");
         System.out
             .println("  --cooling-heat <H>    Latent cooling heat extracted per liter of steam in EU (default 4.0)");
+        System.out.println("  --ambient-temp <T>    Ambient temperature baseline in °C (default 24.0)");
+        System.out.println(
+            "  --ic2-heat <H>        Continuous cooling heat extracted per liter of IC2 coolant in EU (default 20.0)");
         System.out.println("  --temp-low <T>        Negative reactivity low threshold in °C (default 800)");
         System.out.println("  --temp-high <T>       Negative reactivity high threshold in °C (default 2800)");
         System.out.println("  --reactivity-pow <P>  Negative reactivity curve exponent (default 1.2)");
+        System.out.println("  --layout <codes>      Custom layout string (rows separated by ';', cells by ',')");
         System.out.println("  --fission-mult <K>    Thermal neutron induced fission multiplier (default 1.1)");
         System.out.println("  --fission-heat <H>    Direct heat EU generated per fission neutron (default 18.0)");
         System.out.println("  --hp-boil <T>         High pressure coolant boiling point in °C (default 200.0)");
+        System.out.println(
+            "  --trace [N]           Enable intermediate step snapshot ring buffer (up to N steps, default 500)");
         System.out.println("  --json                Output compact JSON summary for automated test scripts");
         System.out.println("  --web [port]          Launch standalone Web GUI on specified port (default 8085)");
         System.out.println("  --help, -h            Display this help message");
     }
 
-    private static void runCliSimulation(String preset, int size, int tier, int ticks,
+    private static void runCliSimulation(String preset, String layout, int size, int tier, int ticks,
         TurbineCalculator.TurbineMaterial turbMat, TurbineCalculator.TurbineSize turbSize,
-        TurbineCalculator.FittingMode turbFitting) {
+        TurbineCalculator.FittingMode turbFitting, boolean tierSpecified, boolean turbSpecified, boolean traceEnabled,
+        int traceSteps) {
         System.out.println(ANSI_CYAN + "============================================================" + ANSI_RESET);
         System.out.println(ANSI_WHITE_BOLD + "   GTNH MODULAR NUCLEAR REACTOR STANDALONE SIMULATOR" + ANSI_RESET);
         System.out.println(ANSI_CYAN + "============================================================" + ANSI_RESET);
 
         StandaloneNuclearGrid grid = new StandaloneNuclearGrid(size, size, tier);
-        grid.setTurbineMaterial(turbMat);
-        grid.setTurbineSize(turbSize);
-        grid.setTurbineFitting(turbFitting);
-        grid.loadPreset(preset);
+        if (traceEnabled) {
+            grid.enableDiagnosticTrace(traceSteps);
+        }
+        if (layout != null && !layout.trim()
+            .isEmpty()) {
+            grid.loadLayout(layout);
+            if (tierSpecified) grid.setPipeTier(tier);
+        } else {
+            grid.loadPreset(preset);
+            if (tierSpecified) grid.setPipeTier(tier);
+        }
+        if (turbSpecified) {
+            grid.setTurbineMaterial(turbMat);
+            grid.setTurbineSize(turbSize);
+            grid.setTurbineFitting(turbFitting);
+        }
 
-        System.out.println("Preset:        " + ANSI_GREEN + preset + ANSI_RESET);
+        if (layout != null && !layout.trim()
+            .isEmpty()) {
+            System.out.println("Layout:        " + ANSI_GREEN + grid.toLayoutString() + ANSI_RESET);
+        } else {
+            System.out.println("Preset:        " + ANSI_GREEN + preset + ANSI_RESET);
+        }
         System.out.println("Grid Size:     " + grid.getWidth() + "x" + grid.getHeight());
         System.out.println("Casing Tier:   " + NuclearSimulationEngine.getPipeTierName(grid.getPipeTier()));
         System.out.println(
             "Max Safe Temp: " + NuclearSimulationEngine.getMaxOperatingTemperature(grid.getPipeTier()) + " °C");
+        TurbineCalculator.TurbineMaterial activeMat = grid.getTurbineMaterial();
+        TurbineCalculator.TurbineSize activeSize = grid.getTurbineSize();
+        TurbineCalculator.FittingMode activeFit = grid.getTurbineFitting();
         System.out.println(
-            "Turbine Rotor: " + turbMat.displayName + " (" + turbSize.name() + ", " + turbFitting.name() + ")");
+            "Turbine Rotor: " + (activeMat != null ? activeMat.displayName : "None")
+                + " ("
+                + (activeSize != null ? activeSize.name() : "None")
+                + ", "
+                + (activeFit != null ? activeFit.name() : "None")
+                + ")");
         System.out.println("Ticks to Sim:  " + ticks);
         System.out.println();
 
@@ -580,6 +724,27 @@ public class NuclearSimulationCLI {
         System.out.println("------------------------------------------------------------------------------");
         System.out.println(ANSI_GREEN + "Simulation complete in " + elapsedMs + " ms." + ANSI_RESET);
         System.out.println();
+
+        if (grid.isNegativeTempDetected() || grid.isDiagnosticTraceEnabled()) {
+            java.util.List<StandaloneNuclearGrid.IntermediateStepSnapshot> trace = grid.getStepTrace();
+            if (!trace.isEmpty()) {
+                System.out
+                    .println(ANSI_YELLOW + "============================================================" + ANSI_RESET);
+                System.out.println(
+                    ANSI_YELLOW + "   DIAGNOSTIC INTERMEDIATE STEP TRACE ("
+                        + trace.size()
+                        + " steps in memory)"
+                        + ANSI_RESET);
+                System.out
+                    .println(ANSI_YELLOW + "============================================================" + ANSI_RESET);
+                for (StandaloneNuclearGrid.IntermediateStepSnapshot snap : trace) {
+                    System.out.println(snap.toString());
+                }
+                System.out
+                    .println(ANSI_YELLOW + "============================================================" + ANSI_RESET);
+                System.out.println();
+            }
+        }
 
         printFinalReport(grid);
     }

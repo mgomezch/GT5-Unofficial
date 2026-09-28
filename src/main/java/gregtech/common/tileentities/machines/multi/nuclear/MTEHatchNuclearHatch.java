@@ -33,7 +33,7 @@ public class MTEHatchNuclearHatch extends MTEHatch implements INuclearTile {
     public FluidStack mOutputFluid;
     public final int mCapacity;
 
-    public double mTemperature = 20.0;
+    public double mTemperature = NuclearSimulationEngine.DEFAULT_AMBIENT_TEMP;
     public double mHeatEU = 0.0;
     public int mFastFlux = 0;
     public int mThermalFlux = 0;
@@ -245,6 +245,21 @@ public class MTEHatchNuclearHatch extends MTEHatch implements INuclearTile {
 
     // --- INuclearTile Implementation ---
 
+    public double getAmbientTemperature() {
+        if (getBaseMetaTileEntity() != null && getBaseMetaTileEntity().getWorld() != null) {
+            try {
+                int x = getBaseMetaTileEntity().getXCoord();
+                int y = getBaseMetaTileEntity().getYCoord();
+                int z = getBaseMetaTileEntity().getZCoord();
+                float bTemp = getBaseMetaTileEntity().getWorld()
+                    .getBiomeGenForCoords(x, z)
+                    .getFloatTemperature(x, y, z);
+                return Math.max(0.0, bTemp * 30.0);
+            } catch (Exception ignored) {}
+        }
+        return NuclearSimulationEngine.ambientTemp;
+    }
+
     @Override
     public double getTemperature() {
         return mTemperature;
@@ -252,7 +267,7 @@ public class MTEHatchNuclearHatch extends MTEHatch implements INuclearTile {
 
     @Override
     public void setTemperature(double temp) {
-        this.mTemperature = Math.max(20.0, temp);
+        this.mTemperature = Math.max(getAmbientTemperature(), temp);
     }
 
     @Override
@@ -387,65 +402,66 @@ public class MTEHatchNuclearHatch extends MTEHatch implements INuclearTile {
             return;
         }
 
-        double boilingPoint = 100.0;
-        double heatPerMB = 160.0;
+        double minOperatingTemp = 100.0;
+        double heatPerMB = NuclearSimulationEngine.coolingHeatPerLiter;
         int steamRatio = 160;
         String outputFluidName = "steam";
 
         if (name.contains("highpressureheavywater") && !name.contains("steam")) {
-            boilingPoint = NuclearSimulationEngine.hpWaterBoilingPoint;
-            heatPerMB = 640.0;
+            minOperatingTemp = NuclearSimulationEngine.hpWaterBoilingPoint;
+            heatPerMB = NuclearSimulationEngine.coolingHeatPerLiter * 4.0;
             steamRatio = 160;
             outputFluidName = "fluid.highpressureheavywatersteam";
         } else if (name.contains("heavywater") && !name.contains("steam")) {
-            boilingPoint = 100.0;
-            heatPerMB = 160.0;
+            minOperatingTemp = 100.0;
+            heatPerMB = NuclearSimulationEngine.coolingHeatPerLiter;
             steamRatio = 160;
             outputFluidName = "fluid.heavywatersteam";
         } else if (name.contains("highpressuredistilledwater") && !name.contains("steam")) {
-            boilingPoint = NuclearSimulationEngine.hpWaterBoilingPoint;
-            heatPerMB = 320.0;
+            minOperatingTemp = NuclearSimulationEngine.hpWaterBoilingPoint;
+            heatPerMB = NuclearSimulationEngine.coolingHeatPerLiter * 2.0;
             steamRatio = 160;
             outputFluidName = "ic2superheatedsteam";
         } else if (name.contains("distilledwater")) {
-            boilingPoint = 100.0;
-            heatPerMB = 160.0;
+            minOperatingTemp = 100.0;
+            heatPerMB = NuclearSimulationEngine.coolingHeatPerLiter;
             steamRatio = 160;
             outputFluidName = "steam";
         } else if (name.contains("coolant") && !name.contains("hot")) {
-            boilingPoint = 100.0;
-            heatPerMB = 100.0;
+            minOperatingTemp = getAmbientTemperature();
+            heatPerMB = NuclearSimulationEngine.ic2CoolantHeatPerLiter;
             steamRatio = 1;
             outputFluidName = "ic2hotcoolant";
         } else {
             return;
         }
 
-        // Coolant boiling phase transition
-        if (mTemperature > boilingPoint) {
-            double heatAvailable = (mTemperature - boilingPoint) * NuclearSimulationEngine.EU_PER_DEGREE;
-            int maxFluidByHeat = (int) (heatAvailable / heatPerMB);
-            int fluidToBoil = Math.min(mInputFluid.amount, maxFluidByHeat);
+        // Coolant heat absorption (continuous above ambient for IC2 coolant; phase transition boiling for water)
+        if (mTemperature > minOperatingTemp) {
+            double heatAvailable = (mTemperature - minOperatingTemp) * NuclearSimulationEngine.EU_PER_DEGREE;
+            int maxFluidByHeat = (heatPerMB > 0) ? (int) Math.floor(heatAvailable / heatPerMB) : mInputFluid.amount;
+            int fluidToProcess = Math.min(mInputFluid.amount, maxFluidByHeat);
 
-            // Cap boiling rate by hatch tier
+            // Cap rate by hatch tier
             int maxRate = 100 * (1 << mTier);
-            fluidToBoil = Math.min(fluidToBoil, maxRate);
+            fluidToProcess = Math.min(fluidToProcess, maxRate);
 
-            if (fluidToBoil > 0) {
-                int steamAmount = fluidToBoil * steamRatio;
+            if (fluidToProcess > 0) {
+                int outAmount = fluidToProcess * steamRatio;
                 int space = mCapacity - (mOutputFluid != null ? mOutputFluid.amount : 0);
-                if (steamAmount > space) {
-                    fluidToBoil = space / steamRatio;
-                    steamAmount = fluidToBoil * steamRatio;
+                if (outAmount > space) {
+                    fluidToProcess = space / steamRatio;
+                    outAmount = fluidToProcess * steamRatio;
                 }
 
-                if (fluidToBoil > 0 && steamAmount > 0) {
-                    mInputFluid.amount -= fluidToBoil;
+                if (fluidToProcess > 0 && outAmount > 0) {
+                    mInputFluid.amount -= fluidToProcess;
                     if (mInputFluid.amount <= 0) mInputFluid = null;
 
-                    addOutputFluid(outputFluidName, steamAmount);
-                    double heatConsumed = fluidToBoil * heatPerMB;
-                    mTemperature -= (heatConsumed / NuclearSimulationEngine.EU_PER_DEGREE);
+                    addOutputFluid(outputFluidName, outAmount);
+                    double heatConsumed = fluidToProcess * heatPerMB;
+                    mTemperature = Math
+                        .max(minOperatingTemp, mTemperature - (heatConsumed / NuclearSimulationEngine.EU_PER_DEGREE));
                     markTileDirty();
                 }
             }

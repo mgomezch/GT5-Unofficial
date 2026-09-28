@@ -1,6 +1,7 @@
 package gregtech.common.tileentities.machines.multi.nuclear.standalone;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import gregtech.common.tileentities.machines.multi.nuclear.NuclearSimulationEngine;
@@ -55,6 +56,110 @@ public class StandaloneNuclearGrid {
 
     private final List<TickTelemetry> history = new ArrayList<>();
 
+    public static class IntermediateStepSnapshot {
+
+        public final long tick;
+        public final String phase;
+        public final double minTemp;
+        public final int minX;
+        public final int minY;
+        public final String minTileCode;
+        public final double maxTemp;
+        public final double avgTemp;
+        public final String details;
+
+        public IntermediateStepSnapshot(long tick, String phase, double minTemp, int minX, int minY, String minTileCode,
+            double maxTemp, double avgTemp, String details) {
+            this.tick = tick;
+            this.phase = phase;
+            this.minTemp = minTemp;
+            this.minX = minX;
+            this.minY = minY;
+            this.minTileCode = minTileCode;
+            this.maxTemp = maxTemp;
+            this.avgTemp = avgTemp;
+            this.details = details;
+        }
+
+        @Override
+        public String toString() {
+            return String.format(
+                java.util.Locale.US,
+                "[Tick %4d | %-20s] Min: %8.2f°C at (%d,%d) [%-2s] | Max: %8.2f°C | Avg: %8.2f°C | %s",
+                tick,
+                phase,
+                minTemp,
+                minX,
+                minY,
+                minTileCode,
+                maxTemp,
+                avgTemp,
+                details);
+        }
+    }
+
+    private boolean diagnosticTraceEnabled = false;
+    private int maxTraceSteps = 50;
+    private final List<IntermediateStepSnapshot> stepTraceBuffer = new ArrayList<>();
+    private boolean negativeTempDetected = false;
+    private String negativeTempReason = "";
+
+    public void enableDiagnosticTrace(int maxSteps) {
+        this.diagnosticTraceEnabled = true;
+        this.maxTraceSteps = Math.max(10, maxSteps);
+        this.stepTraceBuffer.clear();
+    }
+
+    public boolean isDiagnosticTraceEnabled() {
+        return diagnosticTraceEnabled;
+    }
+
+    public boolean isNegativeTempDetected() {
+        return negativeTempDetected;
+    }
+
+    public String getNegativeTempReason() {
+        return negativeTempReason;
+    }
+
+    public List<IntermediateStepSnapshot> getStepTrace() {
+        return Collections.unmodifiableList(stepTraceBuffer);
+    }
+
+    public void recordTraceSnapshot(String phase, String details) {
+        if (!diagnosticTraceEnabled) return;
+        double minT = Double.POSITIVE_INFINITY;
+        double maxT = Double.NEGATIVE_INFINITY;
+        double sumT = 0;
+        int minX = -1, minY = -1;
+        String minCode = "";
+
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                SimTile t = grid[x][y];
+                if (t != null) {
+                    double temp = t.getTemperature();
+                    sumT += temp;
+                    if (temp < minT) {
+                        minT = temp;
+                        minX = x;
+                        minY = y;
+                        minCode = t.getType().code;
+                    }
+                    if (temp > maxT) {
+                        maxT = temp;
+                    }
+                }
+            }
+        }
+        double avgT = (width * height > 0) ? (sumT / (width * height)) : 0;
+        if (stepTraceBuffer.size() >= maxTraceSteps) {
+            stepTraceBuffer.remove(0);
+        }
+        stepTraceBuffer
+            .add(new IntermediateStepSnapshot(currentTick, phase, minT, minX, minY, minCode, maxT, avgT, details));
+    }
+
     public StandaloneNuclearGrid(int width, int height, int pipeTier) {
         this.width = width;
         this.height = height;
@@ -88,6 +193,9 @@ public class StandaloneNuclearGrid {
         this.totalEnergyEU = 0;
         this.totalDeuteriumProduced = 0;
         this.totalTritiumProduced = 0;
+        this.negativeTempDetected = false;
+        this.negativeTempReason = "";
+        this.stepTraceBuffer.clear();
         this.history.clear();
     }
 
@@ -122,6 +230,7 @@ public class StandaloneNuclearGrid {
         if (exploded) return false;
 
         currentTick++;
+        recordTraceSnapshot("PRE_TICK", "State before coolant feed");
 
         // 1. Coolant Feed Phase: Replenish hatches that have space, checking dry thermal shock
         for (int x = 0; x < width; x++) {
@@ -155,6 +264,7 @@ public class StandaloneNuclearGrid {
                 }
             }
         }
+        recordTraceSnapshot("POST_COOLANT_FEED", "Coolant fed into hatches");
 
         // 2. Call the mod's pure Java NuclearSimulationEngine
         NuclearSimulationEngine.SimulationResult res = NuclearSimulationEngine.simulate(grid, width, height);
@@ -168,8 +278,32 @@ public class StandaloneNuclearGrid {
         efficiency = NuclearSimulationEngine.calculateEfficiency(coreAvgTemp);
 
         totalNeutronsGenerated += lastNeutronsProduced;
+        recordTraceSnapshot("POST_SIMULATE", "Nuclear fission, diffusion and boiling completed");
 
-        // 3. Check casing operating temperature limit
+        // 3. Strict Check for Negative Temperature Anomaly
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                SimTile tile = grid[x][y];
+                if (tile != null && tile.getTemperature() < 0.0) {
+                    this.negativeTempDetected = true;
+                    this.negativeTempReason = String.format(
+                        java.util.Locale.US,
+                        "Negative temperature anomaly: tile (%d, %d) [%s] reached %.2f°C at tick %d (min allowed: %.1f°C) | Last Cooling: %s",
+                        x,
+                        y,
+                        tile.getType().code,
+                        tile.getTemperature(),
+                        currentTick,
+                        NuclearSimulationEngine.AMBIENT_TEMP,
+                        tile.getLastCoolingDetails());
+                    recordTraceSnapshot("NEGATIVE_TEMP_DETECTED", negativeTempReason);
+                    triggerExplosion("Simulation Logic Failure: " + negativeTempReason);
+                    return false;
+                }
+            }
+        }
+
+        // 4. Check casing operating temperature limit
         double maxTempAllowed = NuclearSimulationEngine.getMaxOperatingTemperature(pipeTier);
         if (coreMaxTemp > maxTempAllowed) {
             triggerExplosion(
@@ -273,168 +407,211 @@ public class StandaloneNuclearGrid {
     public void loadPreset(String presetName) {
         resetMetrics();
         switch (presetName.toUpperCase()) {
-            case "BREEDER_7X7" -> {
-                this.width = 7;
-                this.height = 7;
-                this.grid = new SimTile[7][7];
+            case "BEST_ELECTRUM_5X5", "ELECTRUM_POWER_5X5", "BASIC_ELECTRUM_5X5" -> {
+                this.pipeTier = NuclearSimulationEngine.PIPE_TIER_ELECTRUM;
+                this.turbineMaterial = TurbineCalculator.TurbineMaterial.fromString("Oriharukon");
+                this.turbineSize = TurbineCalculator.TurbineSize.NORMAL;
+                this.turbineFitting = TurbineCalculator.FittingMode.TIGHT;
+                loadLayout("RB,RB,RB,RB,RB;RB,HC,M4,HC,RB;RB,M2,M4,M2,RB;RB,HC,M4,HC,RB;RB,RB,RB,RB,RB");
+                NuclearSimulationEngine.hatchCoolantCapacity = 500;
+                NuclearSimulationEngine.coolantFeedRate = 999999;
+                NuclearSimulationEngine.fissionHeatPerNeutron = 44.87;
+                NuclearSimulationEngine.coolingHeatPerLiter = 8.17;
+                NuclearSimulationEngine.turnoverCurve = NuclearSimulationEngine.TurnoverCurve.SIGMOID;
+                NuclearSimulationEngine.turnoverDeltaTMax = 300.0;
+                NuclearSimulationEngine.turnoverExponent = 1.8;
+                NuclearSimulationEngine.tempThresholdLow = 800.0;
+                NuclearSimulationEngine.tempThresholdHigh = 3200.0;
+                NuclearSimulationEngine.reactivityPower = 1.4;
+                NuclearSimulationEngine.thermalFissionMultiplier = 1.17;
+                NuclearSimulationEngine.fuelBurnupMultiplier = 0.0123;
+                NuclearSimulationEngine.hpWaterBoilingPoint = 160.0;
+                updateHatchCapacities(500);
+            }
+            case "BEST_PLATINUM_7X7", "BREEDER_7X7" -> {
                 this.pipeTier = NuclearSimulationEngine.PIPE_TIER_PLATINUM;
-                clearGrid();
-                // Outer ring reflectors
-                for (int i = 0; i < 7; i++) {
-                    setTile(i, 0, SimTile.TileType.REFLECTOR_BERYLLIUM);
-                    setTile(i, 6, SimTile.TileType.REFLECTOR_BERYLLIUM);
-                    setTile(0, i, SimTile.TileType.REFLECTOR_BERYLLIUM);
-                    setTile(6, i, SimTile.TileType.REFLECTOR_BERYLLIUM);
-                }
-                // Checkerboard Distilled Water hatches and Uranium Quad rods for breeding
-                for (int x = 1; x < 6; x++) {
-                    for (int y = 1; y < 6; y++) {
-                        if ((x + y) % 2 == 0) {
-                            setTile(x, y, SimTile.TileType.FUEL_URANIUM_QUAD);
-                        } else {
-                            setTile(x, y, SimTile.TileType.HATCH_DISTILLED_WATER);
-                        }
-                    }
-                }
+                this.turbineMaterial = TurbineCalculator.TurbineMaterial.ELVEN_ELEMENTIUM;
+                this.turbineSize = TurbineCalculator.TurbineSize.NORMAL;
+                this.turbineFitting = TurbineCalculator.FittingMode.TIGHT;
+                loadLayout(
+                    "RB,RB,RB,RB,RB,RB,RB;RB,M4,M4,M4,M4,M4,RB;RB,HD,U2,HD,U2,HD,RB;RB,M4,HD,U4,HD,M4,RB;RB,HD,U2,HD,U2,HD,RB;RB,M4,M4,M4,M4,M4,RB;RB,RB,RB,RB,RB,RB,RB");
+                NuclearSimulationEngine.hatchCoolantCapacity = 500;
+                NuclearSimulationEngine.coolantFeedRate = 500;
+                NuclearSimulationEngine.fissionHeatPerNeutron = 40.93;
+                NuclearSimulationEngine.coolingHeatPerLiter = 7.43;
+                NuclearSimulationEngine.turnoverCurve = NuclearSimulationEngine.TurnoverCurve.SIGMOID;
+                NuclearSimulationEngine.turnoverDeltaTMax = 279.2;
+                NuclearSimulationEngine.turnoverExponent = 1.0;
+                NuclearSimulationEngine.tempThresholdLow = 800.0;
+                NuclearSimulationEngine.tempThresholdHigh = 2000.0;
+                NuclearSimulationEngine.reactivityPower = 1.2;
+                NuclearSimulationEngine.thermalFissionMultiplier = 0.915;
+                NuclearSimulationEngine.fuelBurnupMultiplier = 0.00719;
+                NuclearSimulationEngine.hpWaterBoilingPoint = 220.0;
+                updateHatchCapacities(500);
             }
-            case "SUPERHEATED_POWER_7X7" -> {
-                this.width = 7;
-                this.height = 7;
-                this.grid = new SimTile[7][7];
+            case "BEST_OSMIUM_7X7", "SUPERHEATED_POWER_7X7" -> {
                 this.pipeTier = NuclearSimulationEngine.PIPE_TIER_OSMIUM;
-                clearGrid();
-                // Outer ring reflectors
-                for (int i = 0; i < 7; i++) {
-                    setTile(i, 0, SimTile.TileType.REFLECTOR_CARBON);
-                    setTile(i, 6, SimTile.TileType.REFLECTOR_CARBON);
-                    setTile(0, i, SimTile.TileType.REFLECTOR_CARBON);
-                    setTile(6, i, SimTile.TileType.REFLECTOR_CARBON);
-                }
-                // HP Distilled Water and MOX Quad rods
-                for (int x = 1; x < 6; x++) {
-                    for (int y = 1; y < 6; y++) {
-                        if ((x == 3 && y == 3) || (x == 2 && y == 2)
-                            || (x == 4 && y == 4)
-                            || (x == 2 && y == 4)
-                            || (x == 4 && y == 2)) {
-                            setTile(x, y, SimTile.TileType.FUEL_MOX_QUAD);
-                        } else {
-                            setTile(x, y, SimTile.TileType.HATCH_HP_DISTILLED_WATER);
-                        }
-                    }
-                }
+                this.turbineMaterial = TurbineCalculator.TurbineMaterial.HSS_E;
+                this.turbineSize = TurbineCalculator.TurbineSize.NORMAL;
+                this.turbineFitting = TurbineCalculator.FittingMode.TIGHT;
+                loadLayout(
+                    "RC,RC,RC,RC,RC,RC,RC;RC,NQ,T4,T1,T4,NQ,RC;RC,M4,M4,HC,M4,M4,RC;RC,M4,M1,HC,M1,M4,RC;RC,M4,M4,HC,M4,M4,RC;RC,NQ,T4,T1,T4,NQ,RC;RC,RC,RC,RC,RC,RC,RC");
+                NuclearSimulationEngine.hatchCoolantCapacity = 1000;
+                NuclearSimulationEngine.coolantFeedRate = 1000;
+                NuclearSimulationEngine.fissionHeatPerNeutron = 50.0;
+                NuclearSimulationEngine.coolingHeatPerLiter = 9.45;
+                NuclearSimulationEngine.turnoverCurve = NuclearSimulationEngine.TurnoverCurve.EXPONENTIAL;
+                NuclearSimulationEngine.turnoverDeltaTMax = 265.5;
+                NuclearSimulationEngine.turnoverExponent = 1.0;
+                NuclearSimulationEngine.tempThresholdLow = 1000.0;
+                NuclearSimulationEngine.tempThresholdHigh = 2000.0;
+                NuclearSimulationEngine.reactivityPower = 1.0;
+                NuclearSimulationEngine.thermalFissionMultiplier = 1.73;
+                NuclearSimulationEngine.fuelBurnupMultiplier = 0.00643;
+                NuclearSimulationEngine.hpWaterBoilingPoint = 180.0;
+                updateHatchCapacities(1000);
             }
-            case "CANDU_HEAVY_WATER_9X9" -> {
-                this.width = 9;
-                this.height = 9;
-                this.grid = new SimTile[9][9];
+            case "BEST_QUANTIUM_9X9", "CANDU_HEAVY_WATER_9X9" -> {
                 this.pipeTier = NuclearSimulationEngine.PIPE_TIER_QUANTIUM;
-                clearGrid();
-                for (int i = 0; i < 9; i++) {
-                    setTile(i, 0, SimTile.TileType.REFLECTOR_BERYLLIUM);
-                    setTile(i, 8, SimTile.TileType.REFLECTOR_BERYLLIUM);
-                    setTile(0, i, SimTile.TileType.REFLECTOR_BERYLLIUM);
-                    setTile(8, i, SimTile.TileType.REFLECTOR_BERYLLIUM);
-                }
-                for (int x = 1; x < 8; x++) {
-                    for (int y = 1; y < 8; y++) {
-                        if ((x + y) % 2 == 0) {
-                            setTile(x, y, SimTile.TileType.FUEL_URANIUM_QUAD);
-                        } else {
-                            setTile(x, y, SimTile.TileType.HATCH_HEAVY_WATER);
-                        }
-                    }
-                }
+                this.turbineMaterial = TurbineCalculator.TurbineMaterial.HSS_E;
+                this.turbineSize = TurbineCalculator.TurbineSize.LARGE;
+                this.turbineFitting = TurbineCalculator.FittingMode.TIGHT;
+                loadLayout(
+                    "RB,RB,RB,RB,RB,RB,RB,RB,RB;RB,HC,CR,HC,HC,HC,CR,HC,RB;RB,T4,NQ,M4,U4,M4,NQ,T4,RB;RB,HP,M4,HC,RB,HC,M4,HP,RB;RB,HP,HC,M4,M4,M4,HC,HP,RB;RB,HP,M4,HC,RB,HC,M4,HP,RB;RB,T4,NQ,M4,U4,M4,NQ,T4,RB;RB,HC,CR,HC,HC,HC,CR,HC,RB;RB,RB,RB,RB,RB,RB,RB,RB,RB");
+                NuclearSimulationEngine.hatchCoolantCapacity = 1000;
+                NuclearSimulationEngine.coolantFeedRate = 500;
+                NuclearSimulationEngine.fissionHeatPerNeutron = 44.39;
+                NuclearSimulationEngine.coolingHeatPerLiter = 2.27;
+                NuclearSimulationEngine.turnoverCurve = NuclearSimulationEngine.TurnoverCurve.LINEAR;
+                NuclearSimulationEngine.turnoverDeltaTMax = 300.0;
+                NuclearSimulationEngine.turnoverExponent = 1.2;
+                NuclearSimulationEngine.tempThresholdLow = 1000.0;
+                NuclearSimulationEngine.tempThresholdHigh = 2800.0;
+                NuclearSimulationEngine.reactivityPower = 1.4;
+                NuclearSimulationEngine.thermalFissionMultiplier = 1.45;
+                NuclearSimulationEngine.fuelBurnupMultiplier = 0.00287;
+                NuclearSimulationEngine.hpWaterBoilingPoint = 200.0;
+                updateHatchCapacities(1000);
             }
-            case "FLUXED_SUPERCRITICAL_9X9" -> {
-                this.width = 9;
-                this.height = 9;
-                this.grid = new SimTile[9][9];
+            case "BEST_FLUXED_9X9", "FLUXED_SUPERCRITICAL_9X9" -> {
                 this.pipeTier = NuclearSimulationEngine.PIPE_TIER_FLUXED_ELECTRUM;
-                clearGrid();
-                for (int i = 0; i < 9; i++) {
-                    setTile(i, 0, SimTile.TileType.REFLECTOR_BERYLLIUM);
-                    setTile(i, 8, SimTile.TileType.REFLECTOR_BERYLLIUM);
-                    setTile(0, i, SimTile.TileType.REFLECTOR_BERYLLIUM);
-                    setTile(8, i, SimTile.TileType.REFLECTOR_BERYLLIUM);
-                }
-                for (int x = 1; x < 8; x++) {
-                    for (int y = 1; y < 8; y++) {
-                        if (x % 2 == 0 && y % 2 == 0) {
-                            setTile(x, y, SimTile.TileType.FUEL_NAQUADAH);
-                        } else {
-                            setTile(x, y, SimTile.TileType.HATCH_HP_HEAVY_WATER);
-                        }
-                    }
-                }
+                this.turbineMaterial = TurbineCalculator.TurbineMaterial.HSS_S;
+                this.turbineSize = TurbineCalculator.TurbineSize.LARGE;
+                this.turbineFitting = TurbineCalculator.FittingMode.TIGHT;
+                loadLayout(
+                    "RB,RB,RB,RB,RB,RB,RB,RB,RB;RB,CR,HW,T4,T1,T4,HW,CR,RB;RB,T4,T4,HH,T4,HH,T4,T4,RB;RB,HW,HH,NQ,T4,NQ,HH,HW,RB;RB,NQ,T4,HW,NQ,HW,T4,NQ,RB;RB,HW,HH,NQ,T4,NQ,HH,HW,RB;RB,T4,T4,HH,T4,HH,T4,T4,RB;RB,CR,HW,T4,T1,T4,HW,CR,RB;RB,RB,RB,RB,RB,RB,RB,RB,RB");
+                NuclearSimulationEngine.hatchCoolantCapacity = 8000;
+                NuclearSimulationEngine.coolantFeedRate = 4000;
+                NuclearSimulationEngine.fissionHeatPerNeutron = 16.3;
+                NuclearSimulationEngine.coolingHeatPerLiter = 7.86;
+                NuclearSimulationEngine.turnoverCurve = NuclearSimulationEngine.TurnoverCurve.SIGMOID;
+                NuclearSimulationEngine.turnoverDeltaTMax = 34.8;
+                NuclearSimulationEngine.turnoverExponent = 1.0;
+                NuclearSimulationEngine.tempThresholdLow = 1000.0;
+                NuclearSimulationEngine.tempThresholdHigh = 3200.0;
+                NuclearSimulationEngine.reactivityPower = 1.4;
+                NuclearSimulationEngine.thermalFissionMultiplier = 1.64;
+                NuclearSimulationEngine.fuelBurnupMultiplier = 0.00282;
+                NuclearSimulationEngine.hpWaterBoilingPoint = 220.0;
+                updateHatchCapacities(8000);
             }
-            case "ELECTRUM_POWER_5X5" -> {
-                this.width = 5;
-                this.height = 5;
-                this.grid = new SimTile[5][5];
-                this.pipeTier = NuclearSimulationEngine.PIPE_TIER_ELECTRUM;
-                clearGrid();
-                for (int i = 0; i < 5; i++) {
-                    setTile(i, 0, SimTile.TileType.REFLECTOR_CARBON);
-                    setTile(i, 4, SimTile.TileType.REFLECTOR_CARBON);
-                    setTile(0, i, SimTile.TileType.REFLECTOR_CARBON);
-                    setTile(4, i, SimTile.TileType.REFLECTOR_CARBON);
-                }
-                setTile(1, 1, SimTile.TileType.FUEL_URANIUM_QUAD);
-                setTile(3, 1, SimTile.TileType.FUEL_URANIUM_QUAD);
-                setTile(1, 3, SimTile.TileType.FUEL_URANIUM_QUAD);
-                setTile(3, 3, SimTile.TileType.FUEL_URANIUM_QUAD);
-                setTile(2, 1, SimTile.TileType.HATCH_IC2_COOLANT);
-                setTile(1, 2, SimTile.TileType.HATCH_IC2_COOLANT);
-                setTile(2, 2, SimTile.TileType.HATCH_IC2_COOLANT);
-                setTile(3, 2, SimTile.TileType.HATCH_IC2_COOLANT);
-                setTile(2, 3, SimTile.TileType.HATCH_IC2_COOLANT);
-            }
-            case "BLACK_PLUTONIUM_9X9" -> {
-                this.width = 9;
-                this.height = 9;
-                this.grid = new SimTile[9][9];
+            case "BEST_PLUTONIUM_9X9", "BLACK_PLUTONIUM_9X9" -> {
                 this.pipeTier = NuclearSimulationEngine.PIPE_TIER_BLACK_PLUTONIUM;
-                clearGrid();
-                for (int i = 0; i < 9; i++) {
-                    setTile(i, 0, SimTile.TileType.REFLECTOR_BERYLLIUM);
-                    setTile(i, 8, SimTile.TileType.REFLECTOR_BERYLLIUM);
-                    setTile(0, i, SimTile.TileType.REFLECTOR_BERYLLIUM);
-                    setTile(8, i, SimTile.TileType.REFLECTOR_BERYLLIUM);
-                }
-                for (int x = 1; x < 8; x++) {
-                    for (int y = 1; y < 8; y++) {
-                        if ((x + y) % 2 == 0) {
-                            setTile(x, y, SimTile.TileType.FUEL_NAQUADAH);
-                        } else {
-                            setTile(x, y, SimTile.TileType.HATCH_HP_HEAVY_WATER);
-                        }
-                    }
-                }
+                this.turbineMaterial = TurbineCalculator.TurbineMaterial.HSS_S;
+                this.turbineSize = TurbineCalculator.TurbineSize.LARGE;
+                this.turbineFitting = TurbineCalculator.FittingMode.TIGHT;
+                loadLayout(
+                    "RB,RB,RB,RB,RB,RB,RB,RB,RB;RB,HC,M4,CR,CR,CR,M4,HC,RB;RB,M2,M4,M4,M4,M4,M4,M2,RB;RB,M4,M4,CR,M2,CR,M4,M4,RB;RB,M4,M4,M4,RB,M4,M4,M4,RB;RB,M4,M4,CR,M2,CR,M4,M4,RB;RB,M2,M4,M4,M4,M4,M4,M2,RB;RB,HC,M4,CR,CR,CR,M4,HC,RB;RB,RB,RB,RB,RB,RB,RB,RB,RB");
+                NuclearSimulationEngine.hatchCoolantCapacity = 2000;
+                NuclearSimulationEngine.coolantFeedRate = 999999;
+                NuclearSimulationEngine.fissionHeatPerNeutron = 27.55;
+                NuclearSimulationEngine.coolingHeatPerLiter = 7.08;
+                NuclearSimulationEngine.turnoverCurve = NuclearSimulationEngine.TurnoverCurve.SIGMOID;
+                NuclearSimulationEngine.turnoverDeltaTMax = 55.2;
+                NuclearSimulationEngine.turnoverExponent = 1.0;
+                NuclearSimulationEngine.tempThresholdLow = 700.0;
+                NuclearSimulationEngine.tempThresholdHigh = 2400.0;
+                NuclearSimulationEngine.reactivityPower = 1.0;
+                NuclearSimulationEngine.thermalFissionMultiplier = 1.30;
+                NuclearSimulationEngine.fuelBurnupMultiplier = 0.00512;
+                NuclearSimulationEngine.hpWaterBoilingPoint = 160.0;
+                updateHatchCapacities(2000);
             }
-            default -> { // BASIC_ELECTRUM_5X5
-                this.width = 5;
-                this.height = 5;
-                this.grid = new SimTile[5][5];
-                this.pipeTier = NuclearSimulationEngine.PIPE_TIER_ELECTRUM;
-                clearGrid();
-                for (int i = 0; i < 5; i++) {
-                    setTile(i, 0, SimTile.TileType.REFLECTOR_CARBON);
-                    setTile(i, 4, SimTile.TileType.REFLECTOR_CARBON);
-                    setTile(0, i, SimTile.TileType.REFLECTOR_CARBON);
-                    setTile(4, i, SimTile.TileType.REFLECTOR_CARBON);
-                }
-                setTile(2, 2, SimTile.TileType.FUEL_URANIUM_DUAL);
-                setTile(1, 2, SimTile.TileType.HATCH_IC2_COOLANT);
-                setTile(3, 2, SimTile.TileType.HATCH_IC2_COOLANT);
-                setTile(2, 1, SimTile.TileType.HATCH_IC2_COOLANT);
-                setTile(2, 3, SimTile.TileType.HATCH_IC2_COOLANT);
-                setTile(1, 1, SimTile.TileType.COOLANT_CELL_60K);
-                setTile(3, 1, SimTile.TileType.COOLANT_CELL_60K);
-                setTile(1, 3, SimTile.TileType.COOLANT_CELL_60K);
-                setTile(3, 3, SimTile.TileType.COOLANT_CELL_60K);
+            default -> {
+                this.pipeTier = NuclearSimulationEngine.PIPE_TIER_PLATINUM;
+                this.turbineMaterial = TurbineCalculator.TurbineMaterial.ELVEN_ELEMENTIUM;
+                this.turbineSize = TurbineCalculator.TurbineSize.NORMAL;
+                this.turbineFitting = TurbineCalculator.FittingMode.TIGHT;
+                loadLayout(
+                    "RB,RB,RB,RB,RB,RB,RB;RB,M4,M4,M4,M4,M4,RB;RB,HD,U2,HD,U2,HD,RB;RB,M4,HD,U4,HD,M4,RB;RB,HD,U2,HD,U2,HD,RB;RB,M4,M4,M4,M4,M4,RB;RB,RB,RB,RB,RB,RB,RB");
             }
         }
+    }
+
+    /**
+     * Loads a custom layout string into the grid.
+     * Can accept row-separated formats (with ';' or '/' or newline) or flat comma/space-separated codes.
+     */
+    public void loadLayout(String layoutStr) {
+        if (layoutStr == null || layoutStr.trim()
+            .isEmpty()) return;
+        resetMetrics();
+        String trimmed = layoutStr.trim();
+        String[] rows = trimmed.split("[;/\\n]+");
+        if (rows.length > 1) {
+            int h = rows.length;
+            String[] firstRowCols = rows[0].trim()
+                .split("[,\\s]+");
+            int w = firstRowCols.length;
+            if (w > 0 && h > 0) {
+                this.width = w;
+                this.height = h;
+                this.grid = new SimTile[w][h];
+                clearGrid();
+                for (int y = 0; y < h; y++) {
+                    String[] cols = rows[y].trim()
+                        .split("[,\\s]+");
+                    for (int x = 0; x < Math.min(w, cols.length); x++) {
+                        setTile(x, y, SimTile.TileType.fromCode(cols[x]));
+                    }
+                }
+                return;
+            }
+        }
+
+        // Flat sequence of codes
+        String[] tokens = trimmed.split("[,\\s]+");
+        int sqrt = (int) Math.round(Math.sqrt(tokens.length));
+        if (sqrt * sqrt == tokens.length && (this.width * this.height != tokens.length)) {
+            this.width = sqrt;
+            this.height = sqrt;
+            this.grid = new SimTile[sqrt][sqrt];
+        }
+        clearGrid();
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int idx = y * width + x;
+                if (idx < tokens.length) {
+                    setTile(x, y, SimTile.TileType.fromCode(tokens[idx]));
+                }
+            }
+        }
+    }
+
+    /**
+     * Serializes the current grid layout to a compact string format: rows separated by ';', cells separated by ','.
+     */
+    public String toLayoutString() {
+        StringBuilder sb = new StringBuilder();
+        for (int y = 0; y < height; y++) {
+            if (y > 0) sb.append(";");
+            for (int x = 0; x < width; x++) {
+                if (x > 0) sb.append(",");
+                sb.append(grid[x][y].getType().code);
+            }
+        }
+        return sb.toString();
     }
 
     /**

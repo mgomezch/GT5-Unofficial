@@ -270,6 +270,12 @@ public class NuclearSimulationWebServer {
             sb.append("\"coolingHeatPerLiter\":")
                 .append(String.format(java.util.Locale.US, "%.1f", NuclearSimulationEngine.coolingHeatPerLiter))
                 .append(",");
+            sb.append("\"ambientTemp\":")
+                .append(String.format(java.util.Locale.US, "%.1f", NuclearSimulationEngine.ambientTemp))
+                .append(",");
+            sb.append("\"ic2CoolantHeatPerLiter\":")
+                .append(String.format(java.util.Locale.US, "%.1f", NuclearSimulationEngine.ic2CoolantHeatPerLiter))
+                .append(",");
             sb.append("\"tempThresholdLow\":")
                 .append(String.format(java.util.Locale.US, "%.1f", NuclearSimulationEngine.tempThresholdLow))
                 .append(",");
@@ -560,6 +566,12 @@ public class NuclearSimulationWebServer {
                 if (params.containsKey("hpBoil")) {
                     NuclearSimulationEngine.hpWaterBoilingPoint = Double.parseDouble(params.get("hpBoil"));
                 }
+                if (params.containsKey("ambientTemp")) {
+                    NuclearSimulationEngine.setAmbientTemperature(Double.parseDouble(params.get("ambientTemp")));
+                }
+                if (params.containsKey("ic2CoolantHeat")) {
+                    NuclearSimulationEngine.ic2CoolantHeatPerLiter = Double.parseDouble(params.get("ic2CoolantHeat"));
+                }
 
                 sendJsonResponse(exchange, 200, "{\"success\":true}");
             } catch (Exception e) {
@@ -716,11 +728,12 @@ public class NuclearSimulationWebServer {
                   <button onclick="stepSim(100)">Step +100</button>
                   <button class="danger" onclick="resetSim()">↺ Reset</button>
                   <select id="preset-select" onchange="loadPreset(this.value)">
-                    <option value="BREEDER_7X7" selected>Preset: Breeder 7x7 (Platinum Casing)</option>
-                    <option value="SUPERHEATED_POWER_7X7">Preset: Superheated Power 7x7 (Osmium Casing)</option>
-                    <option value="BASIC_ELECTRUM_5X5">Preset: Basic Electrum 5x5</option>
-                    <option value="CANDU_HEAVY_WATER_9X9">Preset: CANDU Heavy Water 9x9 (Quantium Casing)</option>
-                    <option value="FLUXED_SUPERCRITICAL_9X9">Preset: Supercritical Naquadah 9x9 (Fluxed Casing)</option>
+                    <option value="BEST_ELECTRUM_5X5">⭐ EV 60A: Electrum 5x5 (123k EU/t · 17.9m)</option>
+                    <option value="BEST_PLATINUM_7X7" selected>⭐ IV 60A: Platinum 7x7 Breeder (491k EU/t · 15.8m)</option>
+                    <option value="BEST_OSMIUM_7X7">⭐ LuV 60A: Osmium 7x7 Superheated (1.97M EU/t · 28.1m)</option>
+                    <option value="BEST_QUANTIUM_9X9">⭐ ZPM 60A: Quantium 9x9 CANDU (7.86M EU/t · 41.0m)</option>
+                    <option value="BEST_FLUXED_9X9">⭐ UV 60A: Fluxed 9x9 Supercritical (31.5M EU/t · 17.1m)</option>
+                    <option value="BEST_PLUTONIUM_9X9">⭐ UHV High-Power: Black Plutonium 9x9 (6.98M EU/t · 37.3m)</option>
                   </select>
                   <select id="tier-select" onchange="changeTier(this.value)">
                     <option value="0">Electrum (1000°C)</option>
@@ -841,9 +854,19 @@ public class NuclearSimulationWebServer {
                       <input id="p-fiss-mult" type="number" step="0.05" value="1.1" onchange="submitSimParams()" style="width:100%; background:#233044; border:1px solid var(--border-color); color:#fff; padding:6px; border-radius:6px; font-size:0.8rem;">
                     </div>
                   </div>
+                  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-top:6px;">
+                    <div>
+                      <label style="font-size:0.7rem; color:var(--text-muted);">Water Heat (EU/L):</label>
+                      <input id="p-cooling-heat" type="number" step="0.5" value="4.0" onchange="submitSimParams()" style="width:100%; background:#233044; border:1px solid var(--border-color); color:#fff; padding:6px; border-radius:6px; font-size:0.8rem;">
+                    </div>
+                    <div>
+                      <label style="font-size:0.7rem; color:var(--text-muted);">IC2 Heat (EU/L):</label>
+                      <input id="p-ic2-cooling-heat" type="number" step="1.0" value="20.0" onchange="submitSimParams()" style="width:100%; background:#233044; border:1px solid var(--border-color); color:#fff; padding:6px; border-radius:6px; font-size:0.8rem;">
+                    </div>
+                  </div>
                   <div style="margin-top:6px;">
-                    <label style="font-size:0.7rem; color:var(--text-muted);">Cooling Heat (EU/L):</label>
-                    <input id="p-cooling-heat" type="number" step="0.5" value="4.0" onchange="submitSimParams()" style="width:100%; background:#233044; border:1px solid var(--border-color); color:#fff; padding:6px; border-radius:6px; font-size:0.8rem;">
+                    <label style="font-size:0.7rem; color:var(--text-muted);">Ambient Temp (°C):</label>
+                    <input id="p-ambient-temp" type="number" step="1.0" value="24.0" onchange="submitSimParams()" style="width:100%; background:#233044; border:1px solid var(--border-color); color:#fff; padding:6px; border-radius:6px; font-size:0.8rem;">
                   </div>
                 </div>
               </div>
@@ -1277,6 +1300,8 @@ public class NuclearSimulationWebServer {
               setVal("p-turn-exp", p.turnoverExponent);
               setVal("p-feed-rate", p.coolantFeedRate);
               setVal("p-cooling-heat", p.coolingHeatPerLiter);
+              setVal("p-ic2-cooling-heat", p.ic2CoolantHeatPerLiter);
+              setVal("p-ambient-temp", p.ambientTemp);
               setVal("p-t-low", p.tempThresholdLow);
               setVal("p-t-high", p.tempThresholdHigh);
               setVal("p-react-pow", p.reactivityPower);
@@ -1291,13 +1316,15 @@ public class NuclearSimulationWebServer {
               const exp = document.getElementById("p-turn-exp").value;
               const feed = document.getElementById("p-feed-rate").value;
               const ch = document.getElementById("p-cooling-heat").value;
+              const ic2Ch = document.getElementById("p-ic2-cooling-heat").value;
+              const amb = document.getElementById("p-ambient-temp").value;
               const tLow = document.getElementById("p-t-low").value;
               const tHigh = document.getElementById("p-t-high").value;
               const rPow = document.getElementById("p-react-pow").value;
               const fMult = document.getElementById("p-fiss-mult").value;
               const hpBoil = document.getElementById("p-hp-boil").value;
 
-              const url = `/api/set-params?hatchCapacity=${cap}&turnoverCurve=${curve}&turnoverDeltaTMax=${dt}&turnoverExponent=${exp}&coolantFeedRate=${feed}&coolingHeat=${ch}&tempLow=${tLow}&tempHigh=${tHigh}&reactivityPow=${rPow}&fissionMult=${fMult}&hpBoil=${hpBoil}`;
+              const url = `/api/set-params?hatchCapacity=${cap}&turnoverCurve=${curve}&turnoverDeltaTMax=${dt}&turnoverExponent=${exp}&coolantFeedRate=${feed}&coolingHeat=${ch}&ic2CoolantHeat=${ic2Ch}&ambientTemp=${amb}&tempLow=${tLow}&tempHigh=${tHigh}&reactivityPow=${rPow}&fissionMult=${fMult}&hpBoil=${hpBoil}`;
               await fetch(url);
               await fetchState();
               schedulePoll();

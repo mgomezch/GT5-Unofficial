@@ -7,7 +7,9 @@ public class NuclearSimulationEngine {
     public static final double EU_FOR_FAST_NEUTRON = 8.0;
     public static final double EU_PER_DEGREE = 64.0;
     public static final double BASE_HEAT_CONDUCTION = 0.01;
-    public static final double AMBIENT_TEMP = 20.0;
+    public static final double DEFAULT_AMBIENT_TEMP = 24.0;
+    public static double ambientTemp = DEFAULT_AMBIENT_TEMP;
+    public static double AMBIENT_TEMP = DEFAULT_AMBIENT_TEMP;
     public static final double DEFAULT_TEMP_THRESHOLD_LOW = 800.0;
     public static final double DEFAULT_TEMP_THRESHOLD_HIGH = 2800.0;
     public static final double DEFAULT_REACTIVITY_POWER = 1.2;
@@ -40,6 +42,7 @@ public class NuclearSimulationEngine {
     public static final double DEFAULT_TURNOVER_EXPONENT = 1.5;
     public static final int DEFAULT_COOLANT_FEED_RATE = 2000;
     public static final double DEFAULT_COOLING_HEAT_PER_LITER = 4.0;
+    public static final double DEFAULT_IC2_COOLANT_HEAT_PER_LITER = 20.0;
 
     public static double tempThresholdLow = DEFAULT_TEMP_THRESHOLD_LOW;
     public static double tempThresholdHigh = DEFAULT_TEMP_THRESHOLD_HIGH;
@@ -54,9 +57,15 @@ public class NuclearSimulationEngine {
     public static double turnoverExponent = DEFAULT_TURNOVER_EXPONENT;
     public static int coolantFeedRate = DEFAULT_COOLANT_FEED_RATE;
     public static double coolingHeatPerLiter = DEFAULT_COOLING_HEAT_PER_LITER;
+    public static double ic2CoolantHeatPerLiter = DEFAULT_IC2_COOLANT_HEAT_PER_LITER;
 
     public static final double DEFAULT_FUEL_BURNUP_MULTIPLIER = 1.0;
     public static double fuelBurnupMultiplier = DEFAULT_FUEL_BURNUP_MULTIPLIER;
+
+    public static void setAmbientTemperature(double temp) {
+        ambientTemp = temp;
+        AMBIENT_TEMP = temp;
+    }
 
     public static void setSimulationParameters(double low, double high, double power, double fissionMult,
         double heatPerNeutron, double hpBoil) {
@@ -80,6 +89,26 @@ public class NuclearSimulationEngine {
         setSimulationParameters(low, high, power, fissionMult, heatPerNeutron, hpBoil);
     }
 
+    public static void setExtendedParameters(int hatchCap, TurnoverCurve curve, double dtMax, double exp, int feedRate,
+        double coolingHeat, double low, double high, double power, double fissionMult, double heatPerNeutron,
+        double hpBoil, double ic2Heat, double ambient) {
+        setExtendedParameters(
+            hatchCap,
+            curve,
+            dtMax,
+            exp,
+            feedRate,
+            coolingHeat,
+            low,
+            high,
+            power,
+            fissionMult,
+            heatPerNeutron,
+            hpBoil);
+        ic2CoolantHeatPerLiter = Math.max(0.1, ic2Heat);
+        setAmbientTemperature(ambient);
+    }
+
     public static void resetDefaultParameters() {
         tempThresholdLow = DEFAULT_TEMP_THRESHOLD_LOW;
         tempThresholdHigh = DEFAULT_TEMP_THRESHOLD_HIGH;
@@ -94,6 +123,8 @@ public class NuclearSimulationEngine {
         coolantFeedRate = DEFAULT_COOLANT_FEED_RATE;
         coolingHeatPerLiter = DEFAULT_COOLING_HEAT_PER_LITER;
         fuelBurnupMultiplier = DEFAULT_FUEL_BURNUP_MULTIPLIER;
+        ic2CoolantHeatPerLiter = DEFAULT_IC2_COOLANT_HEAT_PER_LITER;
+        setAmbientTemperature(DEFAULT_AMBIENT_TEMP);
     }
 
     /**
@@ -180,6 +211,16 @@ public class NuclearSimulationEngine {
     public static double getCoolantBoilingThreshold(String fluidName) {
         if (fluidName == null || fluidName.contains("coolant")) {
             return Double.POSITIVE_INFINITY; // IC2 coolant never explodes
+        }
+        if (fluidName.contains("highpressure")) {
+            return hpWaterBoilingPoint;
+        }
+        return 100.0;
+    }
+
+    public static double getCoolingOperatingThreshold(String fluidName) {
+        if (fluidName == null || fluidName.contains("coolant")) {
+            return ambientTemp;
         }
         if (fluidName.contains("highpressure")) {
             return hpWaterBoilingPoint;
