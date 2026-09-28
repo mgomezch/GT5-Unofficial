@@ -1603,6 +1603,8 @@ public enum ItemList implements IItemContainer {
     IndustrialApiary_Upgrade_UNLIGHT,
 
     Neutron_Reflector,
+    Betavoltaic_Plate_HV,
+    Betavoltaic_Plate_EV,
 
     Reactor_Coolant_He_1,
     Reactor_Coolant_He_3,

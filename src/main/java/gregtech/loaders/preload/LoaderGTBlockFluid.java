@@ -94,6 +94,7 @@ import gregtech.common.items.ItemFluidDisplay;
 import gregtech.common.items.ItemIntegratedCircuit;
 import gregtech.common.items.ItemMagLevHarness;
 import gregtech.common.items.ItemNeutronReflector;
+import gregtech.common.items.ItemBetavoltaicPlate;
 import gregtech.common.items.ItemSensorCard;
 import gregtech.common.items.ItemTierDrone;
 import gregtech.common.items.ItemVolumetricFlask;
@@ -209,6 +210,8 @@ public class LoaderGTBlockFluid implements Runnable {
         }
 
         ItemList.Neutron_Reflector.set(new ItemNeutronReflector("neutronreflector", "Iridium Neutron Reflector", 0));
+        ItemList.Betavoltaic_Plate_HV.set(new ItemBetavoltaicPlate("betavoltaic.plate.hv", "Betavoltaic Plate (HV)", 1));
+        ItemList.Betavoltaic_Plate_EV.set(new ItemBetavoltaicPlate("betavoltaic.plate.ev", "Betavoltaic Plate (EV)", 2));
         ItemList.Reactor_Coolant_He_1
             .set(new ItemCoolantCellIC("60k_Helium_Coolantcell", "60k He Coolant Cell", 60_000));
         ItemList.Reactor_Coolant_He_3

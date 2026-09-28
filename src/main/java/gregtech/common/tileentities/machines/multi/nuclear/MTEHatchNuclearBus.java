@@ -17,6 +17,7 @@ import com.gtnewhorizons.modularui.common.widget.DrawableWidget;
 import com.gtnewhorizons.modularui.common.widget.SlotWidget;
 import com.gtnewhorizons.modularui.common.widget.TextWidget;
 
+import gregtech.api.enums.ItemList;
 import gregtech.api.gui.modularui.GTUITextures;
 import gregtech.api.interfaces.ITexture;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
@@ -172,6 +173,9 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
     public boolean isBetavoltaic() {
         ItemStack stack = mInventory[SLOT_INPUT];
         if (stack == null) return false;
+        if (stack.getItem() instanceof gregtech.common.items.ItemBetavoltaicPlate) return true;
+        if (ItemList.Betavoltaic_Plate_HV.isStackEqual(stack, false, true)) return true;
+        if (ItemList.Betavoltaic_Plate_EV.isStackEqual(stack, false, true)) return true;
         String name = stack.getUnlocalizedName()
             .toLowerCase();
         return name.contains("betavoltaic") || name.contains("betacell") || name.contains("neutronovoltaic");
@@ -180,6 +184,9 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
     public int getBetavoltaicTier() {
         ItemStack stack = mInventory[SLOT_INPUT];
         if (stack == null) return 0;
+        if (stack.getItem() instanceof gregtech.common.items.ItemBetavoltaicPlate plate) return plate.getTier();
+        if (ItemList.Betavoltaic_Plate_EV.isStackEqual(stack, false, true)) return 2;
+        if (ItemList.Betavoltaic_Plate_HV.isStackEqual(stack, false, true)) return 1;
         String name = stack.getUnlocalizedName()
             .toLowerCase();
         if (name.contains("ev") || name.contains("extreme") || name.contains("tier2") || name.contains("t2")) return 2;

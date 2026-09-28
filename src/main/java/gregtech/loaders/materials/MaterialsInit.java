@@ -3516,6 +3516,7 @@ public class MaterialsInit {
             .addOreItems()
             .addCell()
             .addToolHeadItems()
+            .addOrePrefix(OrePrefixes.plate)
             .addMaterial(Materials.Carbon, 1)
             .addAspect(TCAspects.VITREUS, 2)
             .addAspect(TCAspects.IGNIS, 1)

@@ -25,7 +25,7 @@ public class CircuitAssemblerRecipes implements Runnable {
     public void run() {
         registerRailcraftRecipes();
         registerForestryRecipes();
-
+        registerNuclearRecipes();
     }
 
     public void registerRailcraftRecipes() {
@@ -252,6 +252,32 @@ public class CircuitAssemblerRecipes implements Runnable {
             .fluidInputs(SubstituteFluidStack.soldering(576))
             .duration(10 * SECONDS)
             .eut((int) TierEU.RECIPE_LV)
+            .addTo(circuitAssemblerRecipes);
+    }
+
+    public void registerNuclearRecipes() {
+        // HV Betavoltaic Plate: Silicon Wafer + 2x Nickel Plate + Soldering Fluid -> Betavoltaic Plate (HV)
+        GTValues.RA.stdBuilder()
+            .itemInputs(
+                ItemList.Circuit_Silicon_Wafer.get(1),
+                GTOreDictUnificator.get(OrePrefixes.plate, Materials.Nickel, 2))
+            .circuit(1)
+            .itemOutputs(ItemList.Betavoltaic_Plate_HV.get(1))
+            .fluidInputs(SubstituteFluidStack.soldering(HALF_INGOTS))
+            .duration(20 * SECONDS)
+            .eut((int) TierEU.RECIPE_HV)
+            .addTo(circuitAssemblerRecipes);
+
+        // EV Betavoltaic Plate: Silicon Wafer + 2x Graphite Plate + Soldering Fluid -> Betavoltaic Plate (EV)
+        GTValues.RA.stdBuilder()
+            .itemInputs(
+                ItemList.Circuit_Silicon_Wafer.get(1),
+                GTOreDictUnificator.get(OrePrefixes.plate, Materials.Graphite, 2))
+            .circuit(1)
+            .itemOutputs(ItemList.Betavoltaic_Plate_EV.get(1))
+            .fluidInputs(SubstituteFluidStack.soldering(HALF_INGOTS))
+            .duration(30 * SECONDS)
+            .eut((int) TierEU.RECIPE_EV)
             .addTo(circuitAssemblerRecipes);
     }
 }

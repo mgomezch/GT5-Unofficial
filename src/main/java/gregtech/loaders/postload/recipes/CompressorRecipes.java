@@ -60,6 +60,13 @@ public class CompressorRecipes implements Runnable {
             .addTo(compressorRecipes);
 
         GTValues.RA.stdBuilder()
+            .itemInputs(GTOreDictUnificator.get(OrePrefixes.dust, Materials.Graphite, 1L))
+            .itemOutputs(GTOreDictUnificator.get(OrePrefixes.plate, Materials.Graphite, 1L))
+            .duration(15 * SECONDS)
+            .eut(2)
+            .addTo(compressorRecipes);
+
+        GTValues.RA.stdBuilder()
             .itemInputs(ItemList.Cell_Empty.get(1))
             .itemOutputs(ItemList.Cell_Air.get(1))
             .duration(15 * SECONDS)
