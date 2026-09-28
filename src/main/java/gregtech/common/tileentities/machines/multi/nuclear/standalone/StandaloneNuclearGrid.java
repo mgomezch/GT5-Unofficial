@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import gregtech.common.tileentities.machines.multi.nuclear.MTEHatchNuclearHatch;
 import gregtech.common.tileentities.machines.multi.nuclear.NuclearSimulationEngine;
 
 /**
@@ -21,6 +22,8 @@ public class StandaloneNuclearGrid {
     private long currentTick = 0;
     private boolean exploded = false;
     private String explosionReason = "";
+    private boolean powerFailed = false;
+    private String powerFailReason = "";
     private double coreMaxTemp = NuclearSimulationEngine.AMBIENT_TEMP;
     private double coreAvgTemp = NuclearSimulationEngine.AMBIENT_TEMP;
     private double efficiency = 1.0;
@@ -196,6 +199,8 @@ public class StandaloneNuclearGrid {
         this.totalTritiumProduced = 0;
         this.negativeTempDetected = false;
         this.negativeTempReason = "";
+        this.powerFailed = false;
+        this.powerFailReason = "";
         this.stepTraceBuffer.clear();
         this.history.clear();
     }
@@ -228,10 +233,31 @@ public class StandaloneNuclearGrid {
      * Executes one simulation tick over the grid.
      */
     public boolean step() {
-        if (exploded) return false;
+        if (exploded || powerFailed) return false;
 
         currentTick++;
         recordTraceSnapshot("PRE_TICK", "State before coolant feed");
+
+        // 0. Check for high-pressure coolant in insufficient casing tier -> EXPLODE!
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                SimTile tile = grid[x][y];
+                if (tile != null && tile.isHatch() && tile.getInputFluidAmount() > 0) {
+                    String name = tile.getInputFluidName();
+                    if (name != null && name.contains("highpressure")) {
+                        int reqTier = MTEHatchNuclearHatch.getRequiredFluidTier(name);
+                        if (pipeTier < reqTier) {
+                            triggerExplosion("Catastrophic overpressure explosion: " + name + " requires "
+                                + NuclearSimulationEngine.getPipeTierVoltageName(reqTier) + " ("
+                                + NuclearSimulationEngine.getPipeTierName(reqTier) + ") casing or higher, but reactor is only "
+                                + NuclearSimulationEngine.getPipeTierVoltageName(pipeTier) + " ("
+                                + NuclearSimulationEngine.getPipeTierName(pipeTier) + ")");
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
 
         // 1. Coolant Feed Phase: Replenish hatches that have space, checking dry thermal shock
         for (int x = 0; x < width; x++) {
@@ -246,7 +272,7 @@ public class StandaloneNuclearGrid {
                                 double threshold = NuclearSimulationEngine
                                     .getCoolantBoilingThreshold(tile.getInputFluidName());
                                 if (tile.getTemperature() > threshold) {
-                                    triggerExplosion(
+                                    triggerDryCoolantShutdown(
                                         "Thermal Shock: Cold coolant fed into dry superheated hatch at (" + x
                                             + ","
                                             + y
@@ -254,7 +280,7 @@ public class StandaloneNuclearGrid {
                                             + String.format("%.1f", tile.getTemperature())
                                             + "°C exceeding boiling threshold "
                                             + threshold
-                                            + "°C - catastrophic flash steam overpressure!");
+                                            + "°C");
                                     return false;
                                 }
                                 tile.setWasDry(false);
@@ -267,7 +293,28 @@ public class StandaloneNuclearGrid {
         }
         recordTraceSnapshot("POST_COOLANT_FEED", "Coolant fed into hatches");
 
-        // 2. Call the mod's pure Java NuclearSimulationEngine
+        // 2. Check loss-of-coolant: if active reactor has coolant hatches and all of them are dry
+        boolean hasFuel = false;
+        boolean hasCoolantHatches = false;
+        boolean allCoolantDry = true;
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                SimTile tile = grid[x][y];
+                if (tile != null) {
+                    if (tile.isFuel()) hasFuel = true;
+                    else if (tile.isHatch()) {
+                        hasCoolantHatches = true;
+                        if (tile.getInputFluidAmount() > 0) allCoolantDry = false;
+                    }
+                }
+            }
+        }
+        if (hasFuel && hasCoolantHatches && allCoolantDry) {
+            triggerDryCoolantShutdown("Loss of Coolant: All coolant hatches depleted on active reactor");
+            return false;
+        }
+
+        // 3. Call the mod's pure Java NuclearSimulationEngine
         NuclearSimulationEngine.SimulationResult res = NuclearSimulationEngine.simulate(grid, width, height);
 
         coreMaxTemp = res.maxTemperature;
@@ -281,7 +328,7 @@ public class StandaloneNuclearGrid {
         totalNeutronsGenerated += lastNeutronsProduced;
         recordTraceSnapshot("POST_SIMULATE", "Nuclear fission, diffusion and boiling completed");
 
-        // 3. Strict Check for Negative Temperature Anomaly
+        // 4. Strict Check for Negative Temperature Anomaly
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
                 SimTile tile = grid[x][y];
@@ -304,17 +351,21 @@ public class StandaloneNuclearGrid {
             }
         }
 
-        // 4. Check casing operating temperature limit
+        // 5. Check casing operating temperature limit:
+        // Overheating hatches void items and fluids inside, but do NOT explode!
         double maxTempAllowed = NuclearSimulationEngine.getMaxOperatingTemperature(pipeTier);
-        if (coreMaxTemp > maxTempAllowed) {
-            triggerExplosion(
-                "Meltdown: Core peak temperature " + String.format("%.1f", coreMaxTemp)
-                    + "°C exceeded casing tier maximum "
-                    + maxTempAllowed
-                    + "°C ("
-                    + NuclearSimulationEngine.getPipeTierName(pipeTier)
-                    + ")");
-            return false;
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                SimTile tile = grid[x][y];
+                if (tile != null && tile.getTemperature() > maxTempAllowed) {
+                    if (tile.isHatch()) {
+                        tile.setInputFluidAmount(0);
+                        tile.setOutputFluidAmount(0);
+                    } else if (tile.isFuel()) {
+                        tile.setType(SimTile.TileType.EMPTY);
+                    }
+                }
+            }
         }
 
         // 4. Calculate energy and steam generation in this tick
@@ -403,6 +454,27 @@ public class StandaloneNuclearGrid {
                     last.powerEUt(),
                     false));
         }
+    }
+
+    public void triggerDryCoolantShutdown(String reason) {
+        this.powerFailed = true;
+        this.powerFailReason = reason;
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                SimTile tile = grid[x][y];
+                if (tile != null) {
+                    if (tile.isHatch()) {
+                        tile.setInputFluidAmount(0);
+                        tile.setOutputFluidAmount(0);
+                        tile.setWasDry(true);
+                    } else if (tile.isFuel()) {
+                        // Void only fuel rods, keep reflectors and betavoltaics!
+                        tile.setType(SimTile.TileType.EMPTY);
+                    }
+                }
+            }
+        }
+        recordTraceSnapshot("DRY_COOLANT_SHUTDOWN", reason);
     }
 
     /**
@@ -659,6 +731,14 @@ public class StandaloneNuclearGrid {
 
     public String getExplosionReason() {
         return explosionReason;
+    }
+
+    public boolean isPowerFailed() {
+        return powerFailed;
+    }
+
+    public String getPowerFailReason() {
+        return powerFailReason;
     }
 
     public double getCoreMaxTemp() {

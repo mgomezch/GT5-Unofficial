@@ -130,7 +130,8 @@ public class MTEHatchNuclearHatch extends MTEHatch implements INuclearTile {
             .getName()
             .toLowerCase();
         if (name.equals("water")) return 0; // Regular water is completely disallowed
-        if (mReactorPipeTier >= 0 && getRequiredFluidTier(name) > mReactorPipeTier) {
+        // Allow high-pressure fluids to enter so reactor detects them and explodes if casing is insufficient
+        if (mReactorPipeTier >= 0 && !name.contains("highpressure") && getRequiredFluidTier(name) > mReactorPipeTier) {
             return 0;
         }
 
@@ -178,7 +179,7 @@ public class MTEHatchNuclearHatch extends MTEHatch implements INuclearTile {
         String name = fluid.getName()
             .toLowerCase();
         if (name.equals("water")) return false; // Regular water is completely disallowed
-        if (mReactorPipeTier >= 0 && getRequiredFluidTier(name) > mReactorPipeTier) {
+        if (mReactorPipeTier >= 0 && !name.contains("highpressure") && getRequiredFluidTier(name) > mReactorPipeTier) {
             return false;
         }
         return mInputFluid == null || (mInputFluid.getFluid() == fluid && mInputFluid.amount < mCapacity);

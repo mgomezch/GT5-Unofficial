@@ -371,9 +371,10 @@ public class NuclearSimulationEngineTest {
         hatch.setTemperature(150.0);
         // Step with hot dry hatch receiving coolant
         grid.step();
-        assertTrue(grid.isExploded(), "Injecting coolant into dry hatch above boiling threshold must explode");
+        assertFalse(grid.isExploded(), "Injecting coolant into dry hatch above boiling threshold must NOT explode");
+        assertTrue(grid.isPowerFailed(), "Injecting coolant into dry hatch above boiling threshold must trigger powerfail shutdown");
         assertTrue(
-            grid.getExplosionReason()
+            grid.getPowerFailReason()
                 .contains("Thermal Shock"));
     }
 
@@ -465,5 +466,130 @@ public class NuclearSimulationEngineTest {
         assertTrue(grid.getFlowDirectEU() > 0, "Grid must accumulate Betavoltaic direct EU");
         assertEquals(grid.getFlowDirectEU(), grid.getLastPowerResult().directPowerEUt);
         assertEquals(grid.getFlowDirectEU(), grid.getLastPowerResult().totalPowerEUt);
+    }
+
+    @Test
+    void testOverheatingHatchesVoidContentsWithoutExploding() {
+        // High core temperature exceeding Electrum casing limit (1000°C)
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid grid =
+            new gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid(
+                3, 3, NuclearSimulationEngine.PIPE_TIER_ELECTRUM);
+
+        // Put a superheated fuel rod and superheated coolant hatch
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile fuelTile =
+            grid.getTile(1, 1);
+        fuelTile.setType(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.FUEL_URANIUM_QUAD);
+        fuelTile.setTemperature(3000.0); // Well above 1000°C limit
+
+        NuclearSimulationEngine.coolantFeedRate = 0; // Prevent refilling so hatch actually overheats
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile hatchTile =
+            grid.getTile(0, 1);
+        hatchTile.setType(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.HATCH_IC2_COOLANT);
+        hatchTile.setInputFluidAmount(10);
+        hatchTile.setOutputFluidAmount(200);
+        hatchTile.setTemperature(3000.0);
+
+        grid.step();
+
+        // Must NOT explode
+        assertFalse(grid.isExploded(), "Reactor must not explode from hatch overheating!");
+
+        // Overheating hatch must have voided its fluids
+        assertEquals(0, hatchTile.getInputFluidAmount(), "Overheating fluid hatch must void input fluid");
+        assertEquals(0, hatchTile.getOutputFluidAmount(), "Overheating fluid hatch must void output fluid");
+
+        // Overheating fuel bus must have voided its fuel
+        assertEquals(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.EMPTY,
+            fuelTile.getType(), "Overheating fuel tile must void its fuel contents");
+    }
+
+    @Test
+    void testHighPressureCoolantExplodesOnInsufficientCasing() {
+        // Electrum (EV, tier 0) casing cannot withstand High-Pressure Distilled Water (requires Osmium / LuV, tier 2)
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid gridEV =
+            new gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid(
+                3, 3, NuclearSimulationEngine.PIPE_TIER_ELECTRUM);
+        gridEV.setTile(0, 1, gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.HATCH_HP_DISTILLED_WATER);
+        gridEV.getTile(0, 1).setInputFluidAmount(100);
+
+        gridEV.step();
+        assertTrue(gridEV.isExploded(), "Using HP water on Electrum casing must trigger catastrophic explosion!");
+        assertTrue(gridEV.getExplosionReason().toLowerCase().contains("overpressure"),
+            "Explosion reason must mention overpressure");
+
+        // Same HP coolant in Osmium (LuV, tier 2) casing must NOT explode
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid gridLuV =
+            new gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid(
+                3, 3, NuclearSimulationEngine.PIPE_TIER_OSMIUM);
+        gridLuV.setTile(0, 1, gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.HATCH_HP_DISTILLED_WATER);
+        gridLuV.getTile(0, 1).setInputFluidAmount(100);
+
+        gridLuV.step();
+        assertFalse(gridLuV.isExploded(), "HP water on Osmium (LuV) casing must be safe from casing explosion!");
+    }
+
+    @Test
+    void testDryCoolantThermalShockTriggersPowerfailShutdown() {
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid grid =
+            new gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid(
+                3, 3, NuclearSimulationEngine.PIPE_TIER_ELECTRUM);
+
+        // Grid contains fuel, reflector, and betavoltaic
+        grid.setTile(1, 1, gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.FUEL_URANIUM_QUAD);
+        grid.setTile(1, 2, gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.REFLECTOR_BERYLLIUM);
+        grid.setTile(1, 0, gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.BETAVOLTAIC_HV);
+
+        // Dry superheated coolant hatch (> 100°C threshold)
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile hatch = grid.getTile(0, 1);
+        hatch.setType(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.HATCH_DISTILLED_WATER);
+        hatch.setInputFluidAmount(0);
+        hatch.setWasDry(true);
+        hatch.setTemperature(350.0); // Superheated
+
+        grid.step();
+
+        // Must NOT explode
+        assertFalse(grid.isExploded(), "Dry coolant thermal shock must NOT explode the reactor!");
+
+        // Must trigger powerfail shutdown
+        assertTrue(grid.isPowerFailed(), "Reactor must shut down with powerfail on dry coolant thermal shock!");
+        assertTrue(grid.getPowerFailReason().contains("Thermal Shock"), "Reason must report thermal shock");
+
+        // Fuel must be voided
+        assertEquals(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.EMPTY,
+            grid.getTile(1, 1).getType(), "Fuel must be voided upon dry coolant shutdown");
+
+        // Coolant must be voided
+        assertEquals(0, hatch.getInputFluidAmount(), "Coolant fluid must be voided");
+
+        // Crucially, Reflector and Betavoltaic MUST be preserved!
+        assertEquals(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.REFLECTOR_BERYLLIUM,
+            grid.getTile(1, 2).getType(), "Reflector must NOT be voided on dry coolant shutdown!");
+        assertEquals(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.BETAVOLTAIC_HV,
+            grid.getTile(1, 0).getType(), "Betavoltaic cell must NOT be voided on dry coolant shutdown!");
+    }
+
+    @Test
+    void testLossOfCoolantTriggersDryCoolantShutdown() {
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid grid =
+            new gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid(
+                3, 3, NuclearSimulationEngine.PIPE_TIER_ELECTRUM);
+
+        // Active fuel and an empty coolant hatch with no fluid feed
+        NuclearSimulationEngine.coolantFeedRate = 0; // Simulate fluid supply failure
+        grid.setTile(1, 1, gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.FUEL_URANIUM_QUAD);
+        grid.setTile(1, 2, gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.REFLECTOR_BERYLLIUM);
+        grid.setTile(0, 1, gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.HATCH_IC2_COOLANT);
+        grid.getTile(0, 1).setInputFluidAmount(0);
+
+        grid.step();
+
+        // Must trigger loss of coolant shutdown without exploding
+        assertFalse(grid.isExploded(), "Loss of coolant must not explode the reactor");
+        assertTrue(grid.isPowerFailed(), "Reactor must powerfail when coolant is completely depleted");
+        assertEquals(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.EMPTY,
+            grid.getTile(1, 1).getType(), "Fuel must be voided upon loss-of-coolant shutdown");
+        assertEquals(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.REFLECTOR_BERYLLIUM,
+            grid.getTile(1, 2).getType(), "Reflector must remain intact");
     }
 }

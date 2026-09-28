@@ -638,6 +638,10 @@ public class SimTile implements INuclearTile {
         return outputFluidAmount;
     }
 
+    public void setOutputFluidAmount(int amount) {
+        this.outputFluidAmount = Math.max(0, amount);
+    }
+
     public int getTotalSteamProduced() {
         return totalSteamProduced;
     }

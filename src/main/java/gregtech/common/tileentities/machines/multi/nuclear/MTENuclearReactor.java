@@ -58,6 +58,7 @@ import gregtech.api.structure.error.StructureError;
 import gregtech.api.util.GTLog;
 import gregtech.api.util.GTUtility;
 import gregtech.api.util.MultiblockTooltipBuilder;
+import gregtech.api.util.shutdown.ShutDownReasonRegistry;
 import gregtech.common.pollution.Pollution;
 
 public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReactor>
@@ -330,6 +331,53 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         }
     }
 
+    public void triggerDryCoolantShutdown(String reason) {
+        IGregTechTileEntity base = getBaseMetaTileEntity();
+        if (base == null || !base.isServerSide()) return;
+
+        GTLog.writeExplosionLog(this, "DRY COOLANT POWERFAIL: " + reason);
+
+        // Void all coolant in fluid hatches
+        for (IGregTechTileEntity te : mNuclearTiles) {
+            if (te != null && te.getMetaTileEntity() instanceof MTEHatchNuclearHatch hatch) {
+                hatch.mInputFluid = null;
+                hatch.mOutputFluid = null;
+                hatch.mWasDry = true;
+                if (hatch.getBaseMetaTileEntity() != null) {
+                    hatch.getBaseMetaTileEntity().markDirty();
+                }
+            } else if (te != null && te.getMetaTileEntity() instanceof MTEHatchNuclearBus bus) {
+                // Void all fuel in nuclear bus hatches, but PRESERVE other components like reflectors and betavoltaics!
+                if (bus.isFuel()) {
+                    bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT] = null;
+                    if (bus.getBaseMetaTileEntity() != null) {
+                        bus.getBaseMetaTileEntity().markDirty();
+                    }
+                }
+            }
+        }
+
+        // Shut down reactor with power loss & powerfail event
+        stopMachine(ShutDownReasonRegistry.POWER_LOSS);
+        if (GTMod.proxy.powerfailTracker != null) {
+            GTMod.proxy.powerfailTracker.createPowerfailEvent(base);
+        }
+        mEfficiency = 0;
+
+        World world = base.getWorld();
+        int cX = base.getXCoord();
+        int cY = base.getYCoord();
+        int cZ = base.getZCoord();
+        GTUtility.sendSoundToPlayers(
+            world,
+            SoundResource.IC2_MACHINES_MACHINE_OVERLOAD,
+            0.8F,
+            0.5F,
+            cX + 0.5,
+            cY + 0.5,
+            cZ + 0.5);
+    }
+
     @Override
     public void onMachineBlockUpdate() {
         super.onMachineBlockUpdate();
@@ -432,75 +480,132 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             if (mGrid != null && (aTick % 20 == 0)) {
                 updateNuclearTilesPipeTier();
 
-            // Check dry hatch coolant injection
-            boolean hasHighPressureCoolant = false;
-            for (IGregTechTileEntity te : mNuclearTiles) {
-                if (te != null && te.getMetaTileEntity() instanceof MTEHatchNuclearHatch hatch) {
-                    if (hatch.mInputFluid != null && hatch.mInputFluid.amount > 0) {
-                        String name = hatch.mInputFluid.getFluid()
-                            .getName()
-                            .toLowerCase();
-                        if (name.contains("highpressure")) {
-                            hasHighPressureCoolant = true;
-                        }
-                        if (hatch.mWasDry) {
-                            double boilingThreshold = NuclearSimulationEngine.getCoolantBoilingThreshold(name);
-                            if (hatch.getTemperature() > boilingThreshold) {
-                                explodeReactor(
-                                    name.contains("highpressure"),
-                                    "Coolant injected into dry hatch on running reactor above boiling threshold ("
-                                        + name
-                                        + ", temp="
-                                        + hatch.getTemperature()
-                                        + "C > threshold="
-                                        + boilingThreshold
-                                        + "C)");
-                                return;
+                // 1. Check for high-pressure coolant in insufficient casing tier -> EXPLODE!
+                for (IGregTechTileEntity te : mNuclearTiles) {
+                    if (te != null && te.getMetaTileEntity() instanceof MTEHatchNuclearHatch hatch) {
+                        if (hatch.mInputFluid != null && hatch.mInputFluid.amount > 0) {
+                            String name = hatch.mInputFluid.getFluid()
+                                .getName()
+                                .toLowerCase();
+                            if (name.contains("highpressure")) {
+                                int reqTier = MTEHatchNuclearHatch.getRequiredFluidTier(name);
+                                if (mPipeTier < reqTier) {
+                                    explodeReactor(
+                                        true,
+                                        "Catastrophic overpressure explosion: " + name
+                                            + " requires "
+                                            + NuclearSimulationEngine.getPipeTierVoltageName(reqTier)
+                                            + " ("
+                                            + NuclearSimulationEngine.getPipeTierName(reqTier)
+                                            + ") casing or higher, but reactor only has "
+                                            + NuclearSimulationEngine.getPipeTierVoltageName(mPipeTier)
+                                            + " ("
+                                            + NuclearSimulationEngine.getPipeTierName(mPipeTier)
+                                            + ")");
+                                    return;
+                                }
                             }
-                            hatch.mWasDry = false;
                         }
-                    } else {
-                        // Hatch has zero coolant: controller remembers that
-                        hatch.mWasDry = true;
                     }
                 }
-            }
 
-            NuclearSimulationEngine.SimulationResult res = NuclearSimulationEngine.simulate(mGrid, gridSize, gridSize);
-            mCoreTemp = res.maxTemperature;
-            mAvgTemp = res.averageTemperature;
-            mNeutronsProduced = res.totalNeutronsGenerated;
-            mFastAbsorbed = res.fastNeutronsAbsorbed;
-            mThermalAbsorbed = res.thermalNeutronsAbsorbed;
-            mEscapedNeutrons = res.neutronsEscaped;
-            mEfficiency = NuclearSimulationEngine.calculateEfficiency(mAvgTemp);
-
-            // Sum direct EU from betavoltaic cells across the grid
-            long directEU = 0;
-            for (int x = 0; x < gridSize; x++) {
-                for (int y = 0; y < gridSize; y++) {
-                    INuclearTile tile = mGrid[x][y];
-                    if (tile instanceof MTEHatchNuclearBus bus) {
-                        directEU += bus.mDirectEUProduced;
+                // 2. Check dry hatch coolant injection (thermal shock) -> DRY COOLANT SHUTDOWN (no explosion)
+                for (IGregTechTileEntity te : mNuclearTiles) {
+                    if (te != null && te.getMetaTileEntity() instanceof MTEHatchNuclearHatch hatch) {
+                        if (hatch.mInputFluid != null && hatch.mInputFluid.amount > 0) {
+                            String name = hatch.mInputFluid.getFluid()
+                                .getName()
+                                .toLowerCase();
+                            if (hatch.mWasDry) {
+                                double boilingThreshold = NuclearSimulationEngine.getCoolantBoilingThreshold(name);
+                                if (hatch.getTemperature() > boilingThreshold) {
+                                    triggerDryCoolantShutdown(
+                                        "Coolant injected into dry superheated hatch above boiling threshold ("
+                                            + name
+                                            + ", temp="
+                                            + hatch.getTemperature()
+                                            + "C > threshold="
+                                            + boilingThreshold
+                                            + "C)");
+                                    return;
+                                }
+                                hatch.mWasDry = false;
+                            }
+                        } else {
+                            // Hatch has zero coolant: controller remembers that
+                            hatch.mWasDry = true;
+                        }
                     }
                 }
-            }
-            mDirectPowerEUt = directEU;
 
-            // Check casing-dependent maximum operating temperature
-            double maxTemp = NuclearSimulationEngine.getMaxOperatingTemperature(mPipeTier);
-            if (mCoreTemp > maxTemp) {
-                explodeReactor(
-                    hasHighPressureCoolant,
-                    "Reactor core exceeded maximum operating temperature for casing tier (" + mCoreTemp
-                        + " > "
-                        + maxTemp
-                        + ")");
-                return;
+                // 3. Check loss-of-coolant: if active reactor has coolant hatches and all of them are dry
+                boolean hasFuel = false;
+                boolean hasCoolantHatches = false;
+                boolean allCoolantDry = true;
+                for (IGregTechTileEntity te : mNuclearTiles) {
+                    if (te != null) {
+                        if (te.getMetaTileEntity() instanceof MTEHatchNuclearBus bus && bus.isFuel()) {
+                            hasFuel = true;
+                        } else if (te.getMetaTileEntity() instanceof MTEHatchNuclearHatch hatch) {
+                            hasCoolantHatches = true;
+                            if (hatch.mInputFluid != null && hatch.mInputFluid.amount > 0) {
+                                allCoolantDry = false;
+                            }
+                        }
+                    }
+                }
+                if (hasFuel && hasCoolantHatches && allCoolantDry) {
+                    triggerDryCoolantShutdown("Loss of Coolant: All coolant hatches depleted on active reactor");
+                    return;
+                }
+
+                NuclearSimulationEngine.SimulationResult res = NuclearSimulationEngine.simulate(mGrid, gridSize, gridSize);
+                mCoreTemp = res.maxTemperature;
+                mAvgTemp = res.averageTemperature;
+                mNeutronsProduced = res.totalNeutronsGenerated;
+                mFastAbsorbed = res.fastNeutronsAbsorbed;
+                mThermalAbsorbed = res.thermalNeutronsAbsorbed;
+                mEscapedNeutrons = res.neutronsEscaped;
+                mEfficiency = NuclearSimulationEngine.calculateEfficiency(mAvgTemp);
+
+                // Sum direct EU from betavoltaic cells across the grid
+                long directEU = 0;
+                for (int x = 0; x < gridSize; x++) {
+                    for (int y = 0; y < gridSize; y++) {
+                        INuclearTile tile = mGrid[x][y];
+                        if (tile instanceof MTEHatchNuclearBus bus) {
+                            directEU += bus.mDirectEUProduced;
+                        }
+                    }
+                }
+                mDirectPowerEUt = directEU;
+
+                // 4. Check casing-dependent maximum operating temperature:
+                // Overheating hatches void items and fluids inside, but do NOT explode!
+                double maxTemp = NuclearSimulationEngine.getMaxOperatingTemperature(mPipeTier);
+                for (IGregTechTileEntity te : mNuclearTiles) {
+                    if (te != null && te.getMetaTileEntity() instanceof INuclearTile nuclearTile) {
+                        if (nuclearTile.getTemperature() > maxTemp) {
+                            if (nuclearTile instanceof MTEHatchNuclearHatch hatch) {
+                                hatch.mInputFluid = null;
+                                hatch.mOutputFluid = null;
+                                if (hatch.getBaseMetaTileEntity() != null) {
+                                    hatch.getBaseMetaTileEntity().markDirty();
+                                }
+                            } else if (nuclearTile instanceof MTEHatchNuclearBus bus) {
+                                bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT] = null;
+                                bus.mInventory[MTEHatchNuclearBus.SLOT_OUTPUT_1] = null;
+                                bus.mInventory[MTEHatchNuclearBus.SLOT_OUTPUT_2] = null;
+                                if (bus.getBaseMetaTileEntity() != null) {
+                                    bus.getBaseMetaTileEntity().markDirty();
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
-}
 
     @Override
     public void saveNBTData(NBTTagCompound aNBT) {

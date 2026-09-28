@@ -490,6 +490,14 @@ public class NuclearSimulationCLI {
                 grid.getExplosionReason()
                     .replace("\"", "\\\""))
             .append("\",");
+        sb.append("\"powerFailed\":")
+            .append(grid.isPowerFailed())
+            .append(",");
+        sb.append("\"powerFailReason\":\"")
+            .append(
+                grid.getPowerFailReason()
+                    .replace("\"", "\\\""))
+            .append("\",");
         sb.append("\"coreMaxTemp\":")
             .append(String.format(java.util.Locale.US, "%.2f", grid.getCoreMaxTemp()))
             .append(",");
