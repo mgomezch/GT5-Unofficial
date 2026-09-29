@@ -307,11 +307,14 @@ public abstract class MapGenRuins extends WorldGenerator {
                                     this.setBlock(worldObj, x - 3, y + dy, z + dz, Blocks.chest, 5);
                                     IInventory chest = (IInventory) worldObj.getTileEntity(x + dx, y + dy, z + dz);
                                     if (chest != null) {
-                                        WeightedRandomChestContent.generateChestContents(
-                                            secureRandom,
-                                            ChestGenHooks.getItems(PYRAMID_JUNGLE_CHEST, rand),
-                                            chest,
-                                            ChestGenHooks.getCount(PYRAMID_JUNGLE_CHEST, rand));
+                                        try {
+                                            WeightedRandomChestContent.generateChestContents(
+                                                secureRandom,
+                                                ChestGenHooks.getItems(PYRAMID_JUNGLE_CHEST, rand),
+                                                chest,
+                                                ChestGenHooks.getCount(PYRAMID_JUNGLE_CHEST, rand));
+                                        } catch (Exception ignored) {
+                                        }
                                     }
                                 }
 

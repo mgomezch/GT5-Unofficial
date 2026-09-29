@@ -42,6 +42,10 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
     public int mThermalFlux = 0;
     public int mFastAbsorbed = 0;
     public int mThermalAbsorbed = 0;
+    public int mLastFastFlux = 0;
+    public int mLastThermalFlux = 0;
+    public int mLastFastAbsorbed = 0;
+    public int mLastThermalAbsorbed = 0;
     public int mLastNeutronsGenerated = 0;
     public long mDirectEUProduced = 0;
 
@@ -243,7 +247,10 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
         if (stack == null) return 0.01;
         String name = stack.getUnlocalizedName()
             .toLowerCase();
-        if (name.contains("reflector")) return 0.02;
+        if (name.contains("graphite") || name.contains("carbon") || name.contains("moderator")) {
+            return (type == NeutronType.THERMAL) ? 0.009 : 0.002;
+        }
+        if (name.contains("reflector")) return (type == NeutronType.THERMAL) ? 0.02 : 0.01;
         if (name.contains("boron") || name.contains("cadmium") || name.contains("control")) {
             return (type == NeutronType.THERMAL) ? 0.95 : 0.85;
         }
@@ -263,9 +270,15 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
         if (stack == null) return 0.02;
         String name = stack.getUnlocalizedName()
             .toLowerCase();
-        if (name.contains("reflector")) return 0.95;
-        if (name.contains("coolant")) return 0.30;
-        if (isFuel()) return 0.15;
+        if (name.contains("graphite") || name.contains("carbon") || name.contains("moderator")) {
+            return (type == NeutronType.THERMAL) ? 0.621 : 0.93;
+        }
+        if (name.contains("reflector")) return (type == NeutronType.THERMAL) ? 0.98 : 0.95;
+        if (name.contains("boron") || name.contains("cadmium") || name.contains("control")) {
+            return (type == NeutronType.THERMAL) ? 0.05 : 0.10;
+        }
+        if (name.contains("coolant")) return 0.45;
+        if (isFuel()) return (type == NeutronType.THERMAL) ? 0.10 : 0.15;
         return 0.05;
     }
 
@@ -278,9 +291,12 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
         if (stack == null) return 0.05;
         String name = stack.getUnlocalizedName()
             .toLowerCase();
-        if (name.contains("reflector")) return 0.65;
+        if (name.contains("graphite") || name.contains("carbon") || name.contains("moderator")) return 0.50;
+        if (name.contains("reflector")) return 0.20;
         if (name.contains("coolant")) return 0.40;
-        return 0.10;
+        if (isFuel()) return 0.10;
+        if (name.contains("boron") || name.contains("cadmium") || name.contains("control")) return 0.05;
+        return 0.05;
     }
 
     @Override
@@ -322,6 +338,10 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
     public void nuclearTick(double efficiency) {
         ItemStack stack = mInventory[SLOT_INPUT];
         if (stack == null) {
+            mLastFastFlux = mFastFlux;
+            mLastThermalFlux = mThermalFlux;
+            mLastFastAbsorbed = mFastAbsorbed;
+            mLastThermalAbsorbed = mThermalAbsorbed;
             mDirectEUProduced = 0;
             mFastFlux = 0;
             mThermalFlux = 0;
@@ -410,6 +430,10 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
         }
 
         // Reset transient flux counters for next tick's display
+        mLastFastFlux = mFastFlux;
+        mLastThermalFlux = mThermalFlux;
+        mLastFastAbsorbed = mFastAbsorbed;
+        mLastThermalAbsorbed = mThermalAbsorbed;
         mFastFlux = 0;
         mThermalFlux = 0;
         mFastAbsorbed = 0;

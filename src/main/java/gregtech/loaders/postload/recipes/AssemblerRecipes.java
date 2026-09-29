@@ -6907,11 +6907,24 @@ public class AssemblerRecipes implements Runnable {
             .eut(4)
             .addTo(assemblerRecipes);
 
+        // Nuclear Casing
+        GTValues.RA.stdBuilder()
+            .itemInputs(
+                GTOreDictUnificator.get(OrePrefixes.plateDense, Materials.Lead, 2L),
+                GTOreDictUnificator.get(OrePrefixes.plate, Materials.Lead, 4L),
+                GTOreDictUnificator.get(OrePrefixes.frameGt, Materials.Steel, 1L))
+            .circuit(1)
+            .itemOutputs(ItemList.CasingNuclear.get(1L))
+            .fluidInputs(Materials.Polytetrafluoroethylene.getMolten(1 * INGOTS))
+            .duration(16 * SECONDS)
+            .eut(TierEU.RECIPE_EV)
+            .addTo(assemblerRecipes);
+
         // Modular Nuclear Reactor
         GTValues.RA.stdBuilder()
             .itemInputs(
                 ItemList.Hull_EV.get(1L),
-                ItemList.Casing_RadiationProof.get(4L),
+                ItemList.CasingNuclear.get(4L),
                 GTOreDictUnificator.get(OrePrefixes.circuit, Materials.EV, 2L),
                 GTOreDictUnificator.get(OrePrefixes.plateDense, Materials.Lead, 4L),
                 ItemList.Sensor_EV.get(2L),
@@ -6926,7 +6939,7 @@ public class AssemblerRecipes implements Runnable {
         // Nuclear Bus
         GTValues.RA.stdBuilder()
             .itemInputs(
-                ItemList.Casing_RadiationProof.get(1L),
+                ItemList.CasingNuclear.get(1L),
                 ItemList.Hatch_Input_Bus_HV.get(1L),
                 ItemList.Hatch_Output_Bus_HV.get(1L),
                 GTOreDictUnificator.get(OrePrefixes.circuit, Materials.HV, 2L),
@@ -6944,7 +6957,7 @@ public class AssemblerRecipes implements Runnable {
                 .itemInputs(
                     ItemList.HATCHES_INPUT[t].get(1L),
                     ItemList.HATCHES_OUTPUT[t].get(1L),
-                    ItemList.Casing_RadiationProof.get(1L),
+                    ItemList.CasingNuclear.get(1L),
                     GTOreDictUnificator.get(OrePrefixes.plateDense, Materials.Lead, 1L))
                 .circuit(1)
                 .itemOutputs(ItemList.HATCHES_NUCLEAR[t - 1].get(1L))

@@ -77,6 +77,7 @@ public class NEIGTConfig implements IConfigureNEI {
 
     private static final GTNEIImprintHandler CAL_IMPRINT_HANDLER = new GTNEIImprintHandler();
     private static final GTNEIMacerationStackConversion MACERATOR_UPGRADE_HANDLER = new GTNEIMacerationStackConversion();
+    private static final GTNEINeutronInteractionHandler NEUTRON_INTERACTION_HANDLER = new GTNEINeutronInteractionHandler();
 
     public static boolean sIsAdded = true;
 
@@ -118,6 +119,8 @@ public class NEIGTConfig implements IConfigureNEI {
 
         GuiCraftingRecipe.craftinghandlers.add(MACERATOR_UPGRADE_HANDLER);
         GuiUsageRecipe.usagehandlers.add(MACERATOR_UPGRADE_HANDLER);
+
+        addHandler(NEUTRON_INTERACTION_HANDLER);
     }
 
     private void registerCatalysts() {
@@ -130,6 +133,9 @@ public class NEIGTConfig implements IConfigureNEI {
                         entry.getKey().unlocalizedName,
                         recipeMapWorkable.getRecipeCatalystPriority()));
         }
+        API.addRecipeCatalyst(
+            ItemList.Machine_Nuclear_Reactor.get(1L),
+            NEUTRON_INTERACTION_HANDLER.getOverlayIdentifier());
         API.addRecipeCatalyst(
             GTModHandler.getIC2Item("nuclearReactor", 1, null),
             RecipeMaps.ic2NuclearFakeRecipes.unlocalizedName);
@@ -244,6 +250,15 @@ public class NEIGTConfig implements IConfigureNEI {
             new HandlerInfo.Builder(MACERATOR_UPGRADE_HANDLER.getOverlayIdentifier(), "GregTech", Mods.ModIDs.GREG_TECH)
                 .setMultipleWidgetsAllowed(true)
                 .setDisplayStack(ItemList.MacerationStack.get(1))
+                .build());
+
+        event.registerHandlerInfo(
+            new HandlerInfo.Builder(NEUTRON_INTERACTION_HANDLER.getOverlayIdentifier(), "GregTech", Mods.ModIDs.GREG_TECH)
+                .setHeight(154)
+                .setShiftY(0)
+                .setDisplayStack(ItemList.Machine_Nuclear_Reactor.get(1L))
+                .setMaxRecipesPerPage(1)
+                .setShowBadge(true)
                 .build());
     }
 

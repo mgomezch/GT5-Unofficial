@@ -592,4 +592,54 @@ public class NuclearSimulationEngineTest {
         assertEquals(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.REFLECTOR_BERYLLIUM,
             grid.getTile(1, 2).getType(), "Reflector must remain intact");
     }
+
+    @Test
+    void testReactorFootprintAndWallThickness() {
+        int[] coreSizes = { 3, 5, 7 };
+        int[] expectedFootprints = { 5, 9, 13 };
+        int[] expectedWallThickness = { 1, 2, 3 };
+
+        for (int i = 0; i < coreSizes.length; i++) {
+            int core = coreSizes[i];
+            int footprint = expectedFootprints[i];
+            int wall = (footprint - core) / 2;
+            assertEquals(expectedWallThickness[i], wall, "Wall thickness for core " + core + " must match");
+            assertEquals(core, footprint - 2 * wall, "Internal core dimension must match");
+        }
+    }
+
+    @Test
+    void testNeutronComponentInteractionData() {
+        gregtech.nei.GTNEINeutronInteractionHandler.NeutronComponentData graphite =
+            new gregtech.nei.GTNEINeutronInteractionHandler.NeutronComponentData(
+                null, "Graphite Moderator Block", "Moderator",
+                0.93, 0.002, 0.50, 0.621, 0.009,
+                false, 0, 0, 0, 0, false, null, 0,
+                "Slows fast neutrons into thermal neutrons");
+
+        assertEquals(0.93, graphite.fastScattering, 1e-4);
+        assertEquals(0.002, graphite.fastAbsorption, 1e-4);
+        assertEquals(0.50, graphite.slowingProbability, 1e-4);
+        assertEquals(0.621, graphite.thermalScattering, 1e-4);
+        assertEquals(0.009, graphite.thermalAbsorption, 1e-4);
+        assertEquals(0.50, 1.0 - graphite.slowingProbability, 1e-4);
+        assertFalse(graphite.hasCapture);
+        assertFalse(graphite.hasAbsorption);
+
+        gregtech.nei.GTNEINeutronInteractionHandler.NeutronComponentData uraniumQuad =
+            new gregtech.nei.GTNEINeutronInteractionHandler.NeutronComponentData(
+                null, "Quad Uranium Fuel Rod", "Fuel Rod",
+                0.15, 0.25, 0.10, 0.10, 0.80,
+                true, 8, 56.0, 0.88, 16.0,
+                true, null, 163_840_000L,
+                "Base: 16 Fast Neutrons/t | Standard fission fuel");
+
+        assertTrue(uraniumQuad.hasCapture);
+        assertEquals(8, uraniumQuad.fastNeutronEnergyEU);
+        assertEquals(56.0, uraniumQuad.directEU, 1e-4);
+        assertEquals(0.88, uraniumQuad.directHeatC, 1e-4);
+        assertEquals(16.0, uraniumQuad.maxNeutronsEmitted, 1e-4);
+        assertTrue(uraniumQuad.hasAbsorption);
+        assertEquals(163_840_000L, uraniumQuad.neutronsRequired);
+    }
 }

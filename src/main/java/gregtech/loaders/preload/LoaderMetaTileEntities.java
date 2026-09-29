@@ -46,6 +46,7 @@ import static gregtech.api.recipe.RecipeMaps.thermalCentrifugeRecipes;
 import static gregtech.api.recipe.RecipeMaps.wiremillRecipes;
 
 import codechicken.nei.api.API;
+import net.minecraft.item.ItemStack;
 import gregtech.api.enums.GTAuthors;
 import gregtech.api.enums.ItemList;
 import gregtech.api.enums.MachineType;
@@ -58,6 +59,7 @@ import gregtech.api.metatileentity.implementations.MTEHatchBulkCatalystHousing;
 import gregtech.api.metatileentity.implementations.MTEHatchCokeOven;
 import gregtech.api.metatileentity.implementations.MTEHatchDataAccess;
 import gregtech.api.metatileentity.implementations.MTEHatchDynamo;
+import gregtech.common.misc.GTStructureChannels;
 import gregtech.api.metatileentity.implementations.MTEHatchEnergy;
 import gregtech.api.metatileentity.implementations.MTEHatchEnergyDebug;
 import gregtech.api.metatileentity.implementations.MTEHatchInput;
@@ -8091,6 +8093,13 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
         ItemList.Machine_Nuclear_Reactor.set(
             new MTENuclearReactor(NUCLEAR_REACTOR.ID, "multimachine.nuclearreactor", "Nuclear Fission Reactor")
                 .getStackForm(1L));
+
+        for (int i = 1; i <= 9; i++) {
+            ItemStack stack = MTENuclearReactor.getNuclearHatchStack(i);
+            if (stack != null) {
+                GTStructureChannels.NUCLEAR_HATCH.registerAsIndicator(stack, i);
+            }
+        }
     }
 
     private static void registerQuadrupleInputHatch() {

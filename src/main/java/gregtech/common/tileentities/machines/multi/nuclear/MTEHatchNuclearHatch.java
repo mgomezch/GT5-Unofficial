@@ -39,6 +39,10 @@ public class MTEHatchNuclearHatch extends MTEHatch implements INuclearTile {
     public int mThermalFlux = 0;
     public int mFastAbsorbed = 0;
     public int mThermalAbsorbed = 0;
+    public int mLastFastFlux = 0;
+    public int mLastThermalFlux = 0;
+    public int mLastFastAbsorbed = 0;
+    public int mLastThermalAbsorbed = 0;
     public int mReactorPipeTier = -1;
     public boolean mWasDry = false;
 
@@ -390,6 +394,10 @@ public class MTEHatchNuclearHatch extends MTEHatch implements INuclearTile {
 
     @Override
     public void nuclearTick(double efficiency) {
+        mLastFastFlux = mFastFlux;
+        mLastThermalFlux = mThermalFlux;
+        mLastFastAbsorbed = mFastAbsorbed;
+        mLastThermalAbsorbed = mThermalAbsorbed;
         mFastFlux = 0;
         mThermalFlux = 0;
         mFastAbsorbed = 0;

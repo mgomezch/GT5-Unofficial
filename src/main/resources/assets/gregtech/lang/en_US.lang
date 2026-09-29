@@ -2563,6 +2563,12 @@ gt.nei.tgs.info-1=Output is further boosted
 gt.nei.tgs.info-2=by machine energy tier
 gt.nei.tgs.info-3=and tool type
 gt.nei.ap.tier=Algae Pond Tier: %s
+gt.nei.neutron_interaction.name=Neutron Interaction
+gt.nei.neutron_interaction.fast=Fast Neutron
+gt.nei.neutron_interaction.thermal=Thermal Neutron
+gt.nei.neutron_interaction.capture=Single Neutron Capture
+gt.nei.neutron_interaction.absorption=Neutron Absorption
+
 
 GT5U.recipes.recipe_by.original=Original Recipe by: %s
 GT5U.recipes.recipe_by.modified=Modified by: %s
@@ -2895,6 +2901,7 @@ channels.gregtech.gt_hatch=Enables automatic hatch placement
 channels.gregtech.field=Decides the tier of TFFT Storage Field.
 channels.gregtech.component_casing=Decides the tier of Component Assembly Line Casing. Starts at §6LV§r at value 1 and ends at §6MAX§r at value 14.
 channels.gregtech.super_chest=Decides the tier of Super/Quantum Chest. Starts at §6Super Chest I§r at value 1 and ends at §6Quantum Chest V§r at value 10.
+channels.gregtech.nuclear_hatch=Decides the tier of Nuclear Hatches. Starts at §6Basic Nuclear Hatch (LV)§r at value 1 and ends at §6Divine Nuclear Hatch (UHV)§r at value 9.
 
 channels.gregtech.master.structuretier=Structure Tier
 channels.gregtech.master.casingtier=Casing Tier
@@ -2905,6 +2912,11 @@ channels.gregtech.master.length=Length
 channels.gregtech.master.height=Height
 channels.gregtech.master.modules=Number of Modules
 channels.gregtech.master.rings=Number of Rings
+channels.gregtech.master.nuclear_hatch=Nuclear Hatch Tier
+
+GT5U.gui.text.structure_error.missing_nuclear_hatch=Missing Nuclear Hatch or Bus in core grid
+GT5U.gui.text.structure_error.inconsistent_nuclear_hatch_tier=All Nuclear Hatches must be of the same tier
+GT5U.gui.text.structure_error.invalid_pipe_tier=Invalid Item Pipe Casing tier (requires Electrum or higher)
 
 GT5U.gui.select.current=§8Current:
 GT5U.gui.button.liquid_filling=Liquid Filling
@@ -9420,6 +9432,7 @@ gt.blockcasings13.15.name=Naquadah Reactor Casing
 gt.blockcasings14.3.name=Hearth Casing
 gt.blockcasings14.4.name=Fridge Casing
 gt.blockcasings14.5.name=Naquadah Reinforced Distillation Casing
+gt.blockcasings14.6.name=Nuclear Casing
 
 gt.blockcasingsNH.0.name=Air Filter Turbine Casing
 gt.blockcasingsNH.1.name=Air Filter Vent Casing
@@ -10314,3 +10327,5 @@ GT5U.nei.solar_factory.tier_required=Multi Tier required: %s
 
 # Item tooltips
 GT5U.tooltip.switch_metadata.sneak_right_click=Sneak right-click to switch mode
+
+GT5U.gui.button.reactor_hatches=Open Reactor Core Hatches View
