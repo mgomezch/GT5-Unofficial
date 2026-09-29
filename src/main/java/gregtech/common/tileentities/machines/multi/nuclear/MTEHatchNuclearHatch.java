@@ -27,7 +27,12 @@ import gregtech.api.metatileentity.MetaTileEntity;
 import gregtech.api.metatileentity.implementations.MTEHatch;
 import gregtech.api.render.TextureFactory;
 
-public class MTEHatchNuclearHatch extends MTEHatch implements INuclearTile {
+/**
+ * Dumb fluid container hatch for the modular nuclear reactor.
+ * Holds input coolant/fuel and output steam/byproducts.
+ * All nuclear physics, boiling, and transmutation logic is processed by MTENuclearReactor.
+ */
+public class MTEHatchNuclearHatch extends MTEHatch {
 
     public FluidStack mInputFluid;
     public FluidStack mOutputFluid;
@@ -57,17 +62,7 @@ public class MTEHatchNuclearHatch extends MTEHatch implements INuclearTile {
     }
 
     public static int getRequiredFluidTier(String fluidName) {
-        if (fluidName == null) return 999;
-        String name = fluidName.toLowerCase();
-        if (name.equals("water")) return 999; // Regular water is completely disallowed
-        if (name.contains("coolant") && !name.contains("hot")) return NuclearSimulationEngine.PIPE_TIER_ELECTRUM;
-        if (name.contains("distilledwater") && !name.contains("highpressure"))
-            return NuclearSimulationEngine.PIPE_TIER_PLATINUM;
-        if (name.contains("highpressuredistilledwater")) return NuclearSimulationEngine.PIPE_TIER_OSMIUM;
-        if (name.contains("heavywater") && !name.contains("highpressure"))
-            return NuclearSimulationEngine.PIPE_TIER_QUANTIUM;
-        if (name.contains("highpressureheavywater")) return NuclearSimulationEngine.PIPE_TIER_FLUXED_ELECTRUM;
-        return 999;
+        return NuclearSimulationEngine.getRequiredFluidTier(fluidName);
     }
 
     public MTEHatchNuclearHatch(int aID, String aName, String aNameRegional, int aTier) {
@@ -250,261 +245,13 @@ public class MTEHatchNuclearHatch extends MTEHatch implements INuclearTile {
         }
     }
 
-    // --- INuclearTile Implementation ---
-
-    public double getAmbientTemperature() {
-        if (getBaseMetaTileEntity() != null && getBaseMetaTileEntity().getWorld() != null) {
-            try {
-                int x = getBaseMetaTileEntity().getXCoord();
-                int y = getBaseMetaTileEntity().getYCoord();
-                int z = getBaseMetaTileEntity().getZCoord();
-                float bTemp = getBaseMetaTileEntity().getWorld()
-                    .getBiomeGenForCoords(x, z)
-                    .getFloatTemperature(x, y, z);
-                return Math.max(0.0, bTemp * 30.0);
-            } catch (Exception ignored) {}
-        }
-        return NuclearSimulationEngine.ambientTemp;
-    }
-
-    @Override
-    public double getTemperature() {
-        return mTemperature;
-    }
-
-    @Override
-    public void setTemperature(double temp) {
-        this.mTemperature = Math.max(getAmbientTemperature(), temp);
-    }
-
-    @Override
-    public void addHeat(double heatEU) {
-        this.mHeatEU += heatEU;
-        this.mTemperature += heatEU / NuclearSimulationEngine.EU_PER_DEGREE;
-    }
-
-    @Override
-    public double getHeatTransferCoeff() {
-        if (mInputFluid == null) return 0.05;
-        String name = mInputFluid.getFluid()
-            .getName()
-            .toLowerCase();
-        if (name.contains("water")) return 0.25;
-        if (name.contains("coolant")) return 0.50;
-        if (name.contains("sodium") || name.contains("lead")) return 0.70;
-        return 0.15;
-    }
-
-    @Override
-    public boolean isFuel() {
-        if (mInputFluid == null) return false;
-        String name = mInputFluid.getFluid()
-            .getName()
-            .toLowerCase();
-        return name.contains("thorium") || name.contains("uranium") || name.contains("naquadah");
-    }
-
-    @Override
-    public int generateNeutrons(double efficiency) {
-        if (!isFuel() || mInputFluid == null || mInputFluid.amount <= 0) return 0;
-        int produced = (int) Math.round(8 * efficiency);
-        mInputFluid.amount -= Math.max(1, produced / 4);
-        if (mInputFluid.amount <= 0) mInputFluid = null;
-        return produced;
-    }
-
-    @Override
-    public double getAbsorptionProbability(NeutronType type) {
-        if (mInputFluid == null) return 0.01;
-        String name = mInputFluid.getFluid()
-            .getName()
-            .toLowerCase();
-        if (name.contains("heavywater")) return (type == NeutronType.THERMAL) ? 0.01 : 0.005;
-        if (name.contains("distilledwater")) return (type == NeutronType.THERMAL) ? 0.10 : 0.05;
-        if (name.contains("coolant")) return (type == NeutronType.THERMAL) ? 0.12 : 0.03;
-        if (name.contains("boron")) return 0.95;
-        if (isFuel()) return (type == NeutronType.THERMAL) ? 0.85 : 0.25;
-        return 0.05;
-    }
-
-    @Override
-    public double getScatteringProbability(NeutronType type) {
-        if (mInputFluid == null) return 0.02;
-        String name = mInputFluid.getFluid()
-            .getName()
-            .toLowerCase();
-        if (name.contains("heavywater")) return 0.85;
-        if (name.contains("distilledwater")) return 0.70;
-        if (name.contains("coolant")) return 0.45;
-        if (name.contains("sodium")) return 0.20;
-        return 0.10;
-    }
-
-    @Override
-    public double getModerationProbability() {
-        if (mInputFluid == null) return 0.05;
-        String name = mInputFluid.getFluid()
-            .getName()
-            .toLowerCase();
-        if (name.contains("heavywater")) return 0.90;
-        if (name.contains("distilledwater")) return 0.80;
-        if (name.contains("coolant")) return 0.40;
-        if (name.contains("sodium")) return 0.05; // fast reactor coolant
-        return 0.20;
-    }
-
-    @Override
-    public void onNeutronAbsorbed(NeutronType type, int count) {
-        if (type == NeutronType.FAST) mFastAbsorbed += count;
-        else mThermalAbsorbed += count;
-
-        // Neutron capture transmutation on fast neutron absorption
-        if (type == NeutronType.FAST && mInputFluid != null && mInputFluid.amount > 0) {
-            String name = mInputFluid.getFluid()
-                .getName()
-                .toLowerCase();
-            boolean isHP = name.contains("highpressure");
-            int chance = isHP ? Math.min(100, count * 10) : Math.min(100, count * 5);
-            int yield = isHP ? 2 : 1;
-
-            if (name.contains("distilledwater")) {
-                if (getRandomNumber(100) < chance) {
-                    mInputFluid.amount -= 1;
-                    if (mInputFluid.amount <= 0) mInputFluid = null;
-                    addOutputFluid("deuterium", yield);
-                    markTileDirty();
-                }
-            } else if (name.contains("heavywater")) {
-                if (getRandomNumber(100) < chance) {
-                    mInputFluid.amount -= 1;
-                    if (mInputFluid.amount <= 0) mInputFluid = null;
-                    addOutputFluid("tritium", yield);
-                    markTileDirty();
-                }
-            }
-        }
-    }
-
-    @Override
-    public void onNeutronScattered(NeutronType type, int count) {}
-
-    @Override
-    public void addNeutronFlux(NeutronType type, int count) {
-        if (type == NeutronType.FAST) mFastFlux += count;
-        else mThermalFlux += count;
-    }
-
-    @Override
-    public void nuclearTick(double efficiency) {
-        mLastFastFlux = mFastFlux;
-        mLastThermalFlux = mThermalFlux;
-        mLastFastAbsorbed = mFastAbsorbed;
-        mLastThermalAbsorbed = mThermalAbsorbed;
-        mFastFlux = 0;
-        mThermalFlux = 0;
-        mFastAbsorbed = 0;
-        mThermalAbsorbed = 0;
-
-        if (mInputFluid == null || mInputFluid.amount <= 0) return;
-
-        String name = mInputFluid.getFluid()
-            .getName()
-            .toLowerCase();
-        if (name.equals("water")) return; // Regular water is completely disallowed
-
-        int reqTier = getRequiredFluidTier(name);
-        if (mReactorPipeTier >= 0 && mReactorPipeTier < reqTier) {
-            return;
-        }
-
-        double minOperatingTemp = 100.0;
-        double heatPerMB = NuclearSimulationEngine.coolingHeatPerLiter;
-        int steamRatio = 160;
-        String outputFluidName = "steam";
-
-        if (name.contains("highpressureheavywater") && !name.contains("steam")) {
-            minOperatingTemp = NuclearSimulationEngine.hpWaterBoilingPoint;
-            heatPerMB = NuclearSimulationEngine.coolingHeatPerLiter * 4.0;
-            steamRatio = 320;
-            outputFluidName = "fluid.highpressureheavywatersteam";
-        } else if (name.contains("heavywater") && !name.contains("steam")) {
-            minOperatingTemp = 100.0;
-            heatPerMB = NuclearSimulationEngine.coolingHeatPerLiter;
-            steamRatio = 160;
-            outputFluidName = "fluid.heavywatersteam";
-        } else if (name.contains("highpressuredistilledwater") && !name.contains("steam")) {
-            minOperatingTemp = NuclearSimulationEngine.hpWaterBoilingPoint;
-            heatPerMB = NuclearSimulationEngine.coolingHeatPerLiter * 2.0;
-            steamRatio = 320;
-            outputFluidName = "ic2superheatedsteam";
-        } else if (name.contains("distilledwater")) {
-            minOperatingTemp = 100.0;
-            heatPerMB = NuclearSimulationEngine.coolingHeatPerLiter;
-            steamRatio = 160;
-            outputFluidName = "steam";
-        } else if (name.contains("coolant") && !name.contains("hot")) {
-            minOperatingTemp = getAmbientTemperature();
-            heatPerMB = NuclearSimulationEngine.ic2CoolantHeatPerLiter;
-            steamRatio = 1;
-            outputFluidName = "ic2hotcoolant";
-        } else {
-            return;
-        }
-
-        // Coolant heat absorption (continuous above ambient for IC2 coolant; phase transition boiling for water)
-        mLastProducedAmount = 0;
-        mLastProducedFluidName = "";
-        if (mTemperature > minOperatingTemp) {
-            double heatAvailable = (mTemperature - minOperatingTemp) * NuclearSimulationEngine.EU_PER_DEGREE;
-            int maxFluidByHeat = (heatPerMB > 0) ? (int) Math.floor(heatAvailable / heatPerMB) : mInputFluid.amount;
-            int fluidToProcess = Math.min(mInputFluid.amount, maxFluidByHeat);
-
-            // Cap rate by hatch tier
-            int maxRate = 100 * (1 << mTier);
-            fluidToProcess = Math.min(fluidToProcess, maxRate);
-
-            // Scale heat transfer and coolant production by maintenance efficiency
-            double effFactor = Math.max(0.0, Math.min(1.0, efficiency));
-            fluidToProcess = (int) Math.round(fluidToProcess * effFactor);
-
-            if (fluidToProcess > 0) {
-                int outAmount = fluidToProcess * steamRatio;
-                int space = mCapacity - (mOutputFluid != null ? mOutputFluid.amount : 0);
-                if (outAmount > space) {
-                    fluidToProcess = space / steamRatio;
-                    outAmount = fluidToProcess * steamRatio;
-                }
-
-                if (fluidToProcess > 0 && outAmount > 0) {
-                    mInputFluid.amount -= fluidToProcess;
-                    if (mInputFluid.amount <= 0) mInputFluid = null;
-
-                    addOutputFluid(outputFluidName, outAmount);
-                    mLastProducedAmount = outAmount;
-                    mLastProducedFluidName = outputFluidName;
-                    double heatConsumed = fluidToProcess * heatPerMB;
-                    mTemperature = Math
-                        .max(minOperatingTemp, mTemperature - (heatConsumed / NuclearSimulationEngine.EU_PER_DEGREE));
-                    markTileDirty();
-                }
-            }
-        }
-    }
-
-    private int getRandomNumber(int max) {
-        if (getBaseMetaTileEntity() != null) {
-            return getBaseMetaTileEntity().getRandomNumber(max);
-        }
-        return (int) (Math.random() * max);
-    }
-
-    private void markTileDirty() {
+    public void markTileDirty() {
         if (getBaseMetaTileEntity() != null) {
             getBaseMetaTileEntity().markDirty();
         }
     }
 
-    private void addOutputFluid(String fluidName, int amount) {
+    public void addOutputFluid(String fluidName, int amount) {
         if (amount <= 0) return;
         Fluid fluid = FluidRegistry.getFluid(fluidName);
         if (fluid == null && fluidName.startsWith("fluid.")) {

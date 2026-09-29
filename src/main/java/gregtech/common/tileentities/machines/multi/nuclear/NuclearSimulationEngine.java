@@ -225,6 +225,18 @@ public class NuclearSimulationEngine {
         return 100.0;
     }
 
+    public static int getRequiredFluidTier(String fluidName) {
+        if (fluidName == null) return 999;
+        String name = fluidName.toLowerCase();
+        if (name.equals("water")) return 999; // Regular water is completely disallowed
+        if (name.contains("coolant") && !name.contains("hot")) return PIPE_TIER_ELECTRUM;
+        if (name.contains("distilledwater") && !name.contains("highpressure")) return PIPE_TIER_PLATINUM;
+        if (name.contains("highpressuredistilledwater")) return PIPE_TIER_OSMIUM;
+        if (name.contains("heavywater") && !name.contains("highpressure")) return PIPE_TIER_QUANTIUM;
+        if (name.contains("highpressureheavywater")) return PIPE_TIER_FLUXED_ELECTRUM;
+        return 999;
+    }
+
     public static double getCoolingOperatingThreshold(String fluidName) {
         if (fluidName == null || fluidName.contains("coolant")) {
             return ambientTemp;
