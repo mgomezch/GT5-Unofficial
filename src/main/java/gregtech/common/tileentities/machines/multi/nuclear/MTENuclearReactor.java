@@ -984,13 +984,6 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                 .setDefaultColor(Color.rgb(180, 220, 180))
                 .setTextAlignment(Alignment.CenterLeft)
                 .setEnabled(widget -> mMachine));
-        screenElements.widget(new TextWidget().setStringSupplier(() -> {
-            double maxTemp = NuclearSimulationEngine.getMaxOperatingTemperature(mPipeTier);
-            if (mCoreTemp > maxTemp * 0.85) return EnumChatFormatting.RED + "WARNING: THERMAL LIMIT CRITICAL";
-            return EnumChatFormatting.GREEN + "Core Stability: NOMINAL";
-        })
-            .setTextAlignment(Alignment.CenterLeft)
-            .setEnabled(widget -> mMachine));
     }
 
     public ModularWindow createReactorGridWindow(final EntityPlayer player) {
