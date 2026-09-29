@@ -31,8 +31,8 @@ public class NuclearSimulationWebServer {
 
     public static void startServer(int port) {
         try {
-            grid = new StandaloneNuclearGrid(7, 7, NuclearSimulationEngine.PIPE_TIER_PLATINUM);
-            grid.loadPreset("BREEDER_7X7");
+            grid = new StandaloneNuclearGrid(9, 9, NuclearSimulationEngine.PIPE_TIER_PLATINUM);
+            grid.loadPreset("BEST_PLATINUM_9X9");
 
             HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
 
@@ -463,7 +463,7 @@ public class NuclearSimulationWebServer {
             Map<String, String> params = parseQueryParams(
                 exchange.getRequestURI()
                     .getQuery());
-            String name = params.getOrDefault("name", "BREEDER_7X7");
+            String name = params.getOrDefault("name", "BEST_PLATINUM_9X9");
             isRunning = false;
             grid.loadPreset(name);
             sendJsonResponse(exchange, 200, "{\"success\":true,\"preset\":\"" + name + "\"}");
