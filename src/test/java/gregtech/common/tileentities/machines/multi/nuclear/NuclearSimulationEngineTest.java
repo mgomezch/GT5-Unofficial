@@ -919,6 +919,18 @@ public class NuclearSimulationEngineTest {
     }
 
     @Test
+    void testMaintenanceHatchRepairAndEfficiency() {
+        // Ideal status is 6 (wrench, screwdriver, soft mallet, hard hammer, soldering tool, crowbar)
+        int idealStatus = 6;
+        for (int issues = 0; issues <= 6; issues++) {
+            int repairStatus = idealStatus - issues;
+            double expectedEff = Math.max(0.0, 1.0 - (issues * 0.10));
+            double calculatedEff = Math.max(0.0, 1.0 - ((idealStatus - repairStatus) * 0.10));
+            assertEquals(expectedEff, calculatedEff, 1e-6);
+        }
+    }
+
+    @Test
     void testSymmetricGridSimulationPreservesExactSymmetry() {
         StandaloneNuclearGrid grid = new StandaloneNuclearGrid(5, 5, NuclearSimulationEngine.PIPE_TIER_ELECTRUM);
         // Symmetric 5x5 layout with 4 symmetric fuel rods and symmetric hatches

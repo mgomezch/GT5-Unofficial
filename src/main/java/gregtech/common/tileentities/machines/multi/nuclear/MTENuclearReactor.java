@@ -580,6 +580,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
 
     @Override
     public void checkMachine(IGregTechTileEntity aBaseMetaTileEntity, ItemStack aStack, List<StructureError> errors) {
+        clearHatches();
         mNuclearTiles.clear();
         mGrid = null;
         gridSize = 0;
@@ -592,6 +593,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             gridSize = 5;
             coreDimension = 5;
         } else {
+            clearHatches();
             mNuclearTiles.clear();
             mPipeTier = -1;
             mHatchTier = -1;
@@ -601,6 +603,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                 gridSize = 9;
                 coreDimension = 9;
             } else {
+                clearHatches();
                 mNuclearTiles.clear();
                 mPipeTier = -1;
                 mHatchTier = -1;
@@ -705,10 +708,27 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     }
 
     @Override
+    public void checkMaintenance() {
+        super.checkMaintenance();
+        if (mMachine && getRepairStatus() == getIdealStatus()) {
+            IGregTechTileEntity base = getBaseMetaTileEntity();
+            if (base != null && base.getLastShutDownReason() == ShutDownReasonRegistry.NO_REPAIR) {
+                base.setShutdownStatus(false);
+                base.setShutDownReason(ShutDownReasonRegistry.NONE);
+                base.enableWorking();
+            }
+        }
+    }
+
+    @Override
     public void onPostTick(IGregTechTileEntity aBaseMetaTileEntity, long aTick) {
         super.onPostTick(aBaseMetaTileEntity, aTick);
 
         if (aBaseMetaTileEntity.isServerSide() && mMachine) {
+            if (mStartUpCheck >= 0) {
+                checkMaintenance();
+            }
+
             if (mDirectPowerEUt > 0) {
                 addEnergyOutputMultipleDynamos(mDirectPowerEUt, true);
             }
