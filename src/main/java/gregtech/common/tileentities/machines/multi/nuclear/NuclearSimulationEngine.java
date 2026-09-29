@@ -412,6 +412,8 @@ public class NuclearSimulationEngine {
                                 if (hitTile.isFuel()) {
                                     // Fission chain reaction heat bonus
                                     pendingHeat[posX][posY] += absFlux * fissionHeatPerNeutron * 1.25;
+                                } else {
+                                    pendingHeat[posX][posY] += absFlux * (EU_FOR_FAST_NEUTRON * 0.5);
                                 }
                             }
                         }

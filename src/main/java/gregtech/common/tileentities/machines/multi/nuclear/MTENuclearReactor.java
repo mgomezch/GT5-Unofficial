@@ -220,6 +220,9 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                 } else if (mte instanceof MTEHatchNuclearBus) {
                     t.mNuclearTiles.add(te);
                     return true;
+                } else if (mte instanceof MTEHatchNuclearControlRod) {
+                    t.mNuclearTiles.add(te);
+                    return true;
                 }
             }
             return false;
@@ -229,7 +232,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         public boolean couldBeValid(MTENuclearReactor t, World world, int x, int y, int z, ItemStack trigger) {
             if (world.getTileEntity(x, y, z) instanceof IGregTechTileEntity te) {
                 IMetaTileEntity mte = te.getMetaTileEntity();
-                return mte instanceof MTEHatchNuclearHatch || mte instanceof MTEHatchNuclearBus;
+                return mte instanceof MTEHatchNuclearHatch || mte instanceof MTEHatchNuclearBus
+                    || mte instanceof MTEHatchNuclearControlRod;
             }
             return world.getBlock(x, y, z) == GregTechAPI.sBlockMachines;
         }
@@ -456,7 +460,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                 "21+",
                 "Item Pipe Casings (Electrum / Platinum / Osmium / Quantium / Fluxed Electrum / Black Plutonium)",
                 false)
-            .addOtherStructurePart("Nuclear Bus / Hatch", "Top layer octagonal core positions", 1)
+            .addOtherStructurePart("Nuclear Bus / Hatch / Control Rod Hatch", "Top layer octagonal core positions", 1)
             .addOtherStructurePart("Nuclear Control Hatch", "Any outer casing", 2)
             .addMaintenanceHatch("Any outer casing (Exactly 1)", 1)
             .addDynamoHatch("Any outer casing (Optional for Betavoltaic direct EU, max 1)", 1)
@@ -707,6 +711,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                     mGrid[gx][gy] = new NuclearGridTile(this, bus, gx, gy);
                 } else if (mte instanceof MTEHatchNuclearHatch hatch) {
                     mGrid[gx][gy] = new NuclearGridTile(this, hatch, gx, gy);
+                } else if (mte instanceof MTEHatchNuclearControlRod rod) {
+                    mGrid[gx][gy] = new NuclearGridTile(this, rod, gx, gy);
                 }
             }
         }
@@ -934,6 +940,11 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                                 bus.mInventory[MTEHatchNuclearBus.SLOT_OUTPUT_2] = null;
                                 bus.markTileDirty();
                             }
+                        } else if (te.getMetaTileEntity() instanceof MTEHatchNuclearControlRod rod) {
+                            if (rod.mTemperature > maxTemp) {
+                                rod.mInventory[MTEHatchNuclearControlRod.SLOT_ROD] = null;
+                                rod.markTileDirty();
+                            }
                         }
                     }
                 }
@@ -1049,6 +1060,15 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                             cell.thermalFlux = hatch.mLastThermalFlux;
                             cell.fastAbsorbed = hatch.mLastFastAbsorbed;
                             cell.thermalAbsorbed = hatch.mLastThermalAbsorbed;
+                        } else if (gt.isControlRod()) {
+                            MTEHatchNuclearControlRod rod = gt.getControlRod();
+                            cell.isFluid = false;
+                            ItemStack in = rod.mInventory[MTEHatchNuclearControlRod.SLOT_ROD];
+                            cell.itemStack = (in != null) ? in.copy() : null;
+                            cell.fastFlux = rod.mLastFastFlux;
+                            cell.thermalFlux = rod.mLastThermalFlux;
+                            cell.fastAbsorbed = rod.mLastFastAbsorbed;
+                            cell.thermalAbsorbed = rod.mLastThermalAbsorbed;
                         }
                     }
                     data.cells.add(cell);
@@ -1641,6 +1661,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     public double getTileTemperature(NuclearGridTile tile) {
         if (tile.isBus()) return tile.getBus().mTemperature;
         if (tile.isHatch()) return tile.getHatch().mTemperature;
+        if (tile.isControlRod()) return tile.getControlRod().mTemperature;
         return 20.0;
     }
 
@@ -1649,6 +1670,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             tile.getBus().mTemperature = Math.max(20.0, temp);
         } else if (tile.isHatch()) {
             tile.getHatch().mTemperature = Math.max(getAmbientTemperature(), temp);
+        } else if (tile.isControlRod()) {
+            tile.getControlRod().mTemperature = Math.max(20.0, temp);
         }
     }
 
@@ -1659,6 +1682,9 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         } else if (tile.isHatch()) {
             tile.getHatch().mHeatEU += heatEU;
             tile.getHatch().mTemperature += heatEU / NuclearSimulationEngine.EU_PER_DEGREE;
+        } else if (tile.isControlRod()) {
+            tile.getControlRod().mHeatEU += heatEU;
+            tile.getControlRod().mTemperature += heatEU / NuclearSimulationEngine.EU_PER_DEGREE;
         }
     }
 
@@ -1684,6 +1710,9 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             if (name.contains("coolant")) return 0.50;
             if (name.contains("sodium") || name.contains("lead")) return 0.70;
             return 0.15;
+        } else if (tile.isControlRod()) {
+            return tile.getControlRod()
+                .getHeatTransferCoeff();
         }
         return 0.05;
     }
@@ -1768,6 +1797,9 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             if (name.contains("boron")) return 0.95;
             if (isFluidFuel(fluid)) return (type == NeutronType.THERMAL) ? 0.85 : 0.25;
             return 0.05;
+        } else if (tile.isControlRod()) {
+            return tile.getControlRod()
+                .getAbsorptionProbability(type);
         }
         return 0.01;
     }
@@ -1800,6 +1832,9 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             if (name.contains("coolant")) return 0.45;
             if (name.contains("sodium")) return 0.20;
             return 0.10;
+        } else if (tile.isControlRod()) {
+            return tile.getControlRod()
+                .getScatteringProbability(type);
         }
         return 0.02;
     }
@@ -1828,6 +1863,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             if (name.contains("coolant")) return 0.40;
             if (name.contains("sodium")) return 0.05;
             return 0.20;
+        } else if (tile.isControlRod()) {
+            return 0.01;
         }
         return 0.05;
     }
@@ -1866,6 +1903,10 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                     }
                 }
             }
+        } else if (tile.isControlRod()) {
+            MTEHatchNuclearControlRod rod = tile.getControlRod();
+            if (type == NeutronType.FAST) rod.mFastAbsorbed += count;
+            else rod.mThermalAbsorbed += count;
         }
     }
 
@@ -1892,6 +1933,9 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         } else if (tile.isHatch()) {
             if (type == NeutronType.FAST) tile.getHatch().mFastFlux += count;
             else tile.getHatch().mThermalFlux += count;
+        } else if (tile.isControlRod()) {
+            if (type == NeutronType.FAST) tile.getControlRod().mFastFlux += count;
+            else tile.getControlRod().mThermalFlux += count;
         }
     }
 
@@ -1900,7 +1944,20 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             processBusNuclearTick(tile.getBus(), tile, efficiency);
         } else if (tile.isHatch()) {
             processHatchNuclearTick(tile.getHatch(), tile, efficiency);
+        } else if (tile.isControlRod()) {
+            processControlRodNuclearTick(tile.getControlRod(), tile, efficiency);
         }
+    }
+
+    public void processControlRodNuclearTick(MTEHatchNuclearControlRod rod, NuclearGridTile tile, double efficiency) {
+        rod.mLastFastFlux = rod.mFastFlux;
+        rod.mLastThermalFlux = rod.mThermalFlux;
+        rod.mLastFastAbsorbed = rod.mFastAbsorbed;
+        rod.mLastThermalAbsorbed = rod.mThermalAbsorbed;
+        rod.mFastFlux = 0;
+        rod.mThermalFlux = 0;
+        rod.mFastAbsorbed = 0;
+        rod.mThermalAbsorbed = 0;
     }
 
     public void processBusNuclearTick(MTEHatchNuclearBus bus, NuclearGridTile tile, double efficiency) {
@@ -2115,6 +2172,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         private final MTENuclearReactor reactor;
         private final MTEHatchNuclearBus bus;
         private final MTEHatchNuclearHatch hatch;
+        private final MTEHatchNuclearControlRod controlRod;
         private final int gx;
         private final int gy;
 
@@ -2122,6 +2180,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             this.reactor = reactor;
             this.bus = bus;
             this.hatch = null;
+            this.controlRod = null;
             this.gx = gx;
             this.gy = gy;
         }
@@ -2130,6 +2189,16 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             this.reactor = reactor;
             this.bus = null;
             this.hatch = hatch;
+            this.controlRod = null;
+            this.gx = gx;
+            this.gy = gy;
+        }
+
+        public NuclearGridTile(MTENuclearReactor reactor, MTEHatchNuclearControlRod controlRod, int gx, int gy) {
+            this.reactor = reactor;
+            this.bus = null;
+            this.hatch = null;
+            this.controlRod = controlRod;
             this.gx = gx;
             this.gy = gy;
         }
@@ -2142,12 +2211,20 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             return hatch != null;
         }
 
+        public boolean isControlRod() {
+            return controlRod != null;
+        }
+
         public MTEHatchNuclearBus getBus() {
             return bus;
         }
 
         public MTEHatchNuclearHatch getHatch() {
             return hatch;
+        }
+
+        public MTEHatchNuclearControlRod getControlRod() {
+            return controlRod;
         }
 
         public int getGx() {
@@ -2241,6 +2318,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
 
         int fuelCount = 0;
         int coolantHatchCount = 0;
+        int controlRodCount = 0;
         for (IGregTechTileEntity te : mNuclearTiles) {
             if (te != null) {
                 IMetaTileEntity mte = te.getMetaTileEntity();
@@ -2248,11 +2326,14 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                     fuelCount++;
                 } else if (mte instanceof MTEHatchNuclearHatch) {
                     coolantHatchCount++;
+                } else if (mte instanceof MTEHatchNuclearControlRod) {
+                    controlRodCount++;
                 }
             }
         }
         tag.setInteger("fuelCount", fuelCount);
         tag.setInteger("coolantHatchCount", coolantHatchCount);
+        tag.setInteger("controlRodCount", controlRodCount);
         tag.setInteger("totalCells", mNuclearTiles.size());
     }
 
@@ -2352,6 +2433,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             String.format("Neutrons: %,d fast, %,d therm, %,d esc", mFastAbsorbed, mThermalAbsorbed, mEscapedNeutrons));
         int fuelCount = 0;
         int coolantHatchCount = 0;
+        int controlRodCount = 0;
         for (IGregTechTileEntity te : mNuclearTiles) {
             if (te != null) {
                 IMetaTileEntity mte = te.getMetaTileEntity();
@@ -2359,15 +2441,18 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                     fuelCount++;
                 } else if (mte instanceof MTEHatchNuclearHatch) {
                     coolantHatchCount++;
+                } else if (mte instanceof MTEHatchNuclearControlRod) {
+                    controlRodCount++;
                 }
             }
         }
         if (!mNuclearTiles.isEmpty()) {
             info.add(
                 String.format(
-                    "Grid Cells: %d Fuel, %d Coolant / %d Total",
+                    "Grid Cells: %d Fuel, %d Coolant, %d Control / %d Total",
                     fuelCount,
                     coolantHatchCount,
+                    controlRodCount,
                     mNuclearTiles.size()));
         }
     }

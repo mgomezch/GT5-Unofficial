@@ -1185,4 +1185,130 @@ public class NuclearSimulationEngineTest {
         reactor.verifyCasingMin(errors, 22, 22);
         assertTrue(errors.isEmpty(), "22 casings (50% of 44) must pass structure check");
     }
+
+    @Test
+    void testNuclearControlRodHatchBasicsAndRedstoneControl() {
+        MTEHatchNuclearControlRod hatch = new MTEHatchNuclearControlRod("test.rod", 4, new String[0], null);
+        assertEquals(1, hatch.getInventoryStackLimit(), "Control rod hatch must limit stack size to 1");
+        assertFalse(hatch.doesFillContainers());
+        assertFalse(hatch.doesEmptyContainers());
+        assertFalse(hatch.canTankBeFilled());
+        assertFalse(hatch.canTankBeEmptied());
+
+        gregtech.api.interfaces.tileentity.IGregTechTileEntity mockBase = org.mockito.Mockito
+            .mock(gregtech.api.interfaces.tileentity.IGregTechTileEntity.class);
+        hatch.setBaseMetaTileEntity(mockBase);
+
+        // RS = 0 -> 0% insertion
+        org.mockito.Mockito.when(mockBase.getStrongestRedstone())
+            .thenReturn((byte) 0);
+        assertEquals(0, hatch.getRedstoneSignal());
+        assertEquals(0.0, hatch.getInsertionRatio(), 0.001);
+        assertEquals(0, hatch.getInsertionPercent());
+
+        // RS = 15 -> 100% insertion
+        org.mockito.Mockito.when(mockBase.getStrongestRedstone())
+            .thenReturn((byte) 15);
+        assertEquals(15, hatch.getRedstoneSignal());
+        assertEquals(1.0, hatch.getInsertionRatio(), 0.001);
+        assertEquals(100, hatch.getInsertionPercent());
+
+        // RS = 6 -> 40% insertion
+        org.mockito.Mockito.when(mockBase.getStrongestRedstone())
+            .thenReturn((byte) 6);
+        assertEquals(6, hatch.getRedstoneSignal());
+        assertEquals(0.40, hatch.getInsertionRatio(), 0.001);
+        assertEquals(40, hatch.getInsertionPercent());
+    }
+
+    @Test
+    void testNuclearControlRodProgressionOrder() {
+        // Verify material progression order: Silver < Boron < Cadmium < Indium < Hafnium
+        MTEHatchNuclearControlRod.ControlRodType silver = MTEHatchNuclearControlRod.ControlRodType.SILVER;
+        MTEHatchNuclearControlRod.ControlRodType boron = MTEHatchNuclearControlRod.ControlRodType.BORON;
+        MTEHatchNuclearControlRod.ControlRodType cadmium = MTEHatchNuclearControlRod.ControlRodType.CADMIUM;
+        MTEHatchNuclearControlRod.ControlRodType indium = MTEHatchNuclearControlRod.ControlRodType.INDIUM;
+        MTEHatchNuclearControlRod.ControlRodType hafnium = MTEHatchNuclearControlRod.ControlRodType.HAFNIUM;
+
+        // Thermal absorption progression
+        assertTrue(
+            silver.maxThermalAbsorption < boron.maxThermalAbsorption,
+            "Boron must absorb more thermal than Silver");
+        assertTrue(
+            boron.maxThermalAbsorption < cadmium.maxThermalAbsorption,
+            "Cadmium must absorb more thermal than Boron");
+        assertTrue(
+            cadmium.maxThermalAbsorption < indium.maxThermalAbsorption,
+            "Indium must absorb more thermal than Cadmium");
+        assertTrue(
+            indium.maxThermalAbsorption < hafnium.maxThermalAbsorption,
+            "Hafnium must absorb more thermal than Indium");
+
+        // Fast absorption progression
+        assertTrue(silver.maxFastAbsorption < boron.maxFastAbsorption, "Boron must absorb more fast than Silver");
+        assertTrue(boron.maxFastAbsorption < cadmium.maxFastAbsorption, "Cadmium must absorb more fast than Boron");
+        assertTrue(cadmium.maxFastAbsorption < indium.maxFastAbsorption, "Indium must absorb more fast than Cadmium");
+        assertTrue(indium.maxFastAbsorption < hafnium.maxFastAbsorption, "Hafnium must absorb more fast than Indium");
+
+        // Test rod detection via mock items
+        net.minecraft.item.Item dummyItem = org.mockito.Mockito.mock(net.minecraft.item.Item.class);
+        net.minecraft.item.ItemStack stackSilver = org.mockito.Mockito.mock(net.minecraft.item.ItemStack.class);
+        stackSilver.getItem(); // trigger non-null check
+        org.mockito.Mockito.when(stackSilver.getItem())
+            .thenReturn(dummyItem);
+        org.mockito.Mockito.when(stackSilver.getUnlocalizedName())
+            .thenReturn("item.stickLongSilver");
+        assertEquals(silver, MTEHatchNuclearControlRod.getRodType(stackSilver));
+
+        net.minecraft.item.ItemStack stackBoron = org.mockito.Mockito.mock(net.minecraft.item.ItemStack.class);
+        org.mockito.Mockito.when(stackBoron.getItem())
+            .thenReturn(dummyItem);
+        org.mockito.Mockito.when(stackBoron.getUnlocalizedName())
+            .thenReturn("item.stickLongBoron");
+        assertEquals(boron, MTEHatchNuclearControlRod.getRodType(stackBoron));
+
+        net.minecraft.item.ItemStack stackCadmium = org.mockito.Mockito.mock(net.minecraft.item.ItemStack.class);
+        org.mockito.Mockito.when(stackCadmium.getItem())
+            .thenReturn(dummyItem);
+        org.mockito.Mockito.when(stackCadmium.getUnlocalizedName())
+            .thenReturn("item.stickLongCadmium");
+        assertEquals(cadmium, MTEHatchNuclearControlRod.getRodType(stackCadmium));
+
+        net.minecraft.item.ItemStack stackIndium = org.mockito.Mockito.mock(net.minecraft.item.ItemStack.class);
+        org.mockito.Mockito.when(stackIndium.getItem())
+            .thenReturn(dummyItem);
+        org.mockito.Mockito.when(stackIndium.getUnlocalizedName())
+            .thenReturn("item.stickLongIndium");
+        assertEquals(indium, MTEHatchNuclearControlRod.getRodType(stackIndium));
+
+        net.minecraft.item.ItemStack stackHafnium = org.mockito.Mockito.mock(net.minecraft.item.ItemStack.class);
+        org.mockito.Mockito.when(stackHafnium.getItem())
+            .thenReturn(dummyItem);
+        org.mockito.Mockito.when(stackHafnium.getUnlocalizedName())
+            .thenReturn("item.stickLongHafnium");
+        assertEquals(hafnium, MTEHatchNuclearControlRod.getRodType(stackHafnium));
+
+        // Test absorption scaling with redstone on hatch
+        MTEHatchNuclearControlRod hatch = new MTEHatchNuclearControlRod("test.rod.prog", 4, new String[0], null);
+        gregtech.api.interfaces.tileentity.IGregTechTileEntity mockBase = org.mockito.Mockito
+            .mock(gregtech.api.interfaces.tileentity.IGregTechTileEntity.class);
+        hatch.setBaseMetaTileEntity(mockBase);
+        hatch.mInventory[MTEHatchNuclearControlRod.SLOT_ROD] = stackHafnium;
+
+        // RS = 0 -> minimum baseline absorption (0.01)
+        org.mockito.Mockito.when(mockBase.getStrongestRedstone())
+            .thenReturn((byte) 0);
+        assertEquals(0.01, hatch.getAbsorptionProbability(NeutronType.THERMAL), 0.001);
+
+        // RS = 15 -> 100% of Hafnium max (0.99)
+        org.mockito.Mockito.when(mockBase.getStrongestRedstone())
+            .thenReturn((byte) 15);
+        assertEquals(0.99, hatch.getAbsorptionProbability(NeutronType.THERMAL), 0.001);
+        assertEquals(0.80, hatch.getAbsorptionProbability(NeutronType.FAST), 0.001);
+
+        // RS = 7.5 (approx 8) -> 8/15 * 0.99 = 0.528
+        org.mockito.Mockito.when(mockBase.getStrongestRedstone())
+            .thenReturn((byte) 8);
+        assertEquals((8.0 / 15.0) * 0.99, hatch.getAbsorptionProbability(NeutronType.THERMAL), 0.001);
+    }
 }
