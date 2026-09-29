@@ -12,10 +12,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ChunkCoordinates;
 import net.minecraft.util.EnumChatFormatting;
 import net.minecraft.util.StatCollector;
@@ -78,6 +80,9 @@ import gregtech.common.misc.GTStructureChannels;
 import gregtech.common.pollution.Pollution;
 import ic2.api.reactor.IReactor;
 import ic2.api.reactor.IReactorComponent;
+import mcp.mobius.waila.api.IWailaConfigHandler;
+import mcp.mobius.waila.api.IWailaDataAccessor;
+import mcp.mobius.waila.overlay.tooltiprenderers.TTRenderBar;
 
 public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReactor>
     implements ISurvivalConstructable, ICasingTextureProvider {
@@ -1093,7 +1098,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             new TextWidget()
                 .setStringSupplier(
                     () -> String.format(
-                        "Max Temp: %.1f / %.0f °C",
+                        "Core Temp: %.1f / %.0f °C",
                         mCoreTemp,
                         NuclearSimulationEngine.getMaxOperatingTemperature(mPipeTier)))
                 .setDefaultColor(Color.rgb(255, 200, 0))
@@ -1115,20 +1120,6 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                 () -> String
                     .format("Neutrons: %d fast, %d therm, %d esc", mFastAbsorbed, mThermalAbsorbed, mEscapedNeutrons))
                 .setDefaultColor(Color.rgb(200, 200, 200))
-                .setTextAlignment(Alignment.CenterLeft)
-                .setEnabled(widget -> mMachine));
-        screenElements.widget(
-            new TextWidget()
-                .setStringSupplier(
-                    () -> (mOutputCoolantRate > 0 && mOutputCoolantName != null && !mOutputCoolantName.isEmpty())
-                        ? String.format("Coolant Output: %,d L/s %s", mOutputCoolantRate, mOutputCoolantName)
-                        : "Coolant Output: 0 L/s")
-                .setDefaultColor(Color.rgb(100, 220, 255))
-                .setTextAlignment(Alignment.CenterLeft)
-                .setEnabled(widget -> mMachine));
-        screenElements.widget(
-            new TextWidget().setStringSupplier(() -> String.format("EU Output: %d EU/t", mDirectPowerEUt))
-                .setDefaultColor(Color.rgb(180, 220, 180))
                 .setTextAlignment(Alignment.CenterLeft)
                 .setEnabled(widget -> mMachine));
     }
@@ -1917,6 +1908,154 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         @Override
         public void nuclearTick(double efficiency) {
             reactor.processTileNuclearTick(this, efficiency);
+        }
+    }
+
+    @Override
+    public void getExtraWailaNBT(EntityPlayerMP playerMP, TileEntity tileEntity, NBTTagCompound tag, World world, int x,
+        int y, int z) {
+        tag.setDouble("coreTemp", mCoreTemp);
+        double maxTemp = NuclearSimulationEngine.getMaxOperatingTemperature(mPipeTier);
+        tag.setDouble("maxTemp", maxTemp);
+        tag.setLong("euOutput", mDirectPowerEUt);
+        tag.setInteger("coolantRate", mOutputCoolantRate);
+        tag.setString("coolantName", mOutputCoolantName != null ? mOutputCoolantName : "");
+        tag.setFloat("reactivity", (float) mReactivity);
+        tag.setInteger("neutronsProduced", mNeutronsProduced);
+        tag.setInteger("fastAbsorbed", mFastAbsorbed);
+        tag.setInteger("thermalAbsorbed", mThermalAbsorbed);
+        tag.setInteger("escapedNeutrons", mEscapedNeutrons);
+
+        int fuelCount = 0;
+        int coolantHatchCount = 0;
+        for (IGregTechTileEntity te : mNuclearTiles) {
+            if (te != null) {
+                IMetaTileEntity mte = te.getMetaTileEntity();
+                if (mte instanceof MTEHatchNuclearBus) {
+                    fuelCount++;
+                } else if (mte instanceof MTEHatchNuclearHatch) {
+                    coolantHatchCount++;
+                }
+            }
+        }
+        tag.setInteger("fuelCount", fuelCount);
+        tag.setInteger("coolantHatchCount", coolantHatchCount);
+        tag.setInteger("totalCells", mNuclearTiles.size());
+    }
+
+    @Override
+    public void getExtraWailaBody(ItemStack itemStack, List<String> list, NBTTagCompound tag,
+        IWailaDataAccessor accessor, IWailaConfigHandler config) {
+        double temp = tag.getDouble("coreTemp");
+        double maxTemp = tag.getDouble("maxTemp");
+        if (maxTemp <= 0.0) {
+            maxTemp = 2500.0;
+        }
+        double ratio = Math.max(0.0, Math.min(1.0, temp / maxTemp));
+
+        int topColor;
+        int bottomColor;
+        if (ratio >= 0.90) {
+            topColor = 0xFFFF3333;
+            bottomColor = 0xFF880000;
+        } else if (ratio >= 0.75) {
+            topColor = 0xFFFF9900;
+            bottomColor = 0xFFCC5500;
+        } else if (ratio >= 0.50) {
+            topColor = 0xFFFFD700;
+            bottomColor = 0xFFB8860B;
+        } else {
+            topColor = 0xFF00E676;
+            bottomColor = 0xFF007A33;
+        }
+        String tempText = String.format("Core Temp: %,.1f / %,.0f °C", temp, maxTemp);
+        list.add(TTRenderBar.create(tempText, topColor, bottomColor, ratio));
+
+        long euOutput = tag.getLong("euOutput");
+        int coolantRate = tag.getInteger("coolantRate");
+        String coolantName = tag.getString("coolantName");
+
+        if (euOutput > 0) {
+            list.add(
+                EnumChatFormatting.GREEN + "EU Output: "
+                    + EnumChatFormatting.WHITE
+                    + String.format("+%,d EU/t", euOutput));
+        }
+        if (coolantRate > 0 && !coolantName.isEmpty()) {
+            list.add(
+                EnumChatFormatting.AQUA + "Coolant Output: "
+                    + EnumChatFormatting.WHITE
+                    + String.format("%,d L/s %s", coolantRate, coolantName));
+        }
+        if (euOutput == 0 && coolantRate == 0) {
+            list.add(EnumChatFormatting.GRAY + "Output: " + EnumChatFormatting.DARK_GRAY + "0 EU/t | 0 L/s");
+        }
+
+        float reactivity = tag.getFloat("reactivity");
+        int flux = tag.getInteger("neutronsProduced");
+        list.add(
+            EnumChatFormatting.YELLOW + "Reactivity: "
+                + EnumChatFormatting.WHITE
+                + String.format("%.1f%%", reactivity * 100.0f)
+                + EnumChatFormatting.GRAY
+                + " | "
+                + EnumChatFormatting.YELLOW
+                + "Flux: "
+                + EnumChatFormatting.WHITE
+                + NuclearSimulationEngine.formatNeutronFlux(flux));
+
+        int fast = tag.getInteger("fastAbsorbed");
+        int therm = tag.getInteger("thermalAbsorbed");
+        int esc = tag.getInteger("escapedNeutrons");
+        if (flux > 0 || fast > 0 || therm > 0 || esc > 0) {
+            list.add(
+                EnumChatFormatting.GRAY + String.format("Neutrons: %,d fast, %,d therm, %,d esc", fast, therm, esc));
+        }
+
+        int fuelCount = tag.getInteger("fuelCount");
+        int coolantCount = tag.getInteger("coolantHatchCount");
+        int totalCells = tag.getInteger("totalCells");
+        if (totalCells > 0) {
+            list.add(
+                EnumChatFormatting.GRAY
+                    + String.format("Grid Cells: %d Fuel, %d Coolant / %d Total", fuelCount, coolantCount, totalCells));
+        }
+    }
+
+    @Override
+    public void getExtraInfoData(List<String> info) {
+        if (!mMachine) return;
+        double maxTemp = NuclearSimulationEngine.getMaxOperatingTemperature(mPipeTier);
+        info.add(String.format("Core Temp: %,.1f / %,.0f °C", mCoreTemp, maxTemp));
+        if (mDirectPowerEUt > 0) {
+            info.add(String.format("EU Output: +%,d EU/t", mDirectPowerEUt));
+        }
+        if (mOutputCoolantRate > 0 && mOutputCoolantName != null && !mOutputCoolantName.isEmpty()) {
+            info.add(String.format("Coolant Output: %,d L/s %s", mOutputCoolantRate, mOutputCoolantName));
+        }
+        info.add(String.format("Reactivity: %.1f%%", mReactivity * 100.0));
+        info.add("Flux: " + NuclearSimulationEngine.formatNeutronFlux(mNeutronsProduced));
+        info.add(
+            String.format("Neutrons: %,d fast, %,d therm, %,d esc", mFastAbsorbed, mThermalAbsorbed, mEscapedNeutrons));
+        int fuelCount = 0;
+        int coolantHatchCount = 0;
+        for (IGregTechTileEntity te : mNuclearTiles) {
+            if (te != null) {
+                IMetaTileEntity mte = te.getMetaTileEntity();
+                if (mte instanceof MTEHatchNuclearBus) {
+                    fuelCount++;
+                } else if (mte instanceof MTEHatchNuclearHatch) {
+                    coolantHatchCount++;
+                }
+            }
+        }
+        if (!mNuclearTiles.isEmpty()) {
+            info.add(
+                String.format(
+                    "Grid Cells: %d Fuel, %d Coolant / %d Total",
+                    fuelCount,
+                    coolantHatchCount,
+                    mNuclearTiles.size()));
         }
     }
 
