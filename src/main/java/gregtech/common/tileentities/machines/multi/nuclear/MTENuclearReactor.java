@@ -1511,13 +1511,6 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             MTEHatchNuclearBus bus = tile.getBus();
             if (type == NeutronType.FAST) bus.mFastAbsorbed += count;
             else bus.mThermalAbsorbed += count;
-
-            ItemStack stack = bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT];
-            if (stack != null && isItemFuel(stack)) {
-                if (type == NeutronType.THERMAL) {
-                    addTileHeat(tile, count * 20.0);
-                }
-            }
         } else if (tile.isHatch()) {
             MTEHatchNuclearHatch hatch = tile.getHatch();
             if (type == NeutronType.FAST) hatch.mFastAbsorbed += count;

@@ -293,24 +293,43 @@ public class NuclearSimulationEngine {
         SimulationResult result = new SimulationResult();
         if (grid == null || sizeX <= 0 || sizeY <= 0) return result;
 
+        // --- PASS 1: FROZEN INITIAL STATE SNAPSHOT & SYNCHRONIZED NEUTRON EMISSION ---
         double sumTemp = 0;
         int activeTileCount = 0;
         double sumFuelReactivity = 0;
         int fuelTileCount = 0;
 
+        double[][] initialTemp = new double[sizeX][sizeY];
+        int[][] emittedNeutrons = new int[sizeX][sizeY];
+        double[][] efficiency = new double[sizeX][sizeY];
+        double[][] pendingHeat = new double[sizeX][sizeY];
+
         for (int x = 0; x < sizeX; x++) {
             for (int y = 0; y < sizeY; y++) {
                 INuclearTile tile = grid[x][y];
                 if (tile != null) {
+                    activeTileCount++;
                     double temp = tile.getTemperature();
+                    initialTemp[x][y] = temp;
                     if (temp > result.maxTemperature) {
                         result.maxTemperature = temp;
                     }
                     sumTemp += temp;
-                    activeTileCount++;
                     if (tile.isFuel()) {
-                        sumFuelReactivity += calculateEfficiency(temp);
+                        double eff = calculateEfficiency(temp);
+                        efficiency[x][y] = eff;
+                        sumFuelReactivity += eff;
                         fuelTileCount++;
+
+                        int produced = tile.generateNeutrons(eff);
+                        if (produced > 0) {
+                            emittedNeutrons[x][y] = produced;
+                            result.totalNeutronsGenerated += produced;
+                            // Prompt fission heat queued for atomic deposit in Pass 3
+                            pendingHeat[x][y] += produced * fissionHeatPerNeutron;
+                        }
+                    } else {
+                        efficiency[x][y] = Math.max(0.0, Math.min(1.0, maintenanceEfficiency));
                     }
                 }
             }
@@ -320,106 +339,127 @@ public class NuclearSimulationEngine {
         }
         result.averageReactivity = (fuelTileCount > 0) ? (sumFuelReactivity / fuelTileCount) : 0.0;
 
-        // 1. NEUTRON GENERATION & RAYCASTING
+        // --- PASS 2: DETERMINISTIC ISOTROPIC NEUTRON PROPAGATION & MODERATION ---
+        final int MAX_STEPS = (sizeX + sizeY) * 2;
+
         for (int i = 0; i < sizeX; i++) {
             for (int j = 0; j < sizeY; j++) {
-                INuclearTile tile = grid[i][j];
-                if (tile == null || !tile.isFuel()) continue;
+                int N = emittedNeutrons[i][j];
+                if (N <= 0) continue;
 
-                double localEfficiency = calculateEfficiency(tile.getTemperature());
-                int neutronsProduced = tile.generateNeutrons(localEfficiency);
-                if (neutronsProduced <= 0) continue;
+                // Isotropic emission: 4 cardinal directions (East, South, West, North)
+                double fluxPerDir = N / 4.0;
 
-                result.totalNeutronsGenerated += neutronsProduced;
-                // Direct fission heat
-                tile.addHeat(neutronsProduced * fissionHeatPerNeutron);
-
-                int splits = Math.min(neutronsProduced, 20);
-                int neutronsPerSplit = neutronsProduced / splits;
-
-                for (int s = 0; s < splits; s++) {
-                    int batch = (s == splits - 1) ? (neutronsProduced - neutronsPerSplit * (splits - 1))
-                        : neutronsPerSplit;
-                    if (batch <= 0) continue;
-
+                for (int dir = 0; dir < 4; dir++) {
+                    double flux = fluxPerDir;
                     NeutronType type = NeutronType.FAST;
-                    int dir = RAND.nextInt(4);
-                    int posX = i + dX[dir];
-                    int posY = j + dY[dir];
+                    int curDir = dir;
+                    int posX = i + dX[curDir];
+                    int posY = j + dY[curDir];
                     int steps = 0;
-                    final int MAX_STEPS = (sizeX + sizeY) * 2;
 
-                    while (steps++ < MAX_STEPS) {
+                    while (steps++ < MAX_STEPS && flux > 0.001) {
                         boolean isOutOfBounds = (posX < 0 || posX >= sizeX || posY < 0 || posY >= sizeY);
                         boolean isNullCell = !isOutOfBounds && (grid[posX][posY] == null);
 
                         if (isOutOfBounds || isNullCell) {
-                            // Hit reactor outer wall or corner null cell!
-                            if (RAND.nextDouble() < wallReflectionChance) {
-                                // Wall reflection: bounce back in the direction it came from!
-                                result.wallNeutronsReflected += batch;
-                                dir = (dir + 2) % 4; // reverse 180 degrees
-                                posX += dX[dir];
-                                posY += dY[dir];
-                                // Moderate fast neutrons slightly on wall bounce (casing reflection)
-                                if (type == NeutronType.FAST && RAND.nextDouble() < 0.25) {
-                                    type = NeutronType.THERMAL;
-                                }
-                                continue;
-                            } else {
-                                // Absorbed by the walls and turn into heat!
-                                result.wallNeutronsAbsorbed += batch;
-                                double heat = batch * wallAbsorbHeatPerNeutron;
-                                result.wallHeatPool += heat;
+                            // Boundary encounter with reactor casing wall or corner null cell
+                            double reflFlux = flux * wallReflectionChance;
+                            double absFlux = flux - reflFlux;
+
+                            int intRefl = (int) Math.round(reflFlux);
+                            int intAbs = (int) Math.round(absFlux);
+                            if (intRefl > 0) {
+                                result.wallNeutronsReflected += intRefl;
+                            }
+                            if (intAbs > 0) {
+                                result.wallNeutronsAbsorbed += intAbs;
+                                result.wallHeatPool += intAbs * wallAbsorbHeatPerNeutron;
+                            }
+
+                            if (reflFlux <= 0.001) {
                                 break;
                             }
+
+                            // Reverse direction 180 degrees
+                            curDir = (curDir + 2) % 4;
+                            posX += dX[curDir];
+                            posY += dY[curDir];
+
+                            // Moderate fast neutrons slightly on wall bounce
+                            if (type == NeutronType.FAST) {
+                                type = NeutronType.THERMAL;
+                            }
+                            flux = reflFlux;
+                            continue;
                         }
 
                         INuclearTile hitTile = grid[posX][posY];
-                        if (hitTile != null) {
-                            hitTile.addNeutronFlux(type, batch);
+                        hitTile.addNeutronFlux(type, (int) Math.round(flux));
 
-                            double pAbsorb = hitTile.getAbsorptionProbability(type);
-                            double pScatter = hitTile.getScatteringProbability(type);
-                            double pTotal = Math.min(1.0, pAbsorb + pScatter);
+                        double pAbsorb = hitTile.getAbsorptionProbability(type);
+                        double pScatter = hitTile.getScatteringProbability(type);
 
-                            if (RAND.nextDouble() < pTotal) {
-                                double selector = RAND.nextDouble() * pTotal;
-                                if (selector <= pAbsorb) {
-                                    // Absorbed!
-                                    hitTile.onNeutronAbsorbed(type, batch);
-                                    if (type == NeutronType.FAST) {
-                                        hitTile.addHeat(batch * EU_FOR_FAST_NEUTRON);
-                                        result.fastNeutronsAbsorbed += batch;
-                                    } else {
-                                        result.thermalNeutronsAbsorbed += batch;
-                                    }
-                                    break;
-                                } else {
-                                    // Scattered!
-                                    hitTile.onNeutronScattered(type, batch);
-                                    dir = RAND.nextInt(4);
-                                    if (type == NeutronType.FAST
-                                        && RAND.nextDouble() < hitTile.getModerationProbability()) {
+                        double absFlux = flux * pAbsorb;
+                        if (absFlux > 0.0) {
+                            int intAbs = (int) Math.round(absFlux);
+                            hitTile.onNeutronAbsorbed(type, intAbs);
+                            if (type == NeutronType.FAST) {
+                                pendingHeat[posX][posY] += absFlux * EU_FOR_FAST_NEUTRON;
+                                result.fastNeutronsAbsorbed += intAbs;
+                            } else {
+                                result.thermalNeutronsAbsorbed += intAbs;
+                                if (hitTile.isFuel()) {
+                                    // Fission chain reaction heat bonus
+                                    pendingHeat[posX][posY] += absFlux * fissionHeatPerNeutron * 1.25;
+                                }
+                            }
+                        }
+
+                        double remFlux = Math.max(0.0, flux - absFlux);
+                        double scatFlux = remFlux * pScatter;
+                        if (scatFlux > 0.0) {
+                            hitTile.onNeutronScattered(type, (int) Math.round(scatFlux));
+
+                            // Reflector check: reflectors reverse neutron direction back into the core
+                            if (pScatter >= 0.90 && pAbsorb <= 0.05) {
+                                curDir = (curDir + 2) % 4;
+                            } else if (type == NeutronType.FAST) {
+                                double pMod = hitTile.getModerationProbability();
+                                double modFlux = scatFlux * pMod;
+                                if (modFlux > 0.0) {
+                                    pendingHeat[posX][posY] += modFlux * EU_FOR_FAST_NEUTRON;
+                                    if (modFlux > 0.5 * scatFlux) {
                                         type = NeutronType.THERMAL;
-                                        hitTile.addHeat(batch * EU_FOR_FAST_NEUTRON);
                                     }
                                 }
                             }
                         }
 
-                        posX += dX[dir];
-                        posY += dY[dir];
+                        flux = remFlux;
+                        posX += dX[curDir];
+                        posY += dY[curDir];
                     }
 
-                    if (steps >= MAX_STEPS) {
-                        result.neutronsEscaped += batch;
+                    if (steps >= MAX_STEPS && flux > 0.001) {
+                        result.neutronsEscaped += (int) Math.round(flux);
                     }
                 }
             }
         }
 
-        // 2. HEAT DIFFUSION ACROSS THE GRID
+        // --- PASS 3: ATOMIC NUCLEAR HEAT DEPOSITION ---
+        for (int x = 0; x < sizeX; x++) {
+            for (int y = 0; y < sizeY; y++) {
+                INuclearTile tile = grid[x][y];
+                if (tile != null && pendingHeat[x][y] > 0.0) {
+                    tile.addHeat(pendingHeat[x][y]);
+                    result.totalHeatEU += pendingHeat[x][y];
+                }
+            }
+        }
+
+        // --- PASS 4: MULTI-SUBSTEP DISCRETE HEAT CONDUCTION & BOUNDARY LOSS ---
         final int SUBSTEPS = 5;
         double[][] deltaTemp = new double[sizeX][sizeY];
 
@@ -477,21 +517,17 @@ public class NuclearSimulationEngine {
             }
         }
 
-        // 3. TILE NUCLEAR UPDATE (Durability, fluid boiling, cooling, transmutation)
+        // --- PASS 5: TILE NUCLEAR UPDATE (BOILING, COOLING, DURABILITY, TRANSMUTATION) ---
         for (int x = 0; x < sizeX; x++) {
             for (int y = 0; y < sizeY; y++) {
                 INuclearTile tile = grid[x][y];
                 if (tile != null) {
-                    double tileEfficiency = tile.isFuel() ? calculateEfficiency(tile.getTemperature())
-                        : Math.max(0.0, Math.min(1.0, maintenanceEfficiency));
-                    tile.nuclearTick(tileEfficiency);
+                    tile.nuclearTick(efficiency[x][y]);
                 }
             }
         }
 
-        // 4. WALL HEAT DISTRIBUTION
-        // Heat dissipated into the walls is added to the reactor-structure heat increment pool,
-        // and distributed in equal shares to all non-null cells.
+        // --- PASS 6: WALL HEAT DISTRIBUTION ---
         result.totalHeatEU += result.wallHeatPool;
         if (activeTileCount > 0 && result.wallHeatPool > 0) {
             double heatPerCell = result.wallHeatPool / activeTileCount;
@@ -505,7 +541,7 @@ public class NuclearSimulationEngine {
             }
         }
 
-        // Recalculate max and average temperature, and average reactivity over fuel cells at end of tick
+        // --- PASS 7: END-OF-TICK TELEMETRY & METRICS ---
         result.maxTemperature = AMBIENT_TEMP;
         sumTemp = 0;
         sumFuelReactivity = 0;

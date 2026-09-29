@@ -352,11 +352,6 @@ public class SimTile implements INuclearTile {
         if (nType == NeutronType.FAST) fastAbsorbed += count;
         else thermalAbsorbed += count;
 
-        if (isFuel() && nType == NeutronType.THERMAL) {
-            // Fission chain reaction heat bonus
-            addHeat(count * NuclearSimulationEngine.fissionHeatPerNeutron * 1.25);
-        }
-
         // Fast neutron capture transmutation
         if (nType == NeutronType.FAST && isHatch() && inputFluidAmount > 0) {
             if (type == TileType.HATCH_DISTILLED_WATER || type == TileType.HATCH_HP_DISTILLED_WATER) {

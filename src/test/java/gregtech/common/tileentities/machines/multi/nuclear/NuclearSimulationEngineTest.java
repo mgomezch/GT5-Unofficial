@@ -2,6 +2,8 @@ package gregtech.common.tileentities.machines.multi.nuclear;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile;
+import gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -913,5 +915,59 @@ public class NuclearSimulationEngineTest {
         assertEquals(1.0, receivedEfficiency[0], 1e-6, "Default/full maintenance efficiency must be 1.0");
 
         NuclearSimulationEngine.resetDefaultParameters();
+    }
+
+    @Test
+    void testSymmetricGridSimulationPreservesExactSymmetry() {
+        StandaloneNuclearGrid grid = new StandaloneNuclearGrid(5, 5, NuclearSimulationEngine.PIPE_TIER_ELECTRUM);
+        // Symmetric 5x5 layout with 4 symmetric fuel rods and symmetric hatches
+        grid.loadLayout("NL,HC,HC,HC,NL;HC,U4,HC,U4,HC;HC,HC,HC,HC,HC;HC,U4,HC,U4,HC;NL,HC,HC,HC,NL");
+
+        for (int tick = 1; tick <= 50; tick++) {
+            grid.step();
+
+            SimTile t11 = grid.getTile(1, 1);
+            SimTile t31 = grid.getTile(3, 1);
+            SimTile t13 = grid.getTile(1, 3);
+            SimTile t33 = grid.getTile(3, 3);
+
+            assertEquals(
+                t11.getTemperature(),
+                t31.getTemperature(),
+                1e-6,
+                "Symmetric fuel cells (1,1) and (3,1) must have identical temperatures at tick " + tick);
+            assertEquals(
+                t11.getTemperature(),
+                t13.getTemperature(),
+                1e-6,
+                "Symmetric fuel cells (1,1) and (1,3) must have identical temperatures at tick " + tick);
+            assertEquals(
+                t11.getTemperature(),
+                t33.getTemperature(),
+                1e-6,
+                "Symmetric fuel cells (1,1) and (3,3) must have identical temperatures at tick " + tick);
+
+            // Also verify symmetric coolant hatches: (2, 1) and (2, 3), (1, 2) and (3, 2)
+            SimTile h21 = grid.getTile(2, 1);
+            SimTile h23 = grid.getTile(2, 3);
+            SimTile h12 = grid.getTile(1, 2);
+            SimTile h32 = grid.getTile(3, 2);
+
+            assertEquals(
+                h21.getTemperature(),
+                h23.getTemperature(),
+                1e-6,
+                "Symmetric hatches (2,1) and (2,3) must have identical temperatures at tick " + tick);
+            assertEquals(
+                h12.getTemperature(),
+                h32.getTemperature(),
+                1e-6,
+                "Symmetric hatches (1,2) and (3,2) must have identical temperatures at tick " + tick);
+            assertEquals(
+                h21.getTemperature(),
+                h12.getTemperature(),
+                1e-6,
+                "Quarter-symmetric hatches (2,1) and (1,2) must have identical temperatures at tick " + tick);
+        }
     }
 }
