@@ -270,14 +270,60 @@ public class MTEHatchNuclearHatch extends MTEHatch {
         }
     }
 
+    public boolean isFluidInputAllowed(FluidStack aFluid) {
+        if (aFluid == null || aFluid.getFluid() == null) return false;
+        String name = aFluid.getFluid()
+            .getName()
+            .toLowerCase();
+        if (name.equals("water")) return false;
+        if (mReactorPipeTier >= 0 && !name.contains("highpressure") && getRequiredFluidTier(name) > mReactorPipeTier) {
+            return false;
+        }
+        return true;
+    }
+
+    public com.cleanroommc.modularui.utils.fluid.FluidStackTank getInputTank() {
+        return new FluidStackTank(() -> mInputFluid, f -> {
+            mInputFluid = f;
+            markTileDirty();
+        }, () -> mCapacity);
+    }
+
+    public com.cleanroommc.modularui.utils.fluid.FluidStackTank getOutputTank() {
+        return new FluidStackTank(() -> mOutputFluid, f -> {
+            mOutputFluid = f;
+            markTileDirty();
+        }, () -> mCapacity);
+    }
+
+    @Override
+    public boolean onRightclick(IGregTechTileEntity aBaseMetaTileEntity,
+        net.minecraft.entity.player.EntityPlayer aPlayer) {
+        openGui(aPlayer);
+        return true;
+    }
+
+    @Override
+    protected boolean useMui2() {
+        return true;
+    }
+
+    @Override
+    public com.cleanroommc.modularui.screen.ModularPanel buildUI(com.cleanroommc.modularui.factory.PosGuiData data,
+        com.cleanroommc.modularui.value.sync.PanelSyncManager syncManager,
+        com.cleanroommc.modularui.screen.UISettings uiSettings) {
+        return new gregtech.common.gui.modularui.hatch.MTEHatchNuclearHatchGui(this)
+            .build(data, syncManager, uiSettings);
+    }
+
     @Override
     public void addUIWidgets(ModularWindow.Builder builder, UIBuildContext buildContext) {
         builder.widget(
             new DrawableWidget().setDrawable(GTUITextures.PICTURE_SCREEN_BLACK)
                 .setPos(7, 16)
-                .setSize(95, 56))
+                .setSize(68, 56))
             .widget(
-                new TextWidget("Nuclear Hatch (" + GTValues.VN[mTier] + ")").setDefaultColor(Color.rgb(0, 255, 200))
+                new TextWidget("CORE STATS").setDefaultColor(Color.rgb(0, 255, 200))
                     .setPos(10, 20))
             .widget(new TextWidget().setStringSupplier(() -> {
                 if (mInputFluid != null && mReactorPipeTier >= 0
@@ -285,35 +331,51 @@ public class MTEHatchNuclearHatch extends MTEHatch {
                         mInputFluid.getFluid()
                             .getName())
                         > mReactorPipeTier) {
-                    return "ERR: TIER TOO LOW";
+                    return "ERR: TIER";
                 }
-                return String.format("Temp: %.1f °C", mTemperature);
+                return String.format("%.1f °C", mTemperature);
             })
                 .setDefaultColor(Color.rgb(255, 200, 0))
-                .setPos(10, 32))
+                .setPos(10, 31))
             .widget(
-                new TextWidget()
-                    .setStringSupplier(() -> String.format("In: %dL", mInputFluid != null ? mInputFluid.amount : 0))
+                new TextWidget().setStringSupplier(() -> String.format("Fast: %d", mLastFastFlux))
                     .setDefaultColor(Color.rgb(100, 220, 255))
-                    .setPos(10, 44))
+                    .setPos(10, 42))
             .widget(
-                new TextWidget()
-                    .setStringSupplier(() -> String.format("Out: %dL", mOutputFluid != null ? mOutputFluid.amount : 0))
-                    .setDefaultColor(Color.rgb(255, 120, 100))
-                    .setPos(10, 56))
+                new TextWidget().setStringSupplier(() -> String.format("Thrm: %d", mLastThermalFlux))
+                    .setDefaultColor(Color.rgb(150, 180, 255))
+                    .setPos(10, 53))
+            // Coolant In Tank
             .widget(
-                new TextWidget("Coolant In").setDefaultColor(0xFFFFFFFF)
-                    .setPos(110, 16))
+                new DrawableWidget().setDrawable(GTUITextures.PICTURE_SCREEN_BLACK)
+                    .setPos(78, 16)
+                    .setSize(44, 56))
+            .widget(
+                new TextWidget("Coolant").setDefaultColor(0xFFFFFFFF)
+                    .setPos(80, 19))
+            .widget(
+                new TextWidget().setStringSupplier(() -> (mInputFluid != null ? mInputFluid.amount : 0) + "L")
+                    .setDefaultColor(Color.rgb(180, 180, 180))
+                    .setPos(80, 30))
             .widget(new FluidSlotWidget(new FluidStackTank(() -> mInputFluid, f -> {
                 mInputFluid = f;
-                markDirty();
-            }, () -> mCapacity)).setPos(115, 28))
+                markTileDirty();
+            }, () -> mCapacity)).setPos(98, 42))
+            // Hot Out Tank
             .widget(
-                new TextWidget("Hot Out").setDefaultColor(0xFFFFFFFF)
-                    .setPos(148, 16))
+                new DrawableWidget().setDrawable(GTUITextures.PICTURE_SCREEN_BLACK)
+                    .setPos(125, 16)
+                    .setSize(44, 56))
+            .widget(
+                new TextWidget("Output").setDefaultColor(0xFFFFFFFF)
+                    .setPos(127, 19))
+            .widget(
+                new TextWidget().setStringSupplier(() -> (mOutputFluid != null ? mOutputFluid.amount : 0) + "L")
+                    .setDefaultColor(Color.rgb(180, 180, 180))
+                    .setPos(127, 30))
             .widget(new FluidSlotWidget(new FluidStackTank(() -> mOutputFluid, f -> {
                 mOutputFluid = f;
-                markDirty();
-            }, () -> mCapacity)).setPos(150, 28));
+                markTileDirty();
+            }, () -> mCapacity)).setPos(145, 42));
     }
 }

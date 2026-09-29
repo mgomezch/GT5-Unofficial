@@ -166,39 +166,62 @@ public class MTEHatchNuclearBus extends MTEHatch {
     }
 
     @Override
+    public boolean onRightclick(IGregTechTileEntity aBaseMetaTileEntity,
+        net.minecraft.entity.player.EntityPlayer aPlayer) {
+        openGui(aPlayer);
+        return true;
+    }
+
+    @Override
+    protected boolean useMui2() {
+        return true;
+    }
+
+    @Override
+    public com.cleanroommc.modularui.screen.ModularPanel buildUI(com.cleanroommc.modularui.factory.PosGuiData data,
+        com.cleanroommc.modularui.value.sync.PanelSyncManager syncManager,
+        com.cleanroommc.modularui.screen.UISettings uiSettings) {
+        return new gregtech.common.gui.modularui.hatch.MTEHatchNuclearBusGui(this).build(data, syncManager, uiSettings);
+    }
+
+    @Override
     public void addUIWidgets(ModularWindow.Builder builder, UIBuildContext buildContext) {
         builder.widget(
             new DrawableWidget().setDrawable(GTUITextures.PICTURE_SCREEN_BLACK)
                 .setPos(7, 16)
-                .setSize(100, 56))
+                .setSize(96, 56))
             .widget(
                 new TextWidget("Nuclear Core Bus").setDefaultColor(Color.rgb(0, 255, 128))
                     .setPos(10, 20))
             .widget(
                 new TextWidget().setStringSupplier(() -> String.format("Temp: %.1f °C", mTemperature))
                     .setDefaultColor(Color.rgb(255, 200, 0))
-                    .setPos(10, 32))
+                    .setPos(10, 31))
             .widget(
-                new TextWidget().setStringSupplier(() -> String.format("Neutrons: %d/t", mLastNeutronsGenerated))
+                new TextWidget().setStringSupplier(() -> String.format("Fast: %d n/t", mLastFastFlux))
                     .setDefaultColor(Color.rgb(100, 200, 255))
-                    .setPos(10, 44))
+                    .setPos(10, 42))
             .widget(
-                new TextWidget("Input Rod").setDefaultColor(0xFFFFFFFF)
+                new TextWidget().setStringSupplier(() -> String.format("Thrm: %d n/t", mLastThermalFlux))
+                    .setDefaultColor(Color.rgb(150, 180, 255))
+                    .setPos(10, 53))
+            .widget(
+                new TextWidget("In").setDefaultColor(0xFFFFFFFF)
                     .setPos(115, 16))
             .widget(
                 new SlotWidget(inventoryHandler, SLOT_INPUT)
                     .setBackground(getGUITextureSet().getItemSlot(), GTUITextures.OVERLAY_SLOT_IN)
-                    .setPos(120, 28))
+                    .setPos(112, 28))
             .widget(
-                new TextWidget("Outputs").setDefaultColor(0xFFFFFFFF)
-                    .setPos(148, 16))
+                new TextWidget("Out").setDefaultColor(0xFFFFFFFF)
+                    .setPos(145, 16))
             .widget(
                 new SlotWidget(inventoryHandler, SLOT_OUTPUT_1).setAccess(true, false)
                     .setBackground(getGUITextureSet().getItemSlot(), GTUITextures.OVERLAY_SLOT_OUT)
-                    .setPos(145, 28))
+                    .setPos(142, 28))
             .widget(
                 new SlotWidget(inventoryHandler, SLOT_OUTPUT_2).setAccess(true, false)
                     .setBackground(getGUITextureSet().getItemSlot(), GTUITextures.OVERLAY_SLOT_OUT)
-                    .setPos(145, 48));
+                    .setPos(142, 48));
     }
 }
