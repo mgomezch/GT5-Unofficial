@@ -140,6 +140,27 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     public boolean mHatchTierInconsistent = false;
     protected int mCasing = 0;
     public final List<MTEHatchNuclearControl> mControlHatches = new ArrayList<>();
+    public boolean mWasMachineFormed = false;
+    public final List<IGregTechTileEntity> mLastFormedNuclearTiles = new ArrayList<>();
+    public boolean mWorldSaved = false;
+
+    @Override
+    public boolean isDisablingAllowed() {
+        return false;
+    }
+
+    @Override
+    public void onFirstTick(IGregTechTileEntity aBaseMetaTileEntity) {
+        super.onFirstTick(aBaseMetaTileEntity);
+        if (!mWorldSaved) {
+            mWrench = false;
+            mScrewdriver = false;
+            mSoftMallet = false;
+            mHardHammer = false;
+            mSolderingTool = false;
+            mCrowbar = false;
+        }
+    }
 
     public boolean addNuclearControlHatchToMachineList(IGregTechTileEntity aTileEntity, int aBaseCasingIndex) {
         if (aTileEntity == null) return false;
@@ -159,8 +180,10 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
 
     public double getMaintenanceEfficiency() {
         if (!mMachine) return 0.0;
-        int issues = Math.max(0, getIdealStatus() - getRepairStatus());
-        return Math.max(0.0, 1.0 - (issues * 0.10));
+        int ideal = getIdealStatus();
+        if (ideal <= 0) return 1.0;
+        int repair = getRepairStatus();
+        return Math.max(0.0, Math.min(1.0, (double) repair / (double) ideal));
     }
 
     public void causeNewMaintenanceIssue() {
@@ -765,8 +788,84 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     }
 
     @Override
+    protected void onStructureCheckFinished(IGregTechTileEntity aBaseMetaTileEntity) {
+        super.onStructureCheckFinished(aBaseMetaTileEntity);
+        if (mMachine) {
+            mWasMachineFormed = true;
+            mLastFormedNuclearTiles.clear();
+            mLastFormedNuclearTiles.addAll(mNuclearTiles);
+        } else if (mWasMachineFormed) {
+            mWasMachineFormed = false;
+            handleStructureBreak();
+            mLastFormedNuclearTiles.clear();
+        }
+    }
+
+    @Override
+    public void onRemoval() {
+        if (mWasMachineFormed || mMachine) {
+            mWasMachineFormed = false;
+            handleStructureBreak();
+            mLastFormedNuclearTiles.clear();
+        }
+        super.onRemoval();
+    }
+
+    public boolean isAnyTemperatureAbove100() {
+        if (mCoreTemp > 100.0 || mAvgTemp > 100.0) {
+            return true;
+        }
+        for (IGregTechTileEntity te : mLastFormedNuclearTiles) {
+            if (te != null && !te.isDead()) {
+                IMetaTileEntity mte = te.getMetaTileEntity();
+                if (mte instanceof MTEHatchNuclearBus bus) {
+                    if (bus.mTemperature > 100.0) return true;
+                } else if (mte instanceof MTEHatchNuclearHatch hatch) {
+                    if (hatch.mTemperature > 100.0) return true;
+                } else if (mte instanceof MTEHatchNuclearControlRod rod) {
+                    if (rod.mTemperature > 100.0) return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public void handleStructureBreak() {
+        if (isAnyTemperatureAbove100()) {
+            for (IGregTechTileEntity te : mLastFormedNuclearTiles) {
+                if (te != null && !te.isDead()) {
+                    IMetaTileEntity mte = te.getMetaTileEntity();
+                    if (mte instanceof MTEHatchNuclearBus bus) {
+                        for (int i = 0; i < bus.mInventory.length; i++) {
+                            bus.mInventory[i] = null;
+                        }
+                        bus.markDirty();
+                        if (bus.getBaseMetaTileEntity() != null) {
+                            bus.getBaseMetaTileEntity()
+                                .markDirty();
+                        }
+                    } else if (mte instanceof MTEHatchNuclearHatch hatch) {
+                        hatch.mInputFluid = null;
+                        hatch.mOutputFluid = null;
+                        hatch.mByproductFluid = null;
+                        hatch.markDirty();
+                        if (hatch.getBaseMetaTileEntity() != null) {
+                            hatch.getBaseMetaTileEntity()
+                                .markDirty();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Override
     public void onPostTick(IGregTechTileEntity aBaseMetaTileEntity, long aTick) {
         super.onPostTick(aBaseMetaTileEntity, aTick);
+
+        if (!aBaseMetaTileEntity.isAllowedToWork()) {
+            aBaseMetaTileEntity.enableWorking();
+        }
 
         if (aBaseMetaTileEntity.isServerSide() && mMachine) {
             if (mStartUpCheck >= 0) {
@@ -896,7 +995,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                         }
                     }
                 }
-                mDirectPowerEUt = directEU;
+                mDirectPowerEUt = (long) Math.round(directEU * maintEff);
 
                 // Sum output coolant production across all coolant hatches
                 int totalCoolantProduced = 0;
@@ -965,6 +1064,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     @Override
     public void saveNBTData(NBTTagCompound aNBT) {
         super.saveNBTData(aNBT);
+        aNBT.setBoolean("mWorldSaved", true);
         aNBT.setDouble("mCoreTemp", mCoreTemp);
         aNBT.setDouble("mAvgTemp", mAvgTemp);
         aNBT.setInteger("gridSize", gridSize);
@@ -980,6 +1080,15 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     @Override
     public void loadNBTData(NBTTagCompound aNBT) {
         super.loadNBTData(aNBT);
+        mWorldSaved = aNBT.getBoolean("mWorldSaved");
+        if (!mWorldSaved) {
+            mWrench = false;
+            mScrewdriver = false;
+            mSoftMallet = false;
+            mHardHammer = false;
+            mSolderingTool = false;
+            mCrowbar = false;
+        }
         mCoreTemp = aNBT.getDouble("mCoreTemp");
         mAvgTemp = aNBT.getDouble("mAvgTemp");
         gridSize = aNBT.getInteger("gridSize");
@@ -1172,8 +1281,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                 .setPos(10, 7)
                 .setSize(182, 79));
 
-        builder.widget(createPowerSwitchButton(builder))
-            .widget(createStructureUpdateButton(builder));
+        builder.widget(createStructureUpdateButton(builder));
 
         // Add Reactor Hatches button on the right column
         builder.widget(createReactorGridButton(builder));
@@ -2139,7 +2247,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             // Calculate turnover fraction based on deltaT above boiling threshold
             double frac = NuclearSimulationEngine.calculateTurnoverFraction(deltaT);
             double effFactor = Math.max(0.0, Math.min(1.0, efficiency));
-            int desiredTurnover = Math.max(1, (int) Math.round(hatch.mCapacity * frac * effFactor));
+            int desiredTurnover = effFactor <= 0.0 ? 0
+                : Math.max(1, (int) Math.round(hatch.mCapacity * frac * effFactor));
             int fluidToProcess = Math.min(hatch.mInputFluid.amount, Math.min(desiredTurnover, maxFluidByHeat));
 
             if (fluidToProcess > 0) {

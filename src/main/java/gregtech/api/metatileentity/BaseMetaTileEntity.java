@@ -1001,6 +1001,9 @@ public class BaseMetaTileEntity extends CommonBaseMetaTileEntity implements IAct
 
     @Override
     public void disableWorking() {
+        if (hasValidMetaTileEntity() && !mMetaTileEntity.isDisablingAllowed()) {
+            return;
+        }
         mWorks = false;
         scheduleTexturePacket();
         if (hasValidMetaTileEntity()) {
@@ -1010,6 +1013,9 @@ public class BaseMetaTileEntity extends CommonBaseMetaTileEntity implements IAct
 
     @Override
     public boolean isAllowedToWork() {
+        if (hasValidMetaTileEntity() && !mMetaTileEntity.isDisablingAllowed()) {
+            return true;
+        }
         return mWorks;
     }
 
@@ -1495,6 +1501,9 @@ public class BaseMetaTileEntity extends CommonBaseMetaTileEntity implements IAct
                     }
 
                     if (GTUtility.isStackInList(tCurrentItem, GregTechAPI.sSoftMalletList)) {
+                        if (hasValidMetaTileEntity() && !mMetaTileEntity.isDisablingAllowed()) {
+                            return false;
+                        }
                         if (GTModHandler.damageOrDechargeItem(tCurrentItem, 1, 1000, aPlayer)) {
 
                             final int mode = MetaGeneratedTool.getToolMode(tCurrentItem);

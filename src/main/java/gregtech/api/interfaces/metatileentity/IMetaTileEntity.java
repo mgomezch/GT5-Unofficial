@@ -202,6 +202,13 @@ public interface IMetaTileEntity extends ISidedInventory, IFluidTank, IFluidHand
     default void onUnload() {}
 
     /**
+     * @return if this Machine can be disabled (e.g. by soft mallet or GUI power switch). Defaults to true.
+     */
+    default boolean isDisablingAllowed() {
+        return true;
+    }
+
+    /**
      * @param facing the facing direction to check
      * @return if aFacing would be a valid Facing for this Device. Used for wrenching.
      */

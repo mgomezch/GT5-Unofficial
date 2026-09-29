@@ -924,10 +924,13 @@ public class NuclearSimulationEngineTest {
         int idealStatus = 6;
         for (int issues = 0; issues <= 6; issues++) {
             int repairStatus = idealStatus - issues;
-            double expectedEff = Math.max(0.0, 1.0 - (issues * 0.10));
-            double calculatedEff = Math.max(0.0, 1.0 - ((idealStatus - repairStatus) * 0.10));
-            assertEquals(expectedEff, calculatedEff, 1e-6);
+            double expectedEff = (double) repairStatus / (double) idealStatus;
+            assertEquals(expectedEff, (double) repairStatus / (double) idealStatus, 1e-6);
         }
+        // Max maintenance issues (0 repaired) gives 0% efficiency
+        assertEquals(0.0, 0.0 / 6.0, 1e-6);
+        // Fully repaired gives 100% efficiency
+        assertEquals(1.0, 6.0 / 6.0, 1e-6);
     }
 
     @Test
@@ -1310,5 +1313,120 @@ public class NuclearSimulationEngineTest {
         org.mockito.Mockito.when(mockBase.getStrongestRedstone())
             .thenReturn((byte) 8);
         assertEquals((8.0 / 15.0) * 0.99, hatch.getAbsorptionProbability(NeutronType.THERMAL), 0.001);
+    }
+
+    @Test
+    void testNuclearReactorDisablingNotAllowed() {
+        MTENuclearReactor reactor = new MTENuclearReactor("nuclear.reactor.test");
+        assertFalse(reactor.isDisablingAllowed(), "Nuclear reactor must not support being disabled");
+    }
+
+    @Test
+    void testNuclearReactorNewlyPlacedMaxMaintenanceIssues() {
+        MTENuclearReactor reactor = new MTENuclearReactor("nuclear.reactor.test");
+        // Newly instantiated reactor must start with all maintenance tools false
+        assertFalse(reactor.mWrench);
+        assertFalse(reactor.mScrewdriver);
+        assertFalse(reactor.mSoftMallet);
+        assertFalse(reactor.mHardHammer);
+        assertFalse(reactor.mSolderingTool);
+        assertFalse(reactor.mCrowbar);
+        assertEquals(0, reactor.getRepairStatus(), "Newly placed reactor must have 0 repaired status (max issues)");
+
+        reactor.mMachine = true;
+        assertEquals(0.0, reactor.getMaintenanceEfficiency(), 1e-6, "Max maintenance issues must give 0% efficiency");
+
+        // Partial repairs
+        reactor.mWrench = true;
+        assertEquals(1.0 / 6.0, reactor.getMaintenanceEfficiency(), 1e-6);
+
+        // Full repair
+        reactor.fixAllIssues();
+        assertEquals(1.0, reactor.getMaintenanceEfficiency(), 1e-6);
+    }
+
+    @Test
+    void testNuclearReactorStructureBreakVoidsFuelAndCoolantWhenOver100() {
+        MTENuclearReactor reactor = new MTENuclearReactor("nuclear.reactor.test");
+
+        // Mock bus with fuel item
+        MTEHatchNuclearBus bus = new MTEHatchNuclearBus("test.bus", 4, new String[0], null);
+        net.minecraft.item.ItemStack dummyFuel = org.mockito.Mockito.mock(net.minecraft.item.ItemStack.class);
+        bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT] = dummyFuel;
+        bus.mTemperature = 150.0;
+
+        // Mock hatch with fluid
+        MTEHatchNuclearHatch hatch = new MTEHatchNuclearHatch("test.hatch", 4, 16000, new String[0], null);
+        net.minecraftforge.fluids.FluidStack coolantIn = org.mockito.Mockito
+            .mock(net.minecraftforge.fluids.FluidStack.class);
+        hatch.mInputFluid = coolantIn;
+        hatch.mTemperature = 120.0;
+
+        gregtech.api.interfaces.tileentity.IGregTechTileEntity teBus = org.mockito.Mockito
+            .mock(gregtech.api.interfaces.tileentity.IGregTechTileEntity.class);
+        org.mockito.Mockito.when(teBus.getMetaTileEntity())
+            .thenReturn(bus);
+        org.mockito.Mockito.when(teBus.isDead())
+            .thenReturn(false);
+
+        gregtech.api.interfaces.tileentity.IGregTechTileEntity teHatch = org.mockito.Mockito
+            .mock(gregtech.api.interfaces.tileentity.IGregTechTileEntity.class);
+        org.mockito.Mockito.when(teHatch.getMetaTileEntity())
+            .thenReturn(hatch);
+        org.mockito.Mockito.when(teHatch.isDead())
+            .thenReturn(false);
+
+        reactor.mLastFormedNuclearTiles.add(teBus);
+        reactor.mLastFormedNuclearTiles.add(teHatch);
+
+        assertTrue(reactor.isAnyTemperatureAbove100(), "Reactor should detect temperature > 100°C");
+
+        // Trigger structure break
+        reactor.handleStructureBreak();
+
+        assertNull(bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT], "Fuel in bus must be voided on break above 100°C");
+        assertNull(hatch.mInputFluid, "Coolant in hatch must be voided on break above 100°C");
+    }
+
+    @Test
+    void testNuclearReactorStructureBreakPreservesFuelAndCoolantWhenCold() {
+        MTENuclearReactor reactor = new MTENuclearReactor("nuclear.reactor.test");
+
+        MTEHatchNuclearBus bus = new MTEHatchNuclearBus("test.bus", 4, new String[0], null);
+        net.minecraft.item.ItemStack dummyFuel = org.mockito.Mockito.mock(net.minecraft.item.ItemStack.class);
+        bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT] = dummyFuel;
+        bus.mTemperature = 25.0;
+
+        MTEHatchNuclearHatch hatch = new MTEHatchNuclearHatch("test.hatch", 4, 16000, new String[0], null);
+        net.minecraftforge.fluids.FluidStack coolantIn = org.mockito.Mockito
+            .mock(net.minecraftforge.fluids.FluidStack.class);
+        hatch.mInputFluid = coolantIn;
+        hatch.mTemperature = 25.0;
+
+        gregtech.api.interfaces.tileentity.IGregTechTileEntity teBus = org.mockito.Mockito
+            .mock(gregtech.api.interfaces.tileentity.IGregTechTileEntity.class);
+        org.mockito.Mockito.when(teBus.getMetaTileEntity())
+            .thenReturn(bus);
+        org.mockito.Mockito.when(teBus.isDead())
+            .thenReturn(false);
+
+        gregtech.api.interfaces.tileentity.IGregTechTileEntity teHatch = org.mockito.Mockito
+            .mock(gregtech.api.interfaces.tileentity.IGregTechTileEntity.class);
+        org.mockito.Mockito.when(teHatch.getMetaTileEntity())
+            .thenReturn(hatch);
+        org.mockito.Mockito.when(teHatch.isDead())
+            .thenReturn(false);
+
+        reactor.mLastFormedNuclearTiles.add(teBus);
+        reactor.mLastFormedNuclearTiles.add(teHatch);
+        reactor.mCoreTemp = 25.0;
+        reactor.mAvgTemp = 25.0;
+
+        assertFalse(reactor.isAnyTemperatureAbove100(), "Reactor is cold, should not detect > 100°C");
+
+        reactor.handleStructureBreak();
+
+        assertNotNull(bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT], "Fuel in bus must be preserved when cold");
+        assertNotNull(hatch.mInputFluid, "Coolant in hatch must be preserved when cold");
     }
 }
