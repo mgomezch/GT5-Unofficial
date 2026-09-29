@@ -753,12 +753,12 @@ public class NuclearSimulationWebServer {
                   <button onclick="stepSim(100)">Step +100</button>
                   <button class="danger" onclick="resetSim()">↺ Reset</button>
                   <select id="preset-select" onchange="loadPreset(this.value)">
-                    <option value="BEST_ELECTRUM_5X5">⭐ EV 60A: Electrum 5x5 (123k EU/t · 17.9m)</option>
-                    <option value="BEST_PLATINUM_7X7" selected>⭐ IV 60A: Platinum 7x7 Breeder (491k EU/t · 15.8m)</option>
-                    <option value="BEST_OSMIUM_7X7">⭐ LuV 60A: Osmium 7x7 Superheated (1.97M EU/t · 28.1m)</option>
-                    <option value="BEST_QUANTIUM_9X9">⭐ ZPM 60A: Quantium 9x9 CANDU (7.86M EU/t · 41.0m)</option>
-                    <option value="BEST_FLUXED_9X9">⭐ UV 60A: Fluxed 9x9 Supercritical (31.5M EU/t · 17.1m)</option>
-                    <option value="BEST_PLUTONIUM_9X9">⭐ UHV High-Power: Black Plutonium 9x9 (6.98M EU/t · 37.3m)</option>
+                    <option value="BEST_ELECTRUM_5X5">⭐ EV 60A: Electrum 5x5 (127k EU/t · 196m)</option>
+                    <option value="BEST_PLATINUM_9X9" selected>⭐ IV 60A: Platinum 9x9 Breeder (509k EU/t · 139m)</option>
+                    <option value="BEST_OSMIUM_9X9">⭐ LuV 60A: Osmium 9x9 Superheated (1.96M EU/t · 27m)</option>
+                    <option value="BEST_QUANTIUM_13X13">⭐ ZPM 60A: Quantium 13x13 CANDU (7.51M EU/t · 113m)</option>
+                    <option value="BEST_FLUXED_13X13">⭐ UV 60A: Fluxed 13x13 Supercritical (31.7M EU/t · 21m)</option>
+                    <option value="BEST_PLUTONIUM_13X13">⭐ UHV 60A: Black Plutonium 13x13 Peak (126M EU/t · 17m)</option>
                   </select>
                   <select id="tier-select" onchange="changeTier(this.value)">
                     <option value="0">Electrum (1000°C)</option>

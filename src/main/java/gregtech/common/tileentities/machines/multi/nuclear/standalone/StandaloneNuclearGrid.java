@@ -5,7 +5,6 @@ import java.util.Collections;
 import java.util.List;
 
 import gregtech.common.tileentities.machines.multi.nuclear.INuclearTile;
-import gregtech.common.tileentities.machines.multi.nuclear.MTEHatchNuclearHatch;
 import gregtech.common.tileentities.machines.multi.nuclear.NuclearSimulationEngine;
 
 /**
@@ -256,7 +255,7 @@ public class StandaloneNuclearGrid {
                 if (tile != null && tile.isHatch() && tile.getInputFluidAmount() > 0) {
                     String name = tile.getInputFluidName();
                     if (name != null && name.contains("highpressure")) {
-                        int reqTier = MTEHatchNuclearHatch.getRequiredFluidTier(name);
+                        int reqTier = NuclearSimulationEngine.getRequiredFluidTier(name);
                         if (pipeTier < reqTier) {
                             triggerExplosion(
                                 "Catastrophic overpressure explosion: " + name
@@ -512,145 +511,68 @@ public class StandaloneNuclearGrid {
      */
     public void loadPreset(String presetName) {
         resetMetrics();
+        NuclearSimulationEngine.resetDefaultParameters();
         switch (presetName.toUpperCase()) {
             case "BEST_ELECTRUM_5X5", "ELECTRUM_POWER_5X5", "BASIC_ELECTRUM_5X5" -> {
                 this.pipeTier = NuclearSimulationEngine.PIPE_TIER_ELECTRUM;
                 this.turbineMaterial = TurbineCalculator.TurbineMaterial.fromString("Oriharukon");
                 this.turbineSize = TurbineCalculator.TurbineSize.NORMAL;
                 this.turbineFitting = TurbineCalculator.FittingMode.TIGHT;
-                loadLayout("RB,RB,RB,RB,RB;RB,HC,M4,HC,RB;RB,M2,M4,M2,RB;RB,HC,M4,HC,RB;RB,RB,RB,RB,RB");
-                NuclearSimulationEngine.hatchCoolantCapacity = 500;
-                NuclearSimulationEngine.coolantFeedRate = 999999;
-                NuclearSimulationEngine.fissionHeatPerNeutron = 44.87;
-                NuclearSimulationEngine.coolingHeatPerLiter = 8.17;
-                NuclearSimulationEngine.turnoverCurve = NuclearSimulationEngine.TurnoverCurve.SIGMOID;
-                NuclearSimulationEngine.turnoverDeltaTMax = 300.0;
-                NuclearSimulationEngine.turnoverExponent = 1.8;
-                NuclearSimulationEngine.tempThresholdLow = 800.0;
-                NuclearSimulationEngine.tempThresholdHigh = 3200.0;
-                NuclearSimulationEngine.reactivityPower = 1.4;
-                NuclearSimulationEngine.thermalFissionMultiplier = 1.17;
-                NuclearSimulationEngine.fuelBurnupMultiplier = 0.0123;
-                NuclearSimulationEngine.hpWaterBoilingPoint = 160.0;
-                updateHatchCapacities(500);
+                loadLayout("RB,HC,HC,HC,RB;HC,U4,U2,U4,HC;HC,U2,HC,HC,HC;HC,U4,U2,U4,HC;RB,HC,HC,HC,RB");
+                updateHatchCapacities(NuclearSimulationEngine.hatchCoolantCapacity);
             }
-            case "BEST_PLATINUM_7X7", "BREEDER_7X7" -> {
+            case "BEST_PLATINUM_9X9", "BREEDER_9X9", "BEST_PLATINUM_7X7", "BREEDER_7X7" -> {
                 this.pipeTier = NuclearSimulationEngine.PIPE_TIER_PLATINUM;
                 this.turbineMaterial = TurbineCalculator.TurbineMaterial.ELVEN_ELEMENTIUM;
                 this.turbineSize = TurbineCalculator.TurbineSize.NORMAL;
                 this.turbineFitting = TurbineCalculator.FittingMode.TIGHT;
                 loadLayout(
-                    "RB,RB,RB,RB,RB,RB,RB;RB,M4,M4,M4,M4,M4,RB;RB,HD,U2,HD,U2,HD,RB;RB,M4,HD,U4,HD,M4,RB;RB,HD,U2,HD,U2,HD,RB;RB,M4,M4,M4,M4,M4,RB;RB,RB,RB,RB,RB,RB,RB");
-                NuclearSimulationEngine.hatchCoolantCapacity = 500;
-                NuclearSimulationEngine.coolantFeedRate = 500;
-                NuclearSimulationEngine.fissionHeatPerNeutron = 40.93;
-                NuclearSimulationEngine.coolingHeatPerLiter = 7.43;
-                NuclearSimulationEngine.turnoverCurve = NuclearSimulationEngine.TurnoverCurve.SIGMOID;
-                NuclearSimulationEngine.turnoverDeltaTMax = 279.2;
-                NuclearSimulationEngine.turnoverExponent = 1.0;
-                NuclearSimulationEngine.tempThresholdLow = 800.0;
-                NuclearSimulationEngine.tempThresholdHigh = 2000.0;
-                NuclearSimulationEngine.reactivityPower = 1.2;
-                NuclearSimulationEngine.thermalFissionMultiplier = 0.915;
-                NuclearSimulationEngine.fuelBurnupMultiplier = 0.00719;
-                NuclearSimulationEngine.hpWaterBoilingPoint = 220.0;
-                updateHatchCapacities(500);
+                    "RB,RB,HC,HC,HC,HC,HC,RB,RB;RB,HC,HC,HC,HC,HC,HC,HC,RB;HC,HC,U4,HC,U4,HC,U4,HC,HC;HC,HC,HC,U4,HC,U4,HC,HC,HC;HC,HC,U4,HC,U4,HC,U4,HC,HC;HC,HC,HC,HC,HC,HC,HC,HC,HC;HC,HC,HC,HC,HC,HC,HC,HC,HC;RB,HC,HC,HC,HC,HC,HC,HC,RB;RB,RB,HC,HC,HC,HC,HC,RB,RB");
+                updateHatchCapacities(NuclearSimulationEngine.hatchCoolantCapacity);
             }
-            case "BEST_OSMIUM_7X7", "SUPERHEATED_POWER_7X7" -> {
+            case "BEST_OSMIUM_9X9", "SUPERHEATED_POWER_9X9", "BEST_OSMIUM_7X7", "SUPERHEATED_POWER_7X7" -> {
                 this.pipeTier = NuclearSimulationEngine.PIPE_TIER_OSMIUM;
                 this.turbineMaterial = TurbineCalculator.TurbineMaterial.HSS_E;
                 this.turbineSize = TurbineCalculator.TurbineSize.NORMAL;
                 this.turbineFitting = TurbineCalculator.FittingMode.TIGHT;
                 loadLayout(
-                    "RC,RC,RC,RC,RC,RC,RC;RC,NQ,T4,T1,T4,NQ,RC;RC,M4,M4,HC,M4,M4,RC;RC,M4,M1,HC,M1,M4,RC;RC,M4,M4,HC,M4,M4,RC;RC,NQ,T4,T1,T4,NQ,RC;RC,RC,RC,RC,RC,RC,RC");
-                NuclearSimulationEngine.hatchCoolantCapacity = 1000;
-                NuclearSimulationEngine.coolantFeedRate = 1000;
-                NuclearSimulationEngine.fissionHeatPerNeutron = 50.0;
-                NuclearSimulationEngine.coolingHeatPerLiter = 9.45;
-                NuclearSimulationEngine.turnoverCurve = NuclearSimulationEngine.TurnoverCurve.EXPONENTIAL;
-                NuclearSimulationEngine.turnoverDeltaTMax = 265.5;
-                NuclearSimulationEngine.turnoverExponent = 1.0;
-                NuclearSimulationEngine.tempThresholdLow = 1000.0;
-                NuclearSimulationEngine.tempThresholdHigh = 2000.0;
-                NuclearSimulationEngine.reactivityPower = 1.0;
-                NuclearSimulationEngine.thermalFissionMultiplier = 1.73;
-                NuclearSimulationEngine.fuelBurnupMultiplier = 0.00643;
-                NuclearSimulationEngine.hpWaterBoilingPoint = 180.0;
-                updateHatchCapacities(1000);
+                    "RB,RB,HC,HC,HC,HC,HC,RB,RB;RB,M4,HC,M4,HC,M4,HC,M4,RB;HC,HC,M4,HC,M4,HC,M4,HC,HC;HC,M4,HC,M4,HC,M4,HC,M4,HC;HC,HC,M4,HC,M4,HC,M2,HC,HC;HC,M2,HC,M2,HC,HC,HC,HC,HC;HC,HC,HC,HC,HC,HC,HC,HC,HC;RB,HC,HC,HC,HC,HC,HC,HC,RB;RB,RB,HC,HC,HC,HC,HC,RB,RB");
+                updateHatchCapacities(NuclearSimulationEngine.hatchCoolantCapacity);
             }
-            case "BEST_QUANTIUM_9X9", "CANDU_HEAVY_WATER_9X9" -> {
+            case "BEST_QUANTIUM_13X13", "CANDU_HEAVY_WATER_13X13", "BEST_QUANTIUM_9X9", "CANDU_HEAVY_WATER_9X9" -> {
                 this.pipeTier = NuclearSimulationEngine.PIPE_TIER_QUANTIUM;
                 this.turbineMaterial = TurbineCalculator.TurbineMaterial.HSS_E;
                 this.turbineSize = TurbineCalculator.TurbineSize.LARGE;
                 this.turbineFitting = TurbineCalculator.FittingMode.TIGHT;
                 loadLayout(
-                    "RB,RB,RB,RB,RB,RB,RB,RB,RB;RB,HC,CR,HC,HC,HC,CR,HC,RB;RB,T4,NQ,M4,U4,M4,NQ,T4,RB;RB,HP,M4,HC,RB,HC,M4,HP,RB;RB,HP,HC,M4,M4,M4,HC,HP,RB;RB,HP,M4,HC,RB,HC,M4,HP,RB;RB,T4,NQ,M4,U4,M4,NQ,T4,RB;RB,HC,CR,HC,HC,HC,CR,HC,RB;RB,RB,RB,RB,RB,RB,RB,RB,RB");
-                NuclearSimulationEngine.hatchCoolantCapacity = 1000;
-                NuclearSimulationEngine.coolantFeedRate = 500;
-                NuclearSimulationEngine.fissionHeatPerNeutron = 44.39;
-                NuclearSimulationEngine.coolingHeatPerLiter = 2.27;
-                NuclearSimulationEngine.turnoverCurve = NuclearSimulationEngine.TurnoverCurve.LINEAR;
-                NuclearSimulationEngine.turnoverDeltaTMax = 300.0;
-                NuclearSimulationEngine.turnoverExponent = 1.2;
-                NuclearSimulationEngine.tempThresholdLow = 1000.0;
-                NuclearSimulationEngine.tempThresholdHigh = 2800.0;
-                NuclearSimulationEngine.reactivityPower = 1.4;
-                NuclearSimulationEngine.thermalFissionMultiplier = 1.45;
-                NuclearSimulationEngine.fuelBurnupMultiplier = 0.00287;
-                NuclearSimulationEngine.hpWaterBoilingPoint = 200.0;
-                updateHatchCapacities(1000);
+                    "RB,RB,RB,HP,HP,HP,HP,HP,HP,HP,RB,RB,RB;RB,RB,HP,HP,HP,HP,HP,HP,HP,HP,HP,RB,RB;RB,HP,HP,HP,HP,HP,HP,HP,HP,HP,HP,HP,RB;HP,HP,HP,NQ,HP,NQ,HP,NQ,HP,NQ,HP,HP,HP;HP,HP,HP,HP,NQ,HP,NQ,HP,NQ,HP,HP,HP,HP;HP,HP,HP,NQ,HP,NQ,HP,NQ,HP,NQ,HP,HP,HP;HP,HP,HP,HP,NQ,HP,NQ,HP,NQ,HP,HP,HP,HP;HP,HP,HP,NQ,HP,NQ,HP,NQ,HP,NQ,HP,HP,HP;HP,HP,HP,HP,NQ,HP,NQ,HP,HP,HP,HP,HP,HP;HP,HP,HP,HP,HP,HP,HP,HP,HP,HP,HP,HP,HP;RB,HP,HP,HP,HP,HP,HP,HP,HP,HP,HP,HP,RB;RB,RB,HP,HP,HP,HP,HP,HP,HP,HP,HP,RB,RB;RB,RB,RB,HP,HP,HP,HP,HP,HP,HP,RB,RB,RB");
+                updateHatchCapacities(NuclearSimulationEngine.hatchCoolantCapacity);
             }
-            case "BEST_FLUXED_9X9", "FLUXED_SUPERCRITICAL_9X9" -> {
+            case "BEST_FLUXED_13X13", "FLUXED_SUPERCRITICAL_13X13", "BEST_FLUXED_9X9", "FLUXED_SUPERCRITICAL_9X9" -> {
                 this.pipeTier = NuclearSimulationEngine.PIPE_TIER_FLUXED_ELECTRUM;
                 this.turbineMaterial = TurbineCalculator.TurbineMaterial.HSS_S;
                 this.turbineSize = TurbineCalculator.TurbineSize.LARGE;
                 this.turbineFitting = TurbineCalculator.FittingMode.TIGHT;
                 loadLayout(
-                    "RB,RB,RB,RB,RB,RB,RB,RB,RB;RB,CR,HW,T4,T1,T4,HW,CR,RB;RB,T4,T4,HH,T4,HH,T4,T4,RB;RB,HW,HH,NQ,T4,NQ,HH,HW,RB;RB,NQ,T4,HW,NQ,HW,T4,NQ,RB;RB,HW,HH,NQ,T4,NQ,HH,HW,RB;RB,T4,T4,HH,T4,HH,T4,T4,RB;RB,CR,HW,T4,T1,T4,HW,CR,RB;RB,RB,RB,RB,RB,RB,RB,RB,RB");
-                NuclearSimulationEngine.hatchCoolantCapacity = 8000;
-                NuclearSimulationEngine.coolantFeedRate = 4000;
-                NuclearSimulationEngine.fissionHeatPerNeutron = 16.3;
-                NuclearSimulationEngine.coolingHeatPerLiter = 7.86;
-                NuclearSimulationEngine.turnoverCurve = NuclearSimulationEngine.TurnoverCurve.SIGMOID;
-                NuclearSimulationEngine.turnoverDeltaTMax = 34.8;
-                NuclearSimulationEngine.turnoverExponent = 1.0;
-                NuclearSimulationEngine.tempThresholdLow = 1000.0;
-                NuclearSimulationEngine.tempThresholdHigh = 3200.0;
-                NuclearSimulationEngine.reactivityPower = 1.4;
-                NuclearSimulationEngine.thermalFissionMultiplier = 1.64;
-                NuclearSimulationEngine.fuelBurnupMultiplier = 0.00282;
-                NuclearSimulationEngine.hpWaterBoilingPoint = 220.0;
-                updateHatchCapacities(8000);
+                    "RB,RB,RB,HH,HH,HH,HH,HH,HH,HH,RB,RB,RB;RB,RB,HH,HH,HH,HH,HH,HH,HH,HH,HH,RB,RB;RB,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,RB;HH,HH,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,HH,HH;HH,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,HH;HH,HH,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,HH,HH;HH,HH,HH,HH,HH,HH,HH,HH,HH,HH,HH,HH,HH;HH,HH,HH,HH,HH,HH,HH,HH,HH,HH,HH,HH,HH;HH,HH,HH,HH,HH,HH,HH,HH,HH,HH,HH,HH,HH;HH,HH,HH,HH,HH,HH,HH,HH,HH,HH,HH,HH,HH;RB,HH,HH,HH,HH,HH,HH,HH,HH,HH,HH,HH,RB;RB,RB,HH,HH,HH,HH,HH,HH,HH,HH,HH,RB,RB;RB,RB,RB,HH,HH,HH,HH,HH,HH,HH,RB,RB,RB");
+                updateHatchCapacities(NuclearSimulationEngine.hatchCoolantCapacity);
             }
-            case "BEST_PLUTONIUM_9X9", "BLACK_PLUTONIUM_9X9" -> {
+            case "BEST_PLUTONIUM_13X13", "BLACK_PLUTONIUM_13X13", "BEST_PLUTONIUM_9X9", "BLACK_PLUTONIUM_9X9" -> {
                 this.pipeTier = NuclearSimulationEngine.PIPE_TIER_BLACK_PLUTONIUM;
-                this.turbineMaterial = TurbineCalculator.TurbineMaterial.HSS_S;
+                this.turbineMaterial = TurbineCalculator.TurbineMaterial.INFINITY;
                 this.turbineSize = TurbineCalculator.TurbineSize.LARGE;
                 this.turbineFitting = TurbineCalculator.FittingMode.TIGHT;
                 loadLayout(
-                    "RB,RB,RB,RB,RB,RB,RB,RB,RB;RB,HC,M4,CR,CR,CR,M4,HC,RB;RB,M2,M4,M4,M4,M4,M4,M2,RB;RB,M4,M4,CR,M2,CR,M4,M4,RB;RB,M4,M4,M4,RB,M4,M4,M4,RB;RB,M4,M4,CR,M2,CR,M4,M4,RB;RB,M2,M4,M4,M4,M4,M4,M2,RB;RB,HC,M4,CR,CR,CR,M4,HC,RB;RB,RB,RB,RB,RB,RB,RB,RB,RB");
-                NuclearSimulationEngine.hatchCoolantCapacity = 2000;
-                NuclearSimulationEngine.coolantFeedRate = 999999;
-                NuclearSimulationEngine.fissionHeatPerNeutron = 27.55;
-                NuclearSimulationEngine.coolingHeatPerLiter = 7.08;
-                NuclearSimulationEngine.turnoverCurve = NuclearSimulationEngine.TurnoverCurve.SIGMOID;
-                NuclearSimulationEngine.turnoverDeltaTMax = 55.2;
-                NuclearSimulationEngine.turnoverExponent = 1.0;
-                NuclearSimulationEngine.tempThresholdLow = 700.0;
-                NuclearSimulationEngine.tempThresholdHigh = 2400.0;
-                NuclearSimulationEngine.reactivityPower = 1.0;
-                NuclearSimulationEngine.thermalFissionMultiplier = 1.30;
-                NuclearSimulationEngine.fuelBurnupMultiplier = 0.00512;
-                NuclearSimulationEngine.hpWaterBoilingPoint = 160.0;
-                updateHatchCapacities(2000);
+                    "RB,RB,RB,HH,HH,HH,HH,HH,HH,HH,RB,RB,RB;RB,NQ,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,NQ,RB;RB,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,RB;HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH;HH,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,HH;HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH;HH,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,HH;HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH;HH,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,HH;HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,NQ,HH,HH,HH;RB,HH,HH,HH,HH,HH,HH,HH,HH,HH,HH,HH,RB;RB,RB,HH,HH,HH,HH,HH,HH,HH,HH,HH,RB,RB;RB,RB,RB,HH,HH,HH,HH,HH,HH,HH,RB,RB,RB");
+                updateHatchCapacities(NuclearSimulationEngine.hatchCoolantCapacity);
             }
             default -> {
-                this.pipeTier = NuclearSimulationEngine.PIPE_TIER_PLATINUM;
-                this.turbineMaterial = TurbineCalculator.TurbineMaterial.ELVEN_ELEMENTIUM;
+                this.pipeTier = NuclearSimulationEngine.PIPE_TIER_ELECTRUM;
+                this.turbineMaterial = TurbineCalculator.TurbineMaterial.fromString("Oriharukon");
                 this.turbineSize = TurbineCalculator.TurbineSize.NORMAL;
                 this.turbineFitting = TurbineCalculator.FittingMode.TIGHT;
-                loadLayout(
-                    "RB,RB,RB,RB,RB,RB,RB;RB,M4,M4,M4,M4,M4,RB;RB,HD,U2,HD,U2,HD,RB;RB,M4,HD,U4,HD,M4,RB;RB,HD,U2,HD,U2,HD,RB;RB,M4,M4,M4,M4,M4,RB;RB,RB,RB,RB,RB,RB,RB");
+                loadLayout("RB,HC,HC,HC,RB;HC,U4,U2,U4,HC;HC,U2,HC,HC,HC;HC,U4,U2,U4,HC;RB,HC,HC,HC,RB");
+                updateHatchCapacities(NuclearSimulationEngine.hatchCoolantCapacity);
             }
         }
     }

@@ -316,20 +316,20 @@ public class NuclearSimulationEngineTest {
         assertEquals(Double.POSITIVE_INFINITY, NuclearSimulationEngine.getCoolantBoilingThreshold("ic2coolant"));
         assertEquals(100.0, NuclearSimulationEngine.getCoolantBoilingThreshold("distilledwater"));
         assertEquals(100.0, NuclearSimulationEngine.getCoolantBoilingThreshold("heavywater"));
-        assertEquals(200.0, NuclearSimulationEngine.getCoolantBoilingThreshold("highpressuredistilledwater"));
-        assertEquals(200.0, NuclearSimulationEngine.getCoolantBoilingThreshold("highpressureheavywater"));
+        assertEquals(180.0, NuclearSimulationEngine.getCoolantBoilingThreshold("highpressuredistilledwater"));
+        assertEquals(180.0, NuclearSimulationEngine.getCoolantBoilingThreshold("highpressureheavywater"));
     }
 
     @Test
     void testStandaloneGridPresetsAndExecution() {
         gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid grid = new gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid(
-            7,
-            7,
+            9,
+            9,
             NuclearSimulationEngine.PIPE_TIER_PLATINUM);
-        grid.loadPreset("BREEDER_7X7");
+        grid.loadPreset("BREEDER_9X9");
 
-        assertEquals(7, grid.getWidth());
-        assertEquals(7, grid.getHeight());
+        assertEquals(9, grid.getWidth());
+        assertEquals(9, grid.getHeight());
         assertFalse(grid.isExploded());
 
         // Run 5 ticks

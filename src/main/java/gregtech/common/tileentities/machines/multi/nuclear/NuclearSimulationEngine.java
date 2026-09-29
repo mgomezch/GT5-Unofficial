@@ -11,11 +11,11 @@ public class NuclearSimulationEngine {
     public static double ambientTemp = DEFAULT_AMBIENT_TEMP;
     public static double AMBIENT_TEMP = DEFAULT_AMBIENT_TEMP;
     public static final double DEFAULT_TEMP_THRESHOLD_LOW = 800.0;
-    public static final double DEFAULT_TEMP_THRESHOLD_HIGH = 2800.0;
+    public static final double DEFAULT_TEMP_THRESHOLD_HIGH = 3200.0;
     public static final double DEFAULT_REACTIVITY_POWER = 1.2;
-    public static final double DEFAULT_THERMAL_FISSION_MULT = 1.1;
-    public static final double DEFAULT_FISSION_HEAT_PER_NEUTRON = 18.0;
-    public static final double DEFAULT_HP_WATER_BOILING_POINT = 200.0;
+    public static final double DEFAULT_THERMAL_FISSION_MULT = 1.30;
+    public static final double DEFAULT_FISSION_HEAT_PER_NEUTRON = 38.0;
+    public static final double DEFAULT_HP_WATER_BOILING_POINT = 180.0;
 
     public enum TurnoverCurve {
 
@@ -36,12 +36,12 @@ public class NuclearSimulationEngine {
         }
     }
 
-    public static final int DEFAULT_HATCH_CAPACITY = 2000;
-    public static final TurnoverCurve DEFAULT_TURNOVER_CURVE = TurnoverCurve.EXPONENTIAL;
+    public static final int DEFAULT_HATCH_CAPACITY = 8000;
+    public static final TurnoverCurve DEFAULT_TURNOVER_CURVE = TurnoverCurve.SIGMOID;
     public static final double DEFAULT_TURNOVER_DELTA_T_MAX = 100.0;
-    public static final double DEFAULT_TURNOVER_EXPONENT = 1.5;
-    public static final int DEFAULT_COOLANT_FEED_RATE = 2000;
-    public static final double DEFAULT_COOLING_HEAT_PER_LITER = 4.0;
+    public static final double DEFAULT_TURNOVER_EXPONENT = 1.0;
+    public static final int DEFAULT_COOLANT_FEED_RATE = 999999;
+    public static final double DEFAULT_COOLING_HEAT_PER_LITER = 5.0;
     public static final double DEFAULT_IC2_COOLANT_HEAT_PER_LITER = 20.0;
 
     public static double tempThresholdLow = DEFAULT_TEMP_THRESHOLD_LOW;
@@ -59,7 +59,7 @@ public class NuclearSimulationEngine {
     public static double coolingHeatPerLiter = DEFAULT_COOLING_HEAT_PER_LITER;
     public static double ic2CoolantHeatPerLiter = DEFAULT_IC2_COOLANT_HEAT_PER_LITER;
 
-    public static final double DEFAULT_FUEL_BURNUP_MULTIPLIER = 1.0;
+    public static final double DEFAULT_FUEL_BURNUP_MULTIPLIER = 0.005;
     public static double fuelBurnupMultiplier = DEFAULT_FUEL_BURNUP_MULTIPLIER;
 
     public static final double DEFAULT_WALL_REFLECTION_CHANCE = 0.50;
@@ -536,21 +536,17 @@ public class NuclearSimulationEngine {
 
     /**
      * Checks if (x,y) in an N x N grid is a cut corner (null cell).
+     * Tier 1 (5x5): depth 1 (4 corners cut)
+     * Tier 2 (9x9): depth 2 (12 corners cut)
+     * Tier 3 (13x13): depth 3 (24 corners cut)
      */
     public static boolean isCornerNullCell(int x, int y, int sizeX, int sizeY) {
         if (sizeX != sizeY) return false;
         int n = sizeX;
-        if (n <= 3) {
-            return (x == 0 || x == n - 1) && (y == 0 || y == n - 1);
-        } else if (n <= 7) {
-            return (x == 0 || x == n - 1) && (y == 0 || y == n - 1);
-        } else {
-            boolean xCorner = (x == 0 || x == n - 1);
-            boolean yCorner = (y == 0 || y == n - 1);
-            boolean xSub = (x == 1 || x == n - 2);
-            boolean ySub = (y == 1 || y == n - 2);
-            return (xCorner && yCorner) || (xCorner && ySub) || (xSub && yCorner);
-        }
+        int cutDepth = Math.max(1, (n - 5) / 4 + 1);
+        int dX = Math.min(x, n - 1 - x);
+        int dY = Math.min(y, n - 1 - y);
+        return (dX + dY) < cutDepth;
     }
 
     /**

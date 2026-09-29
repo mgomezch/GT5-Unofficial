@@ -25,11 +25,6 @@ import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
 
-import ic2.api.reactor.IReactor;
-import ic2.api.reactor.IReactorComponent;
-import gregtech.api.items.ItemRadioactiveCell;
-import gregtech.api.items.ItemRadioactiveCellIC;
-
 import com.gtnewhorizon.structurelib.StructureLibAPI;
 import com.gtnewhorizon.structurelib.alignment.constructable.ISurvivalConstructable;
 import com.gtnewhorizon.structurelib.structure.AutoPlaceEnvironment;
@@ -66,6 +61,8 @@ import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.ICasingTextureProvider;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.interfaces.tileentity.ITurnable;
+import gregtech.api.items.ItemRadioactiveCell;
+import gregtech.api.items.ItemRadioactiveCellIC;
 import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
 import gregtech.api.recipe.check.CheckRecipeResult;
 import gregtech.api.recipe.check.CheckRecipeResultRegistry;
@@ -79,6 +76,8 @@ import gregtech.api.util.shutdown.ShutDownReasonRegistry;
 import gregtech.common.blocks.ItemMachines;
 import gregtech.common.misc.GTStructureChannels;
 import gregtech.common.pollution.Pollution;
+import ic2.api.reactor.IReactor;
+import ic2.api.reactor.IReactorComponent;
 
 public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReactor>
     implements ISurvivalConstructable, ICasingTextureProvider {
@@ -315,13 +314,13 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     public IStructureDefinition<MTENuclearReactor> getStructureDefinition() {
         if (STRUCTURE_DEFINITION == null) {
             STRUCTURE_DEFINITION = StructureDefinition.<MTENuclearReactor>builder()
-                // Tier 1: 5x5 Footprint, 3x3 Octagonal Core (5 cells), Height 5
+                // Tier 1: 5x5 Footprint, 5x5 Octagonal Chamber (21 cells), Height 5
                 .addShape(
                     STRUCTURE_3X3,
                     transpose(
                         new String[][] {
                             // Slice 0 (Top - Nuclear Hatches & Casings)
-                            { " ccc ", "ccgcc", "cgggc", "ccgcc", " ccc " },
+                            { " ggg ", "ggggg", "ggggg", "ggggg", " ggg " },
                             // Slice 1 (Upper Pipe Casings)
                             { " ccc ", "ccpcc", "cpppc", "ccpcc", " ccc " },
                             // Slice 2 (Middle Pipe Casings)
@@ -330,14 +329,14 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                             { " c~c ", "ccpcc", "cpppc", "ccpcc", " ccc " },
                             // Slice 4 (Bottom - Nuclear Casings)
                             { " ccc ", "ccccc", "ccccc", "ccccc", " ccc " } }))
-                // Tier 2: 9x9 Footprint, 7x7 Octagonal Core (45 cells), Height 5
+                // Tier 2: 9x9 Footprint, 9x9 Octagonal Chamber (69 cells), Height 5
                 .addShape(
                     STRUCTURE_5X5,
                     transpose(
                         new String[][] {
                             // Slice 0 (Top - Nuclear Hatches & Casings)
-                            { "  ccccc  ", " cgggggc ", "cgggggggc", "cgggggggc", "cgggggggc", "cgggggggc", "cgggggggc",
-                                " cgggggc ", "  ccccc  " },
+                            { "  ggggg  ", " ggggggg ", "ggggggggg", "ggggggggg", "ggggggggg", "ggggggggg", "ggggggggg",
+                                " ggggggg ", "  ggggg  " },
                             // Slice 1 (Upper Pipe Casings)
                             { "  ccccc  ", " cpppppc ", "cpppppppc", "cpppppppc", "cpppppppc", "cpppppppc", "cpppppppc",
                                 " cpppppc ", "  ccccc  " },
@@ -350,15 +349,15 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                             // Slice 4 (Bottom - Nuclear Casings)
                             { "  ccccc  ", " ccccccc ", "ccccccccc", "ccccccccc", "ccccccccc", "ccccccccc", "ccccccccc",
                                 " ccccccc ", "  ccccc  " } }))
-                // Tier 3: 13x13 Footprint, 11x11 Octagonal Core (109 cells), Height 5
+                // Tier 3: 13x13 Footprint, 13x13 Octagonal Chamber (145 cells), Height 5
                 .addShape(
                     STRUCTURE_7X7,
                     transpose(
                         new String[][] {
                             // Slice 0 (Top - Nuclear Hatches & Casings)
-                            { "   ccccccc   ", "  cgggggggc  ", " cgggggggggc ", "cgggggggggggc", "cgggggggggggc",
-                                "cgggggggggggc", "cgggggggggggc", "cgggggggggggc", "cgggggggggggc", "cgggggggggggc",
-                                " cgggggggggc ", "  cgggggggc  ", "   ccccccc   " },
+                            { "   ggggggg   ", "  ggggggggg  ", " ggggggggggg ", "ggggggggggggg", "ggggggggggggg",
+                                "ggggggggggggg", "ggggggggggggg", "ggggggggggggg", "ggggggggggggg", "ggggggggggggg",
+                                " ggggggggggg ", "  ggggggggg  ", "   ggggggg   " },
                             // Slice 1 (Upper Pipe Casings)
                             { "   ccccccc   ", "  cpppppppc  ", " cpppppppppc ", "cpppppppppppc", "cpppppppppppc",
                                 "cpppppppppppc", "cpppppppppppc", "cpppppppppppc", "cpppppppppppc", "cpppppppppppc",
@@ -590,7 +589,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         mHatchTierInconsistent = false;
 
         if (checkPiece(STRUCTURE_3X3, 2, 3, 0, errors)) {
-            gridSize = 3;
+            gridSize = 5;
             coreDimension = 5;
         } else {
             mNuclearTiles.clear();
@@ -599,7 +598,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             mHatchTierInconsistent = false;
             errors.clear();
             if (checkPiece(STRUCTURE_5X5, 4, 3, 0, errors)) {
-                gridSize = 7;
+                gridSize = 9;
                 coreDimension = 9;
             } else {
                 mNuclearTiles.clear();
@@ -608,7 +607,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                 mHatchTierInconsistent = false;
                 errors.clear();
                 if (checkPiece(STRUCTURE_7X7, 6, 3, 0, errors)) {
-                    gridSize = 11;
+                    gridSize = 13;
                     coreDimension = 13;
                 } else {
                     return;
@@ -1106,9 +1105,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                 .setTextAlignment(Alignment.CenterLeft)
                 .setEnabled(widget -> mMachine));
         screenElements.widget(
-            new TextWidget()
-                .setStringSupplier(
-                    () -> String.format("EU Output: %d EU/t", mDirectPowerEUt))
+            new TextWidget().setStringSupplier(() -> String.format("EU Output: %d EU/t", mDirectPowerEUt))
                 .setDefaultColor(Color.rgb(180, 220, 180))
                 .setTextAlignment(Alignment.CenterLeft)
                 .setEnabled(widget -> mMachine));
@@ -1281,26 +1278,20 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         String name = fuel.getUnlocalizedName()
             .toLowerCase();
         if (name.contains("uranium")) {
-            if (name.contains("quad") || name.contains("4"))
-                return ItemList.DepletedRodUranium4.get(1L);
-            if (name.contains("dual") || name.contains("2"))
-                return ItemList.DepletedRodUranium2.get(1L);
+            if (name.contains("quad") || name.contains("4")) return ItemList.DepletedRodUranium4.get(1L);
+            if (name.contains("dual") || name.contains("2")) return ItemList.DepletedRodUranium2.get(1L);
             return ItemList.DepletedRodUranium.get(1L);
         } else if (name.contains("mox")) {
             if (name.contains("quad") || name.contains("4")) return ItemList.DepletedRodMOX4.get(1L);
             if (name.contains("dual") || name.contains("2")) return ItemList.DepletedRodMOX2.get(1L);
             return ItemList.DepletedRodMOX.get(1L);
         } else if (name.contains("thorium")) {
-            if (name.contains("quad") || name.contains("4"))
-                return ItemList.DepletedRodThorium4.get(1L);
-            if (name.contains("dual") || name.contains("2"))
-                return ItemList.DepletedRodThorium2.get(1L);
+            if (name.contains("quad") || name.contains("4")) return ItemList.DepletedRodThorium4.get(1L);
+            if (name.contains("dual") || name.contains("2")) return ItemList.DepletedRodThorium2.get(1L);
             return ItemList.DepletedRodThorium.get(1L);
         } else if (name.contains("naquadah")) {
-            if (name.contains("quad") || name.contains("4"))
-                return ItemList.DepletedRodNaquadah4.get(1L);
-            if (name.contains("dual") || name.contains("2"))
-                return ItemList.DepletedRodNaquadah2.get(1L);
+            if (name.contains("quad") || name.contains("4")) return ItemList.DepletedRodNaquadah4.get(1L);
+            if (name.contains("dual") || name.contains("2")) return ItemList.DepletedRodNaquadah2.get(1L);
             return ItemList.DepletedRodNaquadah.get(1L);
         }
         return null;
@@ -1762,7 +1753,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         hatch.mLastProducedFluidName = "";
         if (hatch.mTemperature > minOperatingTemp) {
             double heatAvailable = (hatch.mTemperature - minOperatingTemp) * NuclearSimulationEngine.EU_PER_DEGREE;
-            int maxFluidByHeat = (heatPerMB > 0) ? (int) Math.floor(heatAvailable / heatPerMB) : hatch.mInputFluid.amount;
+            int maxFluidByHeat = (heatPerMB > 0) ? (int) Math.floor(heatAvailable / heatPerMB)
+                : hatch.mInputFluid.amount;
             int fluidToProcess = Math.min(hatch.mInputFluid.amount, maxFluidByHeat);
 
             // Cap rate by hatch tier
@@ -1789,8 +1781,9 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                     hatch.mLastProducedAmount = outAmount;
                     hatch.mLastProducedFluidName = outputFluidName;
                     double heatConsumed = fluidToProcess * heatPerMB;
-                    hatch.mTemperature = Math
-                        .max(minOperatingTemp, hatch.mTemperature - (heatConsumed / NuclearSimulationEngine.EU_PER_DEGREE));
+                    hatch.mTemperature = Math.max(
+                        minOperatingTemp,
+                        hatch.mTemperature - (heatConsumed / NuclearSimulationEngine.EU_PER_DEGREE));
                     hatch.markTileDirty();
                 }
             }

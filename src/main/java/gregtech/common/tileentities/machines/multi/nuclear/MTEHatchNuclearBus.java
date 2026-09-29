@@ -151,16 +151,17 @@ public class MTEHatchNuclearBus extends MTEHatch {
             return true;
         } else if (GTUtility.areStacksEqual(mInventory[SLOT_OUTPUT_1], stack)
             && mInventory[SLOT_OUTPUT_1].stackSize + stack.stackSize <= mInventory[SLOT_OUTPUT_1].getMaxStackSize()) {
-            mInventory[SLOT_OUTPUT_1].stackSize += stack.stackSize;
-            return true;
-        } else if (mInventory[SLOT_OUTPUT_2] == null) {
-            mInventory[SLOT_OUTPUT_2] = stack;
-            return true;
-        } else if (GTUtility.areStacksEqual(mInventory[SLOT_OUTPUT_2], stack)
-            && mInventory[SLOT_OUTPUT_2].stackSize + stack.stackSize <= mInventory[SLOT_OUTPUT_2].getMaxStackSize()) {
-            mInventory[SLOT_OUTPUT_2].stackSize += stack.stackSize;
-            return true;
-        }
+                mInventory[SLOT_OUTPUT_1].stackSize += stack.stackSize;
+                return true;
+            } else if (mInventory[SLOT_OUTPUT_2] == null) {
+                mInventory[SLOT_OUTPUT_2] = stack;
+                return true;
+            } else if (GTUtility.areStacksEqual(mInventory[SLOT_OUTPUT_2], stack)
+                && mInventory[SLOT_OUTPUT_2].stackSize + stack.stackSize
+                    <= mInventory[SLOT_OUTPUT_2].getMaxStackSize()) {
+                        mInventory[SLOT_OUTPUT_2].stackSize += stack.stackSize;
+                        return true;
+                    }
         return false;
     }
 

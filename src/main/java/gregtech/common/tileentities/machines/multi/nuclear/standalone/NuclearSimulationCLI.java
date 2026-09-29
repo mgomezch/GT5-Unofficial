@@ -628,7 +628,7 @@ public class NuclearSimulationCLI {
         System.out.println("Usage: gtnh-nuclear-sim [options]");
         System.out.println("Options:");
         System.out.println(
-            "  --preset <name>       Preset layout: BEST_ELECTRUM_5X5, BEST_PLATINUM_7X7, BEST_OSMIUM_7X7, BEST_QUANTIUM_9X9, BEST_FLUXED_9X9, BEST_PLUTONIUM_9X9");
+            "  --preset <name>       Preset layout: BEST_ELECTRUM_5X5, BEST_PLATINUM_9X9, BEST_OSMIUM_9X9, BEST_QUANTIUM_13X13, BEST_FLUXED_13X13, BEST_PLUTONIUM_13X13");
         System.out.println("  --size <N>            Grid dimensions N x N (default 5)");
         System.out.println(
             "  --tier <name/#>       Pipe casing tier: electrum(0), platinum(1), osmium(2), quantium(3), fluxed(4), black_plutonium(5)");
