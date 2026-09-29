@@ -109,6 +109,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     public int mEscapedNeutrons = 0;
     public double mReactivity = 1.0;
     public long mDirectPowerEUt = 0;
+    public long mWallNeutronAccumulator = 0;
+    public int mWallMaintenanceTimer = 0;
     public static final int GUI_MODE_COMPONENTS = 0;
     public static final int GUI_MODE_TEMPERATURE = 1;
     public static final int GUI_MODE_NEUTRON_FLUX = 2;
@@ -118,6 +120,36 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
 
     public int mHatchTier = -1;
     public boolean mHatchTierInconsistent = false;
+
+    public double getMaintenanceEfficiency() {
+        if (!mMachine) return 0.0;
+        int issues = Math.max(0, getIdealStatus() - getRepairStatus());
+        return Math.max(0.0, 1.0 - (issues * 0.10));
+    }
+
+    public void causeNewMaintenanceIssue() {
+        List<Integer> working = new ArrayList<>();
+        if (mWrench) working.add(0);
+        if (mScrewdriver) working.add(1);
+        if (mSoftMallet) working.add(2);
+        if (mHardHammer) working.add(3);
+        if (mSolderingTool) working.add(4);
+        if (mCrowbar) working.add(5);
+        if (!working.isEmpty()) {
+            int pick = working.get(getBaseMetaTileEntity().getRandomNumber(working.size()));
+            switch (pick) {
+                case 0 -> mWrench = false;
+                case 1 -> mScrewdriver = false;
+                case 2 -> mSoftMallet = false;
+                case 3 -> mHardHammer = false;
+                case 4 -> mSolderingTool = false;
+                case 5 -> mCrowbar = false;
+            }
+            if (getBaseMetaTileEntity() != null) {
+                getBaseMetaTileEntity().markDirty();
+            }
+        }
+    }
 
     public static ItemStack getNuclearHatchStack(int tier) {
         return switch (tier) {
@@ -499,6 +531,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         }
         super.mEfficiency = 0;
         mReactivity = 0.0;
+        mWallNeutronAccumulator = 0;
+        mWallMaintenanceTimer = 0;
 
         World world = base.getWorld();
         int cX = base.getXCoord();
@@ -518,6 +552,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     public void onMachineBlockUpdate() {
         super.onMachineBlockUpdate();
         if (!mMachine) {
+            mWallNeutronAccumulator = 0;
+            mWallMaintenanceTimer = 0;
             for (IGregTechTileEntity te : mNuclearTiles) {
                 if (te != null && te.getMetaTileEntity() instanceof MTEHatchNuclearHatch hatch) {
                     hatch.mWasDry = false;
@@ -729,8 +765,9 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                     return;
                 }
 
+                double maintEff = getMaintenanceEfficiency();
                 NuclearSimulationEngine.SimulationResult res = NuclearSimulationEngine
-                    .simulate(mGrid, gridSize, gridSize);
+                    .simulate(mGrid, gridSize, gridSize, maintEff);
                 mCoreTemp = res.maxTemperature;
                 mAvgTemp = res.averageTemperature;
                 mNeutronsProduced = res.totalNeutronsGenerated;
@@ -738,6 +775,22 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                 mThermalAbsorbed = res.thermalNeutronsAbsorbed;
                 mEscapedNeutrons = res.neutronsEscaped;
                 mReactivity = res.averageReactivity;
+
+                // Accumulate wall neutron impacts for custom maintenance mechanic
+                int wallHits = res.wallNeutronsReflected + res.wallNeutronsAbsorbed;
+                mWallNeutronAccumulator += wallHits;
+                mWallMaintenanceTimer += 20;
+
+                // Once per minute (1200 ticks = 60s), check maintenance issue probability: min(0.1, N/10000)
+                if (mWallMaintenanceTimer >= 1200) {
+                    mWallMaintenanceTimer = 0;
+                    long N = mWallNeutronAccumulator;
+                    mWallNeutronAccumulator = 0;
+                    double prob = Math.min(0.1, (double) N / 10000.0);
+                    if (prob > 0.0 && (aBaseMetaTileEntity.getRandomNumber(1000000) / 1000000.0) < prob) {
+                        causeNewMaintenanceIssue();
+                    }
+                }
 
                 // Sum direct EU from betavoltaic cells across the grid
                 long directEU = 0;
@@ -789,6 +842,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         aNBT.setInteger("coreDimension", coreDimension);
         aNBT.setInteger("mPipeTier", mPipeTier);
         aNBT.setLong("mDirectPowerEUt", mDirectPowerEUt);
+        aNBT.setLong("mWallNeutronAccumulator", mWallNeutronAccumulator);
+        aNBT.setInteger("mWallMaintenanceTimer", mWallMaintenanceTimer);
     }
 
     @Override
@@ -800,6 +855,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         coreDimension = aNBT.getInteger("coreDimension");
         mPipeTier = aNBT.getInteger("mPipeTier");
         mDirectPowerEUt = aNBT.getLong("mDirectPowerEUt");
+        mWallNeutronAccumulator = aNBT.getLong("mWallNeutronAccumulator");
+        mWallMaintenanceTimer = aNBT.getInteger("mWallMaintenanceTimer");
     }
 
     public ReactorGridSyncData getClientGridData() {
@@ -962,10 +1019,14 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                 .setTextAlignment(Alignment.CenterLeft)
                 .setEnabled(widget -> mMachine));
         screenElements.widget(
-            new TextWidget()
-                .setStringSupplier(
-                    () -> String.format("Avg Reactivity: %.1f%%  Flux: %d/s", mReactivity * 100.0, mNeutronsProduced))
+            new TextWidget().setStringSupplier(() -> String.format("Avg Reactivity: %.1f%%", mReactivity * 100.0))
                 .setDefaultColor(Color.rgb(100, 200, 255))
+                .setTextAlignment(Alignment.CenterLeft)
+                .setEnabled(widget -> mMachine));
+        screenElements.widget(
+            new TextWidget()
+                .setStringSupplier(() -> "Flux: " + NuclearSimulationEngine.formatNeutronFlux(mNeutronsProduced))
+                .setDefaultColor(Color.rgb(100, 220, 255))
                 .setTextAlignment(Alignment.CenterLeft)
                 .setEnabled(widget -> mMachine));
         screenElements.widget(
@@ -1060,20 +1121,11 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                 return EnumChatFormatting.RED + "Offline - Structure Incomplete";
             }
             if (mCurrentGuiMode == GUI_MODE_TEMPERATURE) {
-                return String.format(
-                    EnumChatFormatting.GOLD + "Max: %.1f °C  "
-                        + EnumChatFormatting.DARK_GREEN
-                        + "Avg Reactivity: %.1f %%",
-                    sync.coreTemp,
-                    sync.efficiency * 100.0);
+                return String.format(EnumChatFormatting.GOLD + "Max Temp: %.1f °C", sync.coreTemp);
             }
             if (mCurrentGuiMode == GUI_MODE_NEUTRON_FLUX) {
-                return String.format(
-                    EnumChatFormatting.AQUA + "Flux: %d/s  "
-                        + EnumChatFormatting.DARK_GREEN
-                        + "Avg Reactivity: %.1f %%",
-                    sync.neutronsProduced,
-                    sync.efficiency * 100.0);
+                return EnumChatFormatting.AQUA + "Flux: "
+                    + NuclearSimulationEngine.formatNeutronFlux(sync.neutronsProduced);
             }
             if (sync.efficiency > 0.0001) {
                 return String.format(

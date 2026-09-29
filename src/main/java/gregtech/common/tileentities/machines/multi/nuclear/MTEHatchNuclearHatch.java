@@ -459,6 +459,10 @@ public class MTEHatchNuclearHatch extends MTEHatch implements INuclearTile {
             int maxRate = 100 * (1 << mTier);
             fluidToProcess = Math.min(fluidToProcess, maxRate);
 
+            // Scale heat transfer and coolant production by maintenance efficiency
+            double effFactor = Math.max(0.0, Math.min(1.0, efficiency));
+            fluidToProcess = (int) Math.round(fluidToProcess * effFactor);
+
             if (fluidToProcess > 0) {
                 int outAmount = fluidToProcess * steamRatio;
                 int space = mCapacity - (mOutputFluid != null ? mOutputFluid.amount : 0);

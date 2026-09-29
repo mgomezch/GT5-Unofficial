@@ -255,9 +255,29 @@ public class NuclearSimulationEngine {
     }
 
     /**
-     * Executes one reactor simulation tick over the 2D grid.
+     * Formats neutron flux into a realistic physical unit (multiples of 10¹³ n/cm²s).
+     */
+    public static String formatNeutronFlux(int neutronsProduced) {
+        if (neutronsProduced <= 0) {
+            return "0 n/cm²s";
+        }
+        double physicalFlux = (double) neutronsProduced * 1.0e13;
+        return String.format(java.util.Locale.US, "%.2e n/cm²s", physicalFlux)
+            .replace("+0", "")
+            .replace("+", "");
+    }
+
+    /**
+     * Executes one reactor simulation tick over the 2D grid with full (100%) maintenance efficiency.
      */
     public static SimulationResult simulate(INuclearTile[][] grid, int sizeX, int sizeY) {
+        return simulate(grid, sizeX, sizeY, 1.0);
+    }
+
+    /**
+     * Executes one reactor simulation tick over the 2D grid with specified maintenance efficiency factor [0.0, 1.0].
+     */
+    public static SimulationResult simulate(INuclearTile[][] grid, int sizeX, int sizeY, double maintenanceEfficiency) {
         SimulationResult result = new SimulationResult();
         if (grid == null || sizeX <= 0 || sizeY <= 0) return result;
 
@@ -451,7 +471,7 @@ public class NuclearSimulationEngine {
                 INuclearTile tile = grid[x][y];
                 if (tile != null) {
                     double tileEfficiency = tile.isFuel() ? calculateEfficiency(tile.getTemperature())
-                        : result.averageReactivity;
+                        : Math.max(0.0, Math.min(1.0, maintenanceEfficiency));
                     tile.nuclearTick(tileEfficiency);
                 }
             }

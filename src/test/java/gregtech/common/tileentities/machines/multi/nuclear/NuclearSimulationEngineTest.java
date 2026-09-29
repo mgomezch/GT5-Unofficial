@@ -880,4 +880,38 @@ public class NuclearSimulationEngineTest {
 
         NuclearSimulationEngine.resetDefaultParameters();
     }
+
+    @Test
+    void testFormatNeutronFlux() {
+        assertEquals("0 n/cm²s", NuclearSimulationEngine.formatNeutronFlux(0));
+        assertEquals("0 n/cm²s", NuclearSimulationEngine.formatNeutronFlux(-5));
+        assertEquals("1.00e13 n/cm²s", NuclearSimulationEngine.formatNeutronFlux(1));
+        assertEquals("8.80e14 n/cm²s", NuclearSimulationEngine.formatNeutronFlux(88));
+        assertEquals("1.50e15 n/cm²s", NuclearSimulationEngine.formatNeutronFlux(150));
+    }
+
+    @Test
+    void testMaintenanceEfficiencyScaling() {
+        NuclearSimulationEngine.resetDefaultParameters();
+
+        // Check that non-fuel tile receives maintenance efficiency during simulate
+        INuclearTile[][] grid = new INuclearTile[2][2];
+        final double[] receivedEfficiency = new double[1];
+        MockNuclearTile nonFuel = new MockNuclearTile(false, 0) {
+
+            @Override
+            public void nuclearTick(double eff) {
+                receivedEfficiency[0] = eff;
+            }
+        };
+        grid[0][0] = nonFuel;
+
+        NuclearSimulationEngine.simulate(grid, 2, 2, 0.70);
+        assertEquals(0.70, receivedEfficiency[0], 1e-6, "Non-fuel tile must receive maintenance efficiency");
+
+        NuclearSimulationEngine.simulate(grid, 2, 2, 1.0);
+        assertEquals(1.0, receivedEfficiency[0], 1e-6, "Default/full maintenance efficiency must be 1.0");
+
+        NuclearSimulationEngine.resetDefaultParameters();
+    }
 }

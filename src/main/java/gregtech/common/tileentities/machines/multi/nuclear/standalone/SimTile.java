@@ -410,10 +410,11 @@ public class SimTile implements INuclearTile {
 
         // Betavoltaic direct EU generation & excess heat
         if (isBetavoltaic()) {
+            double effFactor = Math.max(0.0, Math.min(1.0, efficiency));
             long maxEU = (type == TileType.BETAVOLTAIC_EV) ? 4096 : 1024;
             double weightedFlux = fastAbsorbed * 4.0 + thermalAbsorbed * 1.0;
             double satFlux = 60.0;
-            long genEU = (long) Math.round(maxEU * Math.tanh(weightedFlux / satFlux));
+            long genEU = (long) Math.round(maxEU * Math.tanh(weightedFlux / satFlux) * effFactor);
             this.directEUProduced = genEU;
             double totalEnergy = weightedFlux * 20.0;
             double excessHeat = Math.max(0.0, totalEnergy - genEU);
@@ -431,10 +432,12 @@ public class SimTile implements INuclearTile {
 
         // 2. Coolant cell absorption
         if (maxCellHeat > 0 && currentCellHeat < maxCellHeat) {
+            double effFactor = Math.max(0.0, Math.min(1.0, efficiency));
             double tempDiff = temperature - NuclearSimulationEngine.AMBIENT_TEMP;
             if (tempDiff > 0) {
-                int heatToAbsorb = (int) Math
-                    .min(tempDiff * NuclearSimulationEngine.EU_PER_DEGREE * 0.1, maxCellHeat - currentCellHeat);
+                int heatToAbsorb = (int) Math.min(
+                    tempDiff * NuclearSimulationEngine.EU_PER_DEGREE * 0.1 * effFactor,
+                    maxCellHeat - currentCellHeat);
                 currentCellHeat += heatToAbsorb;
                 temperature = Math.max(
                     NuclearSimulationEngine.AMBIENT_TEMP,
@@ -444,6 +447,7 @@ public class SimTile implements INuclearTile {
 
         // 3. Fluid cooling & heat exchange
         if (isHatch()) {
+            double effFactor = Math.max(0.0, Math.min(1.0, efficiency));
             if (type == TileType.HATCH_IC2_COOLANT) {
                 double operatingThreshold = NuclearSimulationEngine.AMBIENT_TEMP;
                 double heatPerL = NuclearSimulationEngine.ic2CoolantHeatPerLiter;
@@ -454,7 +458,7 @@ public class SimTile implements INuclearTile {
                     int maxCoolByHeat = (heatPerL > 0) ? (int) Math.floor(heatAvailable / heatPerL) : inputFluidAmount;
 
                     double frac = NuclearSimulationEngine.calculateTurnoverFraction(deltaT);
-                    int desiredTurnover = Math.max(1, (int) Math.round(inputFluidCapacity * frac));
+                    int desiredTurnover = Math.max(1, (int) Math.round(inputFluidCapacity * frac * effFactor));
                     int mbToCool = Math.min(inputFluidAmount, Math.min(desiredTurnover, maxCoolByHeat));
 
                     if (mbToCool > 0) {
@@ -521,7 +525,7 @@ public class SimTile implements INuclearTile {
                     int maxBoilByHeat = (heatPerL > 0) ? (int) Math.floor(heatAvailable / heatPerL) : inputFluidAmount;
 
                     double frac = NuclearSimulationEngine.calculateTurnoverFraction(deltaT);
-                    int desiredTurnover = Math.max(1, (int) Math.round(inputFluidCapacity * frac));
+                    int desiredTurnover = Math.max(1, (int) Math.round(inputFluidCapacity * frac * effFactor));
                     int mbToBoil = Math.min(inputFluidAmount, Math.min(desiredTurnover, maxBoilByHeat));
 
                     if (mbToBoil > 0) {

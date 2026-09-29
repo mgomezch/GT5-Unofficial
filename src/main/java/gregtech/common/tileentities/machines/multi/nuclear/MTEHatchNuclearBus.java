@@ -377,7 +377,8 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
             long maxEU = (tier >= 2) ? 4096 : 1024;
             double weightedFlux = mFastAbsorbed * 4.0 + mThermalAbsorbed * 1.0;
             double satFlux = 60.0;
-            long genEU = (long) Math.round(maxEU * Math.tanh(weightedFlux / satFlux));
+            double effFactor = Math.max(0.0, Math.min(1.0, efficiency));
+            long genEU = (long) Math.round(maxEU * Math.tanh(weightedFlux / satFlux) * effFactor);
             mDirectEUProduced = genEU;
             double totalEnergy = weightedFlux * 20.0;
             double excessHeat = Math.max(0.0, totalEnergy - genEU);
@@ -393,7 +394,9 @@ public class MTEHatchNuclearBus extends MTEHatch implements INuclearTile {
             if (maxHeat > 0 && mTemperature > 50.0) {
                 int maxTransferPerTick = Math.max(1, maxHeat / 100);
                 double heatAvailable = (mTemperature - 50.0) * NuclearSimulationEngine.EU_PER_DEGREE;
-                int heatToTake = (int) Math.min(heatAvailable / 25.0, (double) maxTransferPerTick);
+                double effFactor = Math.max(0.0, Math.min(1.0, efficiency));
+                int heatToTake = (int) Math
+                    .round(Math.min(heatAvailable / 25.0, (double) maxTransferPerTick) * effFactor);
                 int room = maxHeat - curHeat;
                 heatToTake = Math.min(heatToTake, room);
 
