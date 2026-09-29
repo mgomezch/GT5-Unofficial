@@ -321,12 +321,12 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                         new String[][] {
                             // Slice 0 (Top - Nuclear Hatches & Casings)
                             { " ggg ", "ggggg", "ggggg", "ggggg", " ggg " },
-                            // Slice 1 (Upper Pipe Casings)
-                            { " ccc ", "ccpcc", "cpppc", "ccpcc", " ccc " },
-                            // Slice 2 (Middle Pipe Casings)
-                            { " ccc ", "ccpcc", "cpppc", "ccpcc", " ccc " },
-                            // Slice 3 (Controller layer - Front Center)
-                            { " c~c ", "ccpcc", "cpppc", "ccpcc", " ccc " },
+                            // Slice 1 (Second from top - All Item Pipe Casings)
+                            { " ppp ", "ppppp", "ppppp", "ppppp", " ppp " },
+                            // Slice 2 (Third from top - Nuclear Casing Walls, Hollow Interior)
+                            { " ccc ", "c   c", "c   c", "c   c", " ccc " },
+                            // Slice 3 (Fourth from top / Controller layer - Front Center)
+                            { " c~c ", "c   c", "c   c", "c   c", " ccc " },
                             // Slice 4 (Bottom - Nuclear Casings)
                             { " ccc ", "ccccc", "ccccc", "ccccc", " ccc " } }))
                 // Tier 2: 9x9 Footprint, 9x9 Octagonal Chamber (69 cells), Height 5
@@ -337,15 +337,15 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                             // Slice 0 (Top - Nuclear Hatches & Casings)
                             { "  ggggg  ", " ggggggg ", "ggggggggg", "ggggggggg", "ggggggggg", "ggggggggg", "ggggggggg",
                                 " ggggggg ", "  ggggg  " },
-                            // Slice 1 (Upper Pipe Casings)
-                            { "  ccccc  ", " cpppppc ", "cpppppppc", "cpppppppc", "cpppppppc", "cpppppppc", "cpppppppc",
-                                " cpppppc ", "  ccccc  " },
-                            // Slice 2 (Middle Pipe Casings)
-                            { "  ccccc  ", " cpppppc ", "cpppppppc", "cpppppppc", "cpppppppc", "cpppppppc", "cpppppppc",
-                                " cpppppc ", "  ccccc  " },
-                            // Slice 3 (Controller layer - Front Center)
-                            { "  cc~cc  ", " cpppppc ", "cpppppppc", "cpppppppc", "cpppppppc", "cpppppppc", "cpppppppc",
-                                " cpppppc ", "  ccccc  " },
+                            // Slice 1 (Second from top - All Item Pipe Casings)
+                            { "  ppppp  ", " ppppppp ", "ppppppppp", "ppppppppp", "ppppppppp", "ppppppppp", "ppppppppp",
+                                " ppppppp ", "  ppppp  " },
+                            // Slice 2 (Third from top - Nuclear Casing Walls, Hollow Interior)
+                            { "  ccccc  ", " c     c ", "c       c", "c       c", "c       c", "c       c", "c       c",
+                                " c     c ", "  ccccc  " },
+                            // Slice 3 (Fourth from top / Controller layer - Front Center)
+                            { "  cc~cc  ", " c     c ", "c       c", "c       c", "c       c", "c       c", "c       c",
+                                " c     c ", "  ccccc  " },
                             // Slice 4 (Bottom - Nuclear Casings)
                             { "  ccccc  ", " ccccccc ", "ccccccccc", "ccccccccc", "ccccccccc", "ccccccccc", "ccccccccc",
                                 " ccccccc ", "  ccccc  " } }))
@@ -358,18 +358,18 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                             { "   ggggggg   ", "  ggggggggg  ", " ggggggggggg ", "ggggggggggggg", "ggggggggggggg",
                                 "ggggggggggggg", "ggggggggggggg", "ggggggggggggg", "ggggggggggggg", "ggggggggggggg",
                                 " ggggggggggg ", "  ggggggggg  ", "   ggggggg   " },
-                            // Slice 1 (Upper Pipe Casings)
-                            { "   ccccccc   ", "  cpppppppc  ", " cpppppppppc ", "cpppppppppppc", "cpppppppppppc",
-                                "cpppppppppppc", "cpppppppppppc", "cpppppppppppc", "cpppppppppppc", "cpppppppppppc",
-                                " cpppppppppc ", "  cpppppppc  ", "   ccccccc   " },
-                            // Slice 2 (Middle Pipe Casings)
-                            { "   ccccccc   ", "  cpppppppc  ", " cpppppppppc ", "cpppppppppppc", "cpppppppppppc",
-                                "cpppppppppppc", "cpppppppppppc", "cpppppppppppc", "cpppppppppppc", "cpppppppppppc",
-                                " cpppppppppc ", "  cpppppppc  ", "   ccccccc   " },
-                            // Slice 3 (Controller layer - Front Center)
-                            { "   ccc~ccc   ", "  cpppppppc  ", " cpppppppppc ", "cpppppppppppc", "cpppppppppppc",
-                                "cpppppppppppc", "cpppppppppppc", "cpppppppppppc", "cpppppppppppc", "cpppppppppppc",
-                                " cpppppppppc ", "  cpppppppc  ", "   ccccccc   " },
+                            // Slice 1 (Second from top - All Item Pipe Casings)
+                            { "   ppppppp   ", "  ppppppppp  ", " ppppppppppp ", "ppppppppppppp", "ppppppppppppp",
+                                "ppppppppppppp", "ppppppppppppp", "ppppppppppppp", "ppppppppppppp", "ppppppppppppp",
+                                " ppppppppppp ", "  ppppppppp  ", "   ppppppp   " },
+                            // Slice 2 (Third from top - Nuclear Casing Walls, Hollow Interior)
+                            { "   ccccccc   ", "  c       c  ", " c         c ", "c           c", "c           c",
+                                "c           c", "c           c", "c           c", "c           c", "c           c",
+                                " c         c ", "  c       c  ", "   ccccccc   " },
+                            // Slice 3 (Fourth from top / Controller layer - Front Center)
+                            { "   ccc~ccc   ", "  c       c  ", " c         c ", "c           c", "c           c",
+                                "c           c", "c           c", "c           c", "c           c", "c           c",
+                                " c         c ", "  c       c  ", "   ccccccc   " },
                             // Slice 4 (Bottom - Nuclear Casings)
                             { "   ccccccc   ", "  ccccccccc  ", " ccccccccccc ", "ccccccccccccc", "ccccccccccccc",
                                 "ccccccccccccc", "ccccccccccccc", "ccccccccccccc", "ccccccccccccc", "ccccccccccccc",
@@ -426,7 +426,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             .addController("Front center, 2nd layer")
             .addCasing("44+", "Nuclear Casings", false)
             .addCasing(
-                "15+",
+                "21+",
                 "Item Pipe Casings (Electrum / Platinum / Osmium / Quantium / Fluxed Electrum / Black Plutonium)",
                 false)
             .addOtherStructurePart("Nuclear Bus / Hatch", "Top layer octagonal core positions", 1)
