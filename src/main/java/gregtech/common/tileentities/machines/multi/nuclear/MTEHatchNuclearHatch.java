@@ -10,6 +10,7 @@ import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidTankInfo;
+import net.minecraftforge.fluids.IFluidHandler;
 
 import com.cleanroommc.modularui.utils.fluid.FluidStackTank;
 import com.gtnewhorizons.modularui.api.math.Color;
@@ -36,7 +37,12 @@ public class MTEHatchNuclearHatch extends MTEHatch {
 
     public FluidStack mInputFluid;
     public FluidStack mOutputFluid;
+    public FluidStack mByproductFluid;
     public final int mCapacity;
+
+    private transient IFluidHandler mCachedTargetTank = null;
+    private transient boolean mTargetCacheValid = false;
+    private transient ForgeDirection mCachedFacing = ForgeDirection.UNKNOWN;
 
     public double mTemperature = NuclearSimulationEngine.DEFAULT_AMBIENT_TEMP;
     public double mHeatEU = 0.0;
@@ -73,9 +79,9 @@ public class MTEHatchNuclearHatch extends MTEHatch {
             aTier,
             0,
             new String[] { "Tiered Nuclear Fluid Hatch (" + GTValues.VN[aTier] + ")",
-                "Holds both Input Coolant / Fuel AND Output Steam / Byproduct",
+                "Holds Input Coolant, Output Steam/Hot Coolant, and Output Byproducts (3 tanks)",
                 "Supports BOTH Fluid Input and Fluid Output from the same block!",
-                "Capacity: " + (8000 * (1 << aTier)) + " L per tank",
+                "Auto-outputs fluids in front facing every tick", "Capacity: " + (8000 * (1 << aTier)) + " L per tank",
                 "Coolant boiling and transmutation under neutron flux", "Item Pipe Casing determines allowed coolants",
                 "Inserting water into a dry running reactor will cause an EXPLOSION!" });
         this.mCapacity = 8000 * (1 << aTier);
@@ -157,21 +163,52 @@ public class MTEHatchNuclearHatch extends MTEHatch {
 
     @Override
     public FluidStack drain(ForgeDirection side, int maxDrain, boolean doDrain) {
-        if (mOutputFluid == null || mOutputFluid.amount <= 0 || maxDrain <= 0) return null;
-        int toDrain = Math.min(maxDrain, mOutputFluid.amount);
-        FluidStack drained = new FluidStack(mOutputFluid.getFluid(), toDrain);
-        if (doDrain) {
-            mOutputFluid.amount -= toDrain;
-            if (mOutputFluid.amount <= 0) mOutputFluid = null;
-            markTileDirty();
+        if (maxDrain <= 0) return null;
+        if (mOutputFluid != null && mOutputFluid.amount > 0) {
+            int toDrain = Math.min(maxDrain, mOutputFluid.amount);
+            FluidStack drained = new FluidStack(mOutputFluid.getFluid(), toDrain);
+            if (doDrain) {
+                mOutputFluid.amount -= toDrain;
+                if (mOutputFluid.amount <= 0) mOutputFluid = null;
+                markTileDirty();
+            }
+            return drained;
+        } else if (mByproductFluid != null && mByproductFluid.amount > 0) {
+            int toDrain = Math.min(maxDrain, mByproductFluid.amount);
+            FluidStack drained = new FluidStack(mByproductFluid.getFluid(), toDrain);
+            if (doDrain) {
+                mByproductFluid.amount -= toDrain;
+                if (mByproductFluid.amount <= 0) mByproductFluid = null;
+                markTileDirty();
+            }
+            return drained;
         }
-        return drained;
+        return null;
     }
 
     @Override
     public FluidStack drain(ForgeDirection side, FluidStack resource, boolean doDrain) {
-        if (resource == null || mOutputFluid == null || !mOutputFluid.isFluidEqual(resource)) return null;
-        return drain(side, resource.amount, doDrain);
+        if (resource == null) return null;
+        if (mOutputFluid != null && mOutputFluid.isFluidEqual(resource)) {
+            int toDrain = Math.min(resource.amount, mOutputFluid.amount);
+            FluidStack drained = new FluidStack(mOutputFluid.getFluid(), toDrain);
+            if (doDrain) {
+                mOutputFluid.amount -= toDrain;
+                if (mOutputFluid.amount <= 0) mOutputFluid = null;
+                markTileDirty();
+            }
+            return drained;
+        } else if (mByproductFluid != null && mByproductFluid.isFluidEqual(resource)) {
+            int toDrain = Math.min(resource.amount, mByproductFluid.amount);
+            FluidStack drained = new FluidStack(mByproductFluid.getFluid(), toDrain);
+            if (doDrain) {
+                mByproductFluid.amount -= toDrain;
+                if (mByproductFluid.amount <= 0) mByproductFluid = null;
+                markTileDirty();
+            }
+            return drained;
+        }
+        return null;
     }
 
     @Override
@@ -188,14 +225,15 @@ public class MTEHatchNuclearHatch extends MTEHatch {
 
     @Override
     public boolean canDrain(ForgeDirection side, Fluid fluid) {
-        if (fluid == null || mOutputFluid == null) return false;
-        return mOutputFluid.getFluid() == fluid && mOutputFluid.amount > 0;
+        if (fluid == null) return false;
+        return (mOutputFluid != null && mOutputFluid.getFluid() == fluid && mOutputFluid.amount > 0)
+            || (mByproductFluid != null && mByproductFluid.getFluid() == fluid && mByproductFluid.amount > 0);
     }
 
     @Override
     public FluidTankInfo[] getTankInfo(ForgeDirection side) {
         return new FluidTankInfo[] { new FluidTankInfo(mInputFluid, mCapacity),
-            new FluidTankInfo(mOutputFluid, mCapacity) };
+            new FluidTankInfo(mOutputFluid, mCapacity), new FluidTankInfo(mByproductFluid, mCapacity) };
     }
 
     @Override
@@ -223,6 +261,7 @@ public class MTEHatchNuclearHatch extends MTEHatch {
         aNBT.setBoolean("mWasDry", mWasDry);
         if (mInputFluid != null) aNBT.setTag("mInputFluid", mInputFluid.writeToNBT(new NBTTagCompound()));
         if (mOutputFluid != null) aNBT.setTag("mOutputFluid", mOutputFluid.writeToNBT(new NBTTagCompound()));
+        if (mByproductFluid != null) aNBT.setTag("mByproductFluid", mByproductFluid.writeToNBT(new NBTTagCompound()));
     }
 
     @Override
@@ -242,6 +281,9 @@ public class MTEHatchNuclearHatch extends MTEHatch {
         }
         if (aNBT.hasKey("mOutputFluid")) {
             mOutputFluid = FluidStack.loadFluidStackFromNBT(aNBT.getCompoundTag("mOutputFluid"));
+        }
+        if (aNBT.hasKey("mByproductFluid")) {
+            mByproductFluid = FluidStack.loadFluidStackFromNBT(aNBT.getCompoundTag("mByproductFluid"));
         }
     }
 
@@ -267,6 +309,82 @@ public class MTEHatchNuclearHatch extends MTEHatch {
             mOutputFluid = new FluidStack(fluid, Math.min(amount, mCapacity));
         } else if (mOutputFluid.getFluid() == fluid) {
             mOutputFluid.amount = Math.min(mCapacity, mOutputFluid.amount + amount);
+        }
+    }
+
+    public void addByproductFluid(String fluidName, int amount) {
+        if (amount <= 0) return;
+        Fluid fluid = FluidRegistry.getFluid(fluidName);
+        if (fluid == null && fluidName.startsWith("fluid.")) {
+            fluid = FluidRegistry.getFluid(fluidName.substring(6));
+        }
+        if (fluid == null && !fluidName.startsWith("fluid.")) {
+            fluid = FluidRegistry.getFluid("fluid." + fluidName);
+        }
+        if (fluid == null) return;
+
+        if (mByproductFluid == null) {
+            mByproductFluid = new FluidStack(fluid, Math.min(amount, mCapacity));
+        } else if (mByproductFluid.getFluid() == fluid) {
+            mByproductFluid.amount = Math.min(mCapacity, mByproductFluid.amount + amount);
+        }
+    }
+
+    public com.cleanroommc.modularui.utils.fluid.FluidStackTank getByproductTank() {
+        return new FluidStackTank(() -> mByproductFluid, f -> {
+            mByproductFluid = f;
+            markTileDirty();
+        }, () -> mCapacity);
+    }
+
+    @Override
+    public void onFacingChange() {
+        super.onFacingChange();
+        mTargetCacheValid = false;
+        mCachedTargetTank = null;
+    }
+
+    @Override
+    public void onAdjacentBlockChange(int aX, int aY, int aZ) {
+        super.onAdjacentBlockChange(aX, aY, aZ);
+        mTargetCacheValid = false;
+        mCachedTargetTank = null;
+    }
+
+    @Override
+    public void onPostTick(IGregTechTileEntity aBaseMetaTileEntity, long aTick) {
+        super.onPostTick(aBaseMetaTileEntity, aTick);
+        if (!aBaseMetaTileEntity.isServerSide()) return;
+
+        if (mOutputFluid == null && mByproductFluid == null) return;
+
+        ForgeDirection front = aBaseMetaTileEntity.getFrontFacing();
+        if (!mTargetCacheValid || front != mCachedFacing) {
+            mCachedFacing = front;
+            mCachedTargetTank = aBaseMetaTileEntity.getITankContainerAtSide(front);
+            mTargetCacheValid = true;
+        } else if (mCachedTargetTank instanceof net.minecraft.tileentity.TileEntity te && te.isInvalid()) {
+            mCachedTargetTank = aBaseMetaTileEntity.getITankContainerAtSide(front);
+        }
+
+        if (mCachedTargetTank != null) {
+            ForgeDirection fillSide = front.getOpposite();
+            if (mOutputFluid != null && mOutputFluid.amount > 0) {
+                int filled = mCachedTargetTank.fill(fillSide, mOutputFluid, true);
+                if (filled > 0) {
+                    mOutputFluid.amount -= filled;
+                    if (mOutputFluid.amount <= 0) mOutputFluid = null;
+                    markTileDirty();
+                }
+            }
+            if (mByproductFluid != null && mByproductFluid.amount > 0) {
+                int filled = mCachedTargetTank.fill(fillSide, mByproductFluid, true);
+                if (filled > 0) {
+                    mByproductFluid.amount -= filled;
+                    if (mByproductFluid.amount <= 0) mByproductFluid = null;
+                    markTileDirty();
+                }
+            }
         }
     }
 
@@ -321,9 +439,9 @@ public class MTEHatchNuclearHatch extends MTEHatch {
         builder.widget(
             new DrawableWidget().setDrawable(GTUITextures.PICTURE_SCREEN_BLACK)
                 .setPos(7, 16)
-                .setSize(68, 56))
+                .setSize(50, 56))
             .widget(
-                new TextWidget("CORE STATS").setDefaultColor(Color.rgb(0, 255, 200))
+                new TextWidget("STATS").setDefaultColor(Color.rgb(0, 255, 200))
                     .setPos(10, 20))
             .widget(new TextWidget().setStringSupplier(() -> {
                 if (mInputFluid != null && mReactorPipeTier >= 0
@@ -333,49 +451,56 @@ public class MTEHatchNuclearHatch extends MTEHatch {
                         > mReactorPipeTier) {
                     return "ERR: TIER";
                 }
-                return String.format("%.1f °C", mTemperature);
+                return String.format("%.0f °C", mTemperature);
             })
                 .setDefaultColor(Color.rgb(255, 200, 0))
                 .setPos(10, 31))
             .widget(
-                new TextWidget().setStringSupplier(() -> String.format("Fast: %d", mLastFastFlux))
+                new TextWidget().setStringSupplier(() -> String.format("F: %d", mLastFastFlux))
                     .setDefaultColor(Color.rgb(100, 220, 255))
                     .setPos(10, 42))
             .widget(
-                new TextWidget().setStringSupplier(() -> String.format("Thrm: %d", mLastThermalFlux))
+                new TextWidget().setStringSupplier(() -> String.format("T: %d", mLastThermalFlux))
                     .setDefaultColor(Color.rgb(150, 180, 255))
                     .setPos(10, 53))
             // Coolant In Tank
             .widget(
                 new DrawableWidget().setDrawable(GTUITextures.PICTURE_SCREEN_BLACK)
-                    .setPos(78, 16)
-                    .setSize(44, 56))
+                    .setPos(60, 16)
+                    .setSize(34, 56))
             .widget(
-                new TextWidget("Coolant").setDefaultColor(0xFFFFFFFF)
-                    .setPos(80, 19))
+                new TextWidget("In").setDefaultColor(0xFFFFFFFF)
+                    .setPos(62, 19))
             .widget(
                 new TextWidget().setStringSupplier(() -> (mInputFluid != null ? mInputFluid.amount : 0) + "L")
                     .setDefaultColor(Color.rgb(180, 180, 180))
-                    .setPos(80, 30))
-            .widget(new FluidSlotWidget(new FluidStackTank(() -> mInputFluid, f -> {
-                mInputFluid = f;
-                markTileDirty();
-            }, () -> mCapacity)).setPos(98, 42))
+                    .setPos(62, 30))
+            .widget(new FluidSlotWidget(getInputTank()).setPos(68, 42))
             // Hot Out Tank
             .widget(
                 new DrawableWidget().setDrawable(GTUITextures.PICTURE_SCREEN_BLACK)
-                    .setPos(125, 16)
-                    .setSize(44, 56))
+                    .setPos(97, 16)
+                    .setSize(34, 56))
             .widget(
-                new TextWidget("Output").setDefaultColor(0xFFFFFFFF)
-                    .setPos(127, 19))
+                new TextWidget("Out").setDefaultColor(0xFFFFFFFF)
+                    .setPos(99, 19))
             .widget(
                 new TextWidget().setStringSupplier(() -> (mOutputFluid != null ? mOutputFluid.amount : 0) + "L")
                     .setDefaultColor(Color.rgb(180, 180, 180))
-                    .setPos(127, 30))
-            .widget(new FluidSlotWidget(new FluidStackTank(() -> mOutputFluid, f -> {
-                mOutputFluid = f;
-                markTileDirty();
-            }, () -> mCapacity)).setPos(145, 42));
+                    .setPos(99, 30))
+            .widget(new FluidSlotWidget(getOutputTank()).setPos(105, 42))
+            // Byproduct Out Tank
+            .widget(
+                new DrawableWidget().setDrawable(GTUITextures.PICTURE_SCREEN_BLACK)
+                    .setPos(134, 16)
+                    .setSize(34, 56))
+            .widget(
+                new TextWidget("Bypr").setDefaultColor(0xFFFFFFFF)
+                    .setPos(136, 19))
+            .widget(
+                new TextWidget().setStringSupplier(() -> (mByproductFluid != null ? mByproductFluid.amount : 0) + "L")
+                    .setDefaultColor(Color.rgb(180, 180, 180))
+                    .setPos(136, 30))
+            .widget(new FluidSlotWidget(getByproductTank()).setPos(142, 42));
     }
 }

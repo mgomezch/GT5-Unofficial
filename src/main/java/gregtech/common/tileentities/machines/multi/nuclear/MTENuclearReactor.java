@@ -519,6 +519,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             if (te != null && te.getMetaTileEntity() instanceof MTEHatchNuclearHatch hatch) {
                 hatch.mInputFluid = null;
                 hatch.mOutputFluid = null;
+                hatch.mByproductFluid = null;
                 hatch.mWasDry = true;
                 if (hatch.getBaseMetaTileEntity() != null) {
                     hatch.getBaseMetaTileEntity()
@@ -886,6 +887,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                             if (hatch.mTemperature > maxTemp) {
                                 hatch.mInputFluid = null;
                                 hatch.mOutputFluid = null;
+                                hatch.mByproductFluid = null;
                                 hatch.markTileDirty();
                             }
                         } else if (te.getMetaTileEntity() instanceof MTEHatchNuclearBus bus) {
@@ -1548,14 +1550,14 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                     if (getRandomNumber(100) < chance) {
                         hatch.mInputFluid.amount -= 1;
                         if (hatch.mInputFluid.amount <= 0) hatch.mInputFluid = null;
-                        hatch.addOutputFluid("deuterium", yield);
+                        hatch.addByproductFluid("deuterium", yield);
                         hatch.markTileDirty();
                     }
                 } else if (name.contains("heavywater")) {
                     if (getRandomNumber(100) < chance) {
                         hatch.mInputFluid.amount -= 1;
                         if (hatch.mInputFluid.amount <= 0) hatch.mInputFluid = null;
-                        hatch.addOutputFluid("tritium", yield);
+                        hatch.addByproductFluid("tritium", yield);
                         hatch.markTileDirty();
                     }
                 }

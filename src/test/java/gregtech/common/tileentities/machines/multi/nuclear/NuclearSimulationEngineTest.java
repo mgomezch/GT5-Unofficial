@@ -983,4 +983,112 @@ public class NuclearSimulationEngineTest {
                 "Quarter-symmetric hatches (2,1) and (1,2) must have identical temperatures at tick " + tick);
         }
     }
+
+    @Test
+    void testNuclearHatchThreeTanksAndAutoOutput() {
+        // Construct hatch via the secondary constructor (no METATILEENTITIES registration required)
+        MTEHatchNuclearHatch hatch = new MTEHatchNuclearHatch("test.nuclear.hatch", 1, 16000, new String[0], null);
+
+        // 1. Verify getTankInfo returns 3 tanks with capacity 16000
+        net.minecraftforge.fluids.FluidTankInfo[] info = hatch
+            .getTankInfo(net.minecraftforge.common.util.ForgeDirection.UP);
+        assertNotNull(info);
+        assertEquals(3, info.length, "Nuclear hatch must report exactly 3 tanks to WAILA and external callers");
+        assertEquals(16000, info[0].capacity);
+        assertEquals(16000, info[1].capacity);
+        assertEquals(16000, info[2].capacity);
+        assertNull(info[0].fluid);
+        assertNull(info[1].fluid);
+        assertNull(info[2].fluid);
+
+        // 2. Set mock fluids into tanks
+        net.minecraftforge.fluids.Fluid dummyCoolant = org.mockito.Mockito.mock(net.minecraftforge.fluids.Fluid.class);
+        net.minecraftforge.fluids.Fluid dummySteam = org.mockito.Mockito.mock(net.minecraftforge.fluids.Fluid.class);
+        net.minecraftforge.fluids.Fluid dummyByproduct = org.mockito.Mockito
+            .mock(net.minecraftforge.fluids.Fluid.class);
+
+        net.minecraftforge.fluids.FluidStack stackCoolant = org.mockito.Mockito
+            .mock(net.minecraftforge.fluids.FluidStack.class);
+        stackCoolant.amount = 5000;
+        org.mockito.Mockito.when(stackCoolant.getFluid())
+            .thenReturn(dummyCoolant);
+
+        net.minecraftforge.fluids.FluidStack stackSteam = org.mockito.Mockito
+            .mock(net.minecraftforge.fluids.FluidStack.class);
+        stackSteam.amount = 3000;
+        org.mockito.Mockito.when(stackSteam.getFluid())
+            .thenReturn(dummySteam);
+
+        net.minecraftforge.fluids.FluidStack stackByproduct = org.mockito.Mockito
+            .mock(net.minecraftforge.fluids.FluidStack.class);
+        stackByproduct.amount = 2000;
+        org.mockito.Mockito.when(stackByproduct.getFluid())
+            .thenReturn(dummyByproduct);
+
+        hatch.mInputFluid = stackCoolant;
+        hatch.mOutputFluid = stackSteam;
+        hatch.mByproductFluid = stackByproduct;
+
+        info = hatch.getTankInfo(net.minecraftforge.common.util.ForgeDirection.UP);
+        assertEquals(5000, info[0].fluid.amount);
+        assertEquals(3000, info[1].fluid.amount);
+        assertEquals(2000, info[2].fluid.amount);
+
+        // 3. Verify drain behavior
+        // Cannot drain input fluid
+        assertFalse(hatch.canDrain(net.minecraftforge.common.util.ForgeDirection.UP, dummyCoolant));
+        // Can drain output and byproduct fluids
+        assertTrue(hatch.canDrain(net.minecraftforge.common.util.ForgeDirection.UP, dummySteam));
+        assertTrue(hatch.canDrain(net.minecraftforge.common.util.ForgeDirection.UP, dummyByproduct));
+
+        // 4. Test auto-output onPostTick
+        // Create mock IFluidHandler and IGregTechTileEntity
+        net.minecraftforge.fluids.IFluidHandler mockTarget = org.mockito.Mockito
+            .mock(net.minecraftforge.fluids.IFluidHandler.class);
+        gregtech.api.interfaces.tileentity.IGregTechTileEntity mockBase = org.mockito.Mockito
+            .mock(gregtech.api.interfaces.tileentity.IGregTechTileEntity.class);
+
+        org.mockito.Mockito.when(mockBase.isServerSide())
+            .thenReturn(true);
+        org.mockito.Mockito.when(mockBase.getFrontFacing())
+            .thenReturn(net.minecraftforge.common.util.ForgeDirection.SOUTH);
+        org.mockito.Mockito.when(mockBase.getITankContainerAtSide(net.minecraftforge.common.util.ForgeDirection.SOUTH))
+            .thenReturn(mockTarget);
+
+        // Mock filling behavior: accepts up to 3000 steam and 2000 byproduct
+        org.mockito.Mockito.when(mockTarget.fill(net.minecraftforge.common.util.ForgeDirection.NORTH, stackSteam, true))
+            .thenReturn(3000);
+        org.mockito.Mockito
+            .when(mockTarget.fill(net.minecraftforge.common.util.ForgeDirection.NORTH, stackByproduct, true))
+            .thenReturn(2000);
+
+        hatch.onPostTick(mockBase, 1L);
+
+        assertNull(hatch.mOutputFluid, "Output fluid should have been pushed completely");
+        assertNull(hatch.mByproductFluid, "Byproduct fluid should have been pushed completely");
+
+        // Verify target cache: second tick without invalidation does NOT re-query getITankContainerAtSide
+        net.minecraftforge.fluids.FluidStack stackSteam2 = org.mockito.Mockito
+            .mock(net.minecraftforge.fluids.FluidStack.class);
+        stackSteam2.amount = 500;
+        hatch.mOutputFluid = stackSteam2;
+        org.mockito.Mockito
+            .when(mockTarget.fill(net.minecraftforge.common.util.ForgeDirection.NORTH, stackSteam2, true))
+            .thenReturn(500);
+        hatch.onPostTick(mockBase, 2L);
+        // getITankContainerAtSide should only have been called once!
+        org.mockito.Mockito.verify(mockBase, org.mockito.Mockito.times(1))
+            .getITankContainerAtSide(net.minecraftforge.common.util.ForgeDirection.SOUTH);
+
+        // Invalidate on adjacent block change
+        hatch.onAdjacentBlockChange(0, 0, 0);
+        net.minecraftforge.fluids.FluidStack stackSteam3 = org.mockito.Mockito
+            .mock(net.minecraftforge.fluids.FluidStack.class);
+        stackSteam3.amount = 500;
+        hatch.mOutputFluid = stackSteam3;
+        hatch.onPostTick(mockBase, 3L);
+        // Now it should have re-queried (total 2 calls)
+        org.mockito.Mockito.verify(mockBase, org.mockito.Mockito.times(2))
+            .getITankContainerAtSide(net.minecraftforge.common.util.ForgeDirection.SOUTH);
+    }
 }
