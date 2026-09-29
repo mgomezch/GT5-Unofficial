@@ -665,17 +665,120 @@ public class NuclearSimulationWebServer {
               button.danger { background: #b91c1c; border-color: #dc2626; }
               select { background: #233044; border: 1px solid var(--border-color); color: #fff; padding: 8px; border-radius: 6px; font-size: 0.85rem; min-height: 38px; cursor: pointer; }
 
+              /* Grid Toolbar & Zoom Controls */
+              .grid-toolbar {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                width: 100%;
+                margin: 4px 0 8px 0;
+                flex-wrap: wrap;
+                gap: 8px;
+              }
+              .grid-toolbar-title {
+                font-size: 0.85rem;
+                font-weight: 700;
+                color: #94a3b8;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+              }
+              .zoom-controls {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                background: #131a24;
+                padding: 4px 8px;
+                border-radius: 6px;
+                border: 1px solid var(--border-color);
+              }
+              .zoom-label {
+                font-size: 0.75rem;
+                color: var(--text-muted);
+                font-weight: 600;
+                margin-right: 2px;
+                user-select: none;
+              }
+              .zoom-btn {
+                background: #1e293b;
+                border: 1px solid var(--border-color);
+                color: #fff;
+                padding: 4px 10px;
+                border-radius: 4px;
+                font-size: 0.75rem;
+                font-weight: 700;
+                cursor: pointer;
+                min-height: 28px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.15s;
+                user-select: none;
+              }
+              .zoom-btn:hover {
+                background: #2d3e58;
+                border-color: var(--accent);
+              }
+              .zoom-btn.active {
+                background: var(--accent);
+                border-color: #38bdf8;
+                color: #0b1320;
+              }
+              #zoom-level-btn {
+                min-width: 48px;
+                text-align: center;
+              }
+              .grid-container-wrapper {
+                width: 100%;
+                overflow-x: auto;
+                overflow-y: hidden;
+                display: flex;
+                justify-content: center;
+                padding: 4px 0;
+                -webkit-overflow-scrolling: touch;
+              }
+
               /* Core Grid */
-              #reactor-grid { display: grid; gap: 6px; background: #0a0d13; padding: 12px; border-radius: 8px; border: 2px solid var(--border-color); margin-top: 10px; user-select: none; }
-              .cell { width: 56px; height: 56px; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: bold; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); position: relative; transition: transform 0.1s; user-select: none; }
+              #reactor-grid {
+                --cell-size: 56px;
+                --cell-gap: 6px;
+                --cell-code-size: 0.8rem;
+                --cell-temp-size: 0.65rem;
+                display: grid;
+                gap: var(--cell-gap);
+                background: #0a0d13;
+                padding: 12px;
+                border-radius: 8px;
+                border: 2px solid var(--border-color);
+                user-select: none;
+                transition: gap 0.12s ease;
+                margin: 0 auto;
+              }
+              .cell {
+                width: var(--cell-size);
+                height: var(--cell-size);
+                border-radius: 6px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                font-weight: bold;
+                cursor: pointer;
+                border: 1px solid rgba(255,255,255,0.1);
+                position: relative;
+                transition: transform 0.1s, width 0.12s ease, height 0.12s ease;
+                user-select: none;
+                overflow: hidden;
+                box-sizing: border-box;
+              }
               @media (hover: hover) {
                 .cell:hover { transform: scale(1.06); z-index: 10; border-color: #fff; }
               }
               .cell.selected { border: 2px solid var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
               .cell.wall-cell { background: transparent !important; border: none !important; color: transparent; cursor: default !important; opacity: 0; pointer-events: none; }
               .cell.wall-cell:hover { transform: none !important; border: none !important; }
-              .cell .cell-temp { font-size: 0.65rem; opacity: 0.9; }
-              .cell .cell-code { font-size: 0.8rem; }
+              .cell .cell-temp { font-size: var(--cell-temp-size); opacity: 0.9; line-height: 1; margin-top: 1px; }
+              .cell .cell-code { font-size: var(--cell-code-size); line-height: 1.1; }
 
               /* Palette */
               .palette { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -723,12 +826,23 @@ public class NuclearSimulationWebServer {
                   font-size: 0.8rem;
                   padding: 8px 10px;
                 }
+                .grid-toolbar {
+                  flex-direction: column;
+                  align-items: stretch;
+                  gap: 6px;
+                }
+                .zoom-controls {
+                  width: 100%;
+                  justify-content: space-between;
+                }
+                .zoom-controls .zoom-btn {
+                  flex: 1;
+                  min-height: 36px;
+                  font-size: 0.85rem;
+                }
                 #reactor-grid {
                   max-width: 100%;
-                  overflow-x: auto;
-                  -webkit-overflow-scrolling: touch;
-                  margin: 10px auto;
-                  justify-content: center;
+                  margin: 6px auto;
                 }
               }
             </style>
@@ -770,7 +884,22 @@ public class NuclearSimulationWebServer {
                   </select>
                 </div>
 
-                <div id="reactor-grid"></div>
+                <div class="grid-toolbar">
+                  <div class="grid-toolbar-title">
+                    <span id="grid-dim-label">Chamber Grid (9×9)</span>
+                  </div>
+                  <div class="zoom-controls">
+                    <span class="zoom-label">Zoom:</span>
+                    <button type="button" class="zoom-btn" onclick="zoomGrid(-1)" title="Zoom Out (− or Key: -)">🔍−</button>
+                    <button type="button" class="zoom-btn" id="zoom-level-btn" onclick="resetZoom()" title="Reset to 100% (Key: 0)">100%</button>
+                    <button type="button" class="zoom-btn" onclick="zoomGrid(1)" title="Zoom In (+ or Key: +)">🔍+</button>
+                    <button type="button" class="zoom-btn fit-btn" onclick="fitGridToScreen()" title="Auto-Fit Grid to Screen (Key: f)">📐 Fit</button>
+                  </div>
+                </div>
+
+                <div class="grid-container-wrapper">
+                  <div id="reactor-grid"></div>
+                </div>
               </div>
 
               <!-- Palette & Inspector -->
@@ -1204,22 +1333,122 @@ public class NuclearSimulationWebServer {
               renderChart();
             }
 
+            let currentZoom = 1.0;
+            let isFitMode = false;
+            let lastGridWidth = 0;
+
+            const ZOOM_LEVELS = [0.35, 0.45, 0.55, 0.70, 0.85, 1.0, 1.15, 1.30, 1.50];
+
+            function zoomGrid(direction) {
+              isFitMode = false;
+              if (direction > 0) {
+                const next = ZOOM_LEVELS.find(lvl => lvl > currentZoom + 0.03);
+                applyZoom(next !== undefined ? next : Math.min(2.0, currentZoom + 0.15));
+              } else {
+                const reversed = [...ZOOM_LEVELS].reverse();
+                const prev = reversed.find(lvl => lvl < currentZoom - 0.03);
+                applyZoom(prev !== undefined ? prev : Math.max(0.35, currentZoom - 0.15));
+              }
+            }
+
+            function resetZoom() {
+              isFitMode = false;
+              applyZoom(1.0);
+            }
+
+            function fitGridToScreen() {
+              isFitMode = true;
+              recalculateFitZoom();
+            }
+
+            function recalculateFitZoom() {
+              const gridElem = document.getElementById("reactor-grid");
+              const wrapper = gridElem ? gridElem.parentElement : null;
+              if (!gridElem || !wrapper || !currentState) return;
+
+              const availableWidth = wrapper.clientWidth - 24;
+              const width = currentState.width;
+              if (width <= 0 || availableWidth <= 60) return;
+
+              const ratio = width + (width - 1) * (6.0 / 56.0);
+              const targetCellSize = Math.max(16, (availableWidth - 24) / ratio);
+              const targetScale = Math.min(1.0, targetCellSize / 56.0);
+              applyZoom(targetScale);
+            }
+
+            function applyZoom(scale) {
+              currentZoom = Math.min(2.0, Math.max(0.3, scale));
+              const baseSize = 56;
+              const cellSize = Math.max(16, Math.round(baseSize * currentZoom));
+              const gap = Math.max(2, Math.round(6 * currentZoom));
+              const codeSize = Math.max(8, Math.round(13 * currentZoom)) + "px";
+              const tempSize = Math.max(7, Math.round(10.5 * currentZoom)) + "px";
+              const hideTemp = cellSize < 32;
+
+              const grid = document.getElementById("reactor-grid");
+              if (grid) {
+                grid.style.setProperty("--cell-size", cellSize + "px");
+                grid.style.setProperty("--cell-gap", gap + "px");
+                grid.style.setProperty("--cell-code-size", codeSize);
+                grid.style.setProperty("--cell-temp-size", tempSize);
+                if (currentState) {
+                  grid.style.gridTemplateColumns = `repeat(${currentState.width}, ${cellSize}px)`;
+                }
+              }
+
+              const zoomBtn = document.getElementById("zoom-level-btn");
+              if (zoomBtn) {
+                zoomBtn.textContent = Math.round(currentZoom * 100) + "%";
+              }
+
+              const fitBtn = document.querySelector(".zoom-btn.fit-btn");
+              if (fitBtn) {
+                if (isFitMode) {
+                  fitBtn.classList.add("active");
+                } else {
+                  fitBtn.classList.remove("active");
+                }
+              }
+
+              const temps = document.querySelectorAll(".cell .cell-temp");
+              for (let i = 0; i < temps.length; i++) {
+                temps[i].style.display = hideTemp ? "none" : "";
+              }
+            }
+
             function updateGridDOM() {
               const gridElem = document.getElementById("reactor-grid");
               const width = currentState.width;
               const height = currentState.height;
               const totalCells = width * height;
 
+              const dimLabel = document.getElementById("grid-dim-label");
+              if (dimLabel) {
+                dimLabel.textContent = `Chamber Grid (${width}×${height})`;
+              }
+
+              if (lastGridWidth !== width) {
+                lastGridWidth = width;
+                if (isFitMode) {
+                  recalculateFitZoom();
+                } else {
+                  applyZoom(currentZoom);
+                }
+              }
+
+              const cellSize = Math.max(16, Math.round(56 * currentZoom));
+              const hideTemp = cellSize < 32;
+
               if (gridElem.children.length !== totalCells) {
                 gridElem.innerHTML = "";
-                gridElem.style.gridTemplateColumns = `repeat(${width}, 56px)`;
+                gridElem.style.gridTemplateColumns = `repeat(${width}, ${cellSize}px)`;
                 for (let y = 0; y < height; y++) {
                   for (let x = 0; x < width; x++) {
                     const cell = document.createElement("div");
                     cell.className = "cell";
                     cell.dataset.x = x;
                     cell.dataset.y = y;
-                    cell.innerHTML = `<span class="cell-code"></span><span class="cell-temp"></span>`;
+                    cell.innerHTML = `<span class="cell-code"></span><span class="cell-temp"${hideTemp ? ' style="display:none;"' : ''}></span>`;
                     cell.addEventListener("click", (e) => {
                       const cx = parseInt(cell.dataset.x);
                       const cy = parseInt(cell.dataset.y);
@@ -1505,8 +1734,12 @@ public class NuclearSimulationWebServer {
 
             async function loadPreset(name) {
               lastChartTick = -1;
-              await fetch(`/api/load-preset?name=${name}`);
+              if (window.innerWidth <= 800) {
+                isFitMode = true;
+              }
+              await fetch(`/api/load-preset?name=${encodeURIComponent(name)}`);
               await fetchState();
+              if (isFitMode) recalculateFitZoom();
               schedulePoll();
             }
 
@@ -1522,19 +1755,39 @@ public class NuclearSimulationWebServer {
               schedulePoll();
             }
 
+            window.addEventListener("resize", () => {
+              if (isFitMode) {
+                recalculateFitZoom();
+              }
+            });
+
             window.addEventListener("keydown", (e) => {
               if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "SELECT")) return;
               if (e.key === "Escape" || e.key === "i" || e.key === "I") {
                 setInteractionMode("INSPECT");
               } else if (e.key === "p" || e.key === "P") {
                 setInteractionMode("PAINT");
+              } else if (e.key === "+" || e.key === "=") {
+                zoomGrid(1);
+              } else if (e.key === "-" || e.key === "_") {
+                zoomGrid(-1);
+              } else if (e.key === "0") {
+                resetZoom();
+              } else if (e.key === "f" || e.key === "F") {
+                fitGridToScreen();
               }
             });
 
             initTurbineSelects();
             initPalette();
             setInteractionMode("INSPECT");
-            fetchState().then(() => schedulePoll());
+            if (window.innerWidth <= 800) {
+              isFitMode = true;
+            }
+            fetchState().then(() => {
+              if (isFitMode) recalculateFitZoom();
+              schedulePoll();
+            });
             </script>
             </body>
             </html>
