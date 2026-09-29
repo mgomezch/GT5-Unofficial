@@ -62,6 +62,11 @@ public class NuclearSimulationEngine {
     public static final double DEFAULT_FUEL_BURNUP_MULTIPLIER = 1.0;
     public static double fuelBurnupMultiplier = DEFAULT_FUEL_BURNUP_MULTIPLIER;
 
+    public static final double DEFAULT_WALL_REFLECTION_CHANCE = 0.50;
+    public static double wallReflectionChance = DEFAULT_WALL_REFLECTION_CHANCE;
+    public static final double DEFAULT_WALL_ABSORB_HEAT_PER_NEUTRON = 12.0;
+    public static double wallAbsorbHeatPerNeutron = DEFAULT_WALL_ABSORB_HEAT_PER_NEUTRON;
+
     public static void setAmbientTemperature(double temp) {
         ambientTemp = temp;
         AMBIENT_TEMP = temp;
@@ -123,6 +128,8 @@ public class NuclearSimulationEngine {
         coolantFeedRate = DEFAULT_COOLANT_FEED_RATE;
         coolingHeatPerLiter = DEFAULT_COOLING_HEAT_PER_LITER;
         fuelBurnupMultiplier = DEFAULT_FUEL_BURNUP_MULTIPLIER;
+        wallReflectionChance = DEFAULT_WALL_REFLECTION_CHANCE;
+        wallAbsorbHeatPerNeutron = DEFAULT_WALL_ABSORB_HEAT_PER_NEUTRON;
         ic2CoolantHeatPerLiter = DEFAULT_IC2_COOLANT_HEAT_PER_LITER;
         setAmbientTemperature(DEFAULT_AMBIENT_TEMP);
     }
@@ -237,6 +244,9 @@ public class NuclearSimulationEngine {
         public int totalNeutronsGenerated = 0;
         public int fastNeutronsAbsorbed = 0;
         public int thermalNeutronsAbsorbed = 0;
+        public int wallNeutronsReflected = 0;
+        public int wallNeutronsAbsorbed = 0;
+        public double wallHeatPool = 0;
         public int neutronsEscaped = 0;
         public double maxTemperature = AMBIENT_TEMP;
         public double averageTemperature = AMBIENT_TEMP;
@@ -302,9 +312,29 @@ public class NuclearSimulationEngine {
                     final int MAX_STEPS = (sizeX + sizeY) * 2;
 
                     while (steps++ < MAX_STEPS) {
-                        if (posX < 0 || posX >= sizeX || posY < 0 || posY >= sizeY) {
-                            result.neutronsEscaped += batch;
-                            break;
+                        boolean isOutOfBounds = (posX < 0 || posX >= sizeX || posY < 0 || posY >= sizeY);
+                        boolean isNullCell = !isOutOfBounds && (grid[posX][posY] == null);
+
+                        if (isOutOfBounds || isNullCell) {
+                            // Hit reactor outer wall or corner null cell!
+                            if (RAND.nextDouble() < wallReflectionChance) {
+                                // Wall reflection: bounce back in the direction it came from!
+                                result.wallNeutronsReflected += batch;
+                                dir = (dir + 2) % 4; // reverse 180 degrees
+                                posX += dX[dir];
+                                posY += dY[dir];
+                                // Moderate fast neutrons slightly on wall bounce (casing reflection)
+                                if (type == NeutronType.FAST && RAND.nextDouble() < 0.25) {
+                                    type = NeutronType.THERMAL;
+                                }
+                                continue;
+                            } else {
+                                // Absorbed by the walls and turn into heat!
+                                result.wallNeutronsAbsorbed += batch;
+                                double heat = batch * wallAbsorbHeatPerNeutron;
+                                result.wallHeatPool += heat;
+                                break;
+                            }
                         }
 
                         INuclearTile hitTile = grid[posX][posY];
@@ -342,6 +372,10 @@ public class NuclearSimulationEngine {
 
                         posX += dX[dir];
                         posY += dY[dir];
+                    }
+
+                    if (steps >= MAX_STEPS) {
+                        result.neutronsEscaped += batch;
                     }
                 }
             }
@@ -382,12 +416,12 @@ public class NuclearSimulationEngine {
                                     deltaTemp[nx][ny] += flow;
                                 }
                             } else {
-                                // Radiation to casing / empty space
+                                // Radiation to casing / null cell wall
                                 double loss = (tempA - AMBIENT_TEMP) * (0.5 * coeffA / SUBSTEPS);
                                 deltaTemp[x][y] -= loss;
                             }
                         } else {
-                            // Core edge boundary heat loss
+                            // Core edge boundary heat loss to outer wall
                             double loss = (tempA - AMBIENT_TEMP) * (coeffA / (SUBSTEPS * 2.0));
                             deltaTemp[x][y] -= loss;
                         }
@@ -415,7 +449,42 @@ public class NuclearSimulationEngine {
             }
         }
 
+        // 4. WALL HEAT DISTRIBUTION
+        // Heat dissipated into the walls is added to the reactor-structure heat increment pool,
+        // and distributed in equal shares to all non-null cells.
+        result.totalHeatEU += result.wallHeatPool;
+        if (activeTileCount > 0 && result.wallHeatPool > 0) {
+            double heatPerCell = result.wallHeatPool / activeTileCount;
+            for (int x = 0; x < sizeX; x++) {
+                for (int y = 0; y < sizeY; y++) {
+                    INuclearTile tile = grid[x][y];
+                    if (tile != null) {
+                        tile.addHeat(heatPerCell);
+                    }
+                }
+            }
+        }
+
         return result;
+    }
+
+    /**
+     * Checks if (x,y) in an N x N grid is a cut corner (null cell).
+     */
+    public static boolean isCornerNullCell(int x, int y, int sizeX, int sizeY) {
+        if (sizeX != sizeY) return false;
+        int n = sizeX;
+        if (n <= 3) {
+            return (x == 0 || x == n - 1) && (y == 0 || y == n - 1);
+        } else if (n <= 7) {
+            return (x == 0 || x == n - 1) && (y == 0 || y == n - 1);
+        } else {
+            boolean xCorner = (x == 0 || x == n - 1);
+            boolean yCorner = (y == 0 || y == n - 1);
+            boolean xSub = (x == 1 || x == n - 2);
+            boolean ySub = (y == 1 || y == n - 2);
+            return (xCorner && yCorner) || (xCorner && ySub) || (xSub && yCorner);
+        }
     }
 
     /**

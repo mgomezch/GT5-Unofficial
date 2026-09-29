@@ -37,7 +37,8 @@ public class SimTile implements INuclearTile {
         COOLANT_CELL_60K("60k Coolant Cell", "C6"),
         COOLANT_CELL_360K("360k Coolant Cell", "C3"),
         BETAVOLTAIC_HV("Betavoltaic Cell (HV)", "BH"),
-        BETAVOLTAIC_EV("Betavoltaic Cell (EV)", "BV");
+        BETAVOLTAIC_EV("Betavoltaic Cell (EV)", "BV"),
+        NULL_WALL("Reflective Wall", "NL");
 
         public final String displayName;
         public final String code;

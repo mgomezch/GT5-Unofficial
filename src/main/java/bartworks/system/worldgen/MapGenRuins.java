@@ -313,8 +313,7 @@ public abstract class MapGenRuins extends WorldGenerator {
                                                 ChestGenHooks.getItems(PYRAMID_JUNGLE_CHEST, rand),
                                                 chest,
                                                 ChestGenHooks.getCount(PYRAMID_JUNGLE_CHEST, rand));
-                                        } catch (Exception ignored) {
-                                        }
+                                        } catch (Exception ignored) {}
                                     }
                                 }
 

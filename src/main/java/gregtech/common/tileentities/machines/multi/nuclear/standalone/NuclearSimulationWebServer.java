@@ -160,6 +160,15 @@ public class NuclearSimulationWebServer {
             sb.append("\"escapedNeutrons\":")
                 .append(grid.getLastEscapedNeutrons())
                 .append(",");
+            sb.append("\"wallReflected\":")
+                .append(grid.getLastWallReflected())
+                .append(",");
+            sb.append("\"wallAbsorbed\":")
+                .append(grid.getLastWallAbsorbed())
+                .append(",");
+            sb.append("\"wallHeatPool\":")
+                .append(String.format(java.util.Locale.US, "%.1f", grid.getLastWallHeatPool()))
+                .append(",");
             sb.append("\"totalNeutrons\":")
                 .append(grid.getTotalNeutronsGenerated())
                 .append(",");
@@ -663,6 +672,8 @@ public class NuclearSimulationWebServer {
                 .cell:hover { transform: scale(1.06); z-index: 10; border-color: #fff; }
               }
               .cell.selected { border: 2px solid var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+              .cell.wall-cell { background: #181b1f !important; border: 1px solid #282c34 !important; color: #5c6370; cursor: not-allowed !important; opacity: 0.7; }
+              .cell.wall-cell:hover { transform: none !important; border-color: #3b4252 !important; }
               .cell .cell-temp { font-size: 0.65rem; opacity: 0.9; }
               .cell .cell-code { font-size: 0.8rem; }
 
@@ -1226,14 +1237,18 @@ public class NuclearSimulationWebServer {
                 cell.dataset.y = t.y;
 
                 const isSelected = selectedTilePos && selectedTilePos.x === t.x && selectedTilePos.y === t.y;
-                const desiredClass = "cell" + (isSelected ? " selected" : "");
-                if (cell.className !== desiredClass) {
-                  cell.className = desiredClass;
-                }
-
-                const bg = getTempColor(t.temp);
-                if (cell.style.backgroundColor !== bg) {
-                  cell.style.backgroundColor = bg;
+                if (t.code === "NL") {
+                  cell.className = "cell wall-cell" + (isSelected ? " selected" : "");
+                  cell.style.backgroundColor = "#181b1f";
+                } else {
+                  const desiredClass = "cell" + (isSelected ? " selected" : "");
+                  if (cell.className !== desiredClass) {
+                    cell.className = desiredClass;
+                  }
+                  const bg = getTempColor(t.temp);
+                  if (cell.style.backgroundColor !== bg) {
+                    cell.style.backgroundColor = bg;
+                  }
                 }
 
                 const codeEl = cell.children[0];
@@ -1251,6 +1266,10 @@ public class NuclearSimulationWebServer {
             function handleCellClick(x, y, e) {
               const tile = currentState && currentState.tiles.find(t => t.x === x && t.y === y);
               if (!tile) return;
+              if (tile.code === "NL") {
+                selectCell(tile);
+                return;
+              }
               if (interactionMode === "INSPECT" || (e && e.shiftKey)) {
                 selectCell(tile);
               } else {
@@ -1266,7 +1285,8 @@ public class NuclearSimulationWebServer {
               for (let i = 0; i < gridElem.children.length; i++) {
                 const c = gridElem.children[i];
                 const isSel = parseInt(c.dataset.x) === tile.x && parseInt(c.dataset.y) === tile.y;
-                const desired = "cell" + (isSel ? " selected" : "");
+                const isWall = c.classList.contains("wall-cell");
+                const desired = "cell" + (isWall ? " wall-cell" : "") + (isSel ? " selected" : "");
                 if (c.className !== desired) c.className = desired;
               }
             }
@@ -1274,7 +1294,13 @@ public class NuclearSimulationWebServer {
             function renderInspector(t) {
               const el = document.getElementById("tile-inspector");
               let extraHtml = "";
-              if (t.isFuel) {
+              if (t.code === "NL") {
+                extraHtml = `
+                  <div class="stat-row"><span>Structure:</span><span class="stat-val" style="color:var(--text-muted);">Reflective Casing Wall</span></div>
+                  <div class="stat-row"><span>Wall Reflection:</span><span class="stat-val" style="color:#38bdf8;">50% Bounce</span></div>
+                  <div class="stat-row"><span>Wall Absorption:</span><span class="stat-val" style="color:#f59e0b;">12 EU/n &rarr; Pool</span></div>
+                `;
+              } else if (t.isFuel) {
                 extraHtml = `
                   <div class="stat-row"><span>Durability:</span><span class="stat-val">${t.durability} (${t.durabilityPct}%)</span></div>
                 `;

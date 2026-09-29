@@ -795,12 +795,8 @@ public class GTNEINeutronInteractionHandler extends TemplateRecipeHandler {
 
         if (cached instanceof CachedNeutronInteractionRecipe recipe) {
             // --- Page 1: Fast Neutron Panel ---
-            GuiDraw.drawStringC(
-                StatCollector.translateToLocal("gt.nei.neutron_interaction.fast"),
-                83,
-                5,
-                0x404040,
-                false);
+            GuiDraw
+                .drawStringC(StatCollector.translateToLocal("gt.nei.neutron_interaction.fast"), 83, 5, 0x404040, false);
             String fastScatStr = String.format(Locale.US, "%.1f %%", recipe.data.fastScattering * 100.0);
             GuiDraw.drawStringC(fastScatStr, 47, 16, 0x404040, false);
 
@@ -827,19 +823,9 @@ public class GTNEINeutronInteractionHandler extends TemplateRecipeHandler {
             GuiDraw.drawStringC(thermAbsStr, 97, 120, 0x00A000, false);
 
             // Bottom summary
-            GuiDraw.drawString(
-                EnumChatFormatting.DARK_GRAY + recipe.data.category,
-                28,
-                137,
-                0x202020,
-                false);
+            GuiDraw.drawString(EnumChatFormatting.DARK_GRAY + recipe.data.category, 28, 137, 0x202020, false);
             if (recipe.data.extraInfo != null) {
-                GuiDraw.drawString(
-                    EnumChatFormatting.GRAY + recipe.data.extraInfo,
-                    28,
-                    147,
-                    0x505050,
-                    false);
+                GuiDraw.drawString(EnumChatFormatting.GRAY + recipe.data.extraInfo, 28, 147, 0x505050, false);
             }
 
         } else if (cached instanceof CachedNeutronCaptureRecipe recipe) {
@@ -852,16 +838,10 @@ public class GTNEINeutronInteractionHandler extends TemplateRecipeHandler {
                 false);
             GuiDraw.drawString(recipe.data.fastNeutronEnergyEU + " EU", 36, 52, 0x00A000, false);
             GuiDraw.drawString(String.format(Locale.US, "%.2f °C", recipe.data.directHeatC), 113, 18, 0x404040, false);
-            GuiDraw.drawString(
-                String.format(Locale.US, "%.0f EU", recipe.data.directEU),
-                113,
-                52,
-                0x404040,
-                false);
+            GuiDraw.drawString(String.format(Locale.US, "%.0f EU", recipe.data.directEU), 113, 52, 0x404040, false);
 
             if (recipe.data.maxNeutronsEmitted > 0) {
-                String emitted = String
-                    .format(Locale.US, "Max %.1f neutrons emitted", recipe.data.maxNeutronsEmitted);
+                String emitted = String.format(Locale.US, "Max %.1f neutrons emitted", recipe.data.maxNeutronsEmitted);
                 GuiDraw.drawStringC(emitted, 83, 56, 0x00A000, false);
             }
 
@@ -881,19 +861,9 @@ public class GTNEINeutronInteractionHandler extends TemplateRecipeHandler {
             }
 
             // Bottom summary
-            GuiDraw.drawString(
-                EnumChatFormatting.DARK_GRAY + recipe.data.category,
-                28,
-                137,
-                0x202020,
-                false);
+            GuiDraw.drawString(EnumChatFormatting.DARK_GRAY + recipe.data.category, 28, 137, 0x202020, false);
             if (recipe.data.extraInfo != null) {
-                GuiDraw.drawString(
-                    EnumChatFormatting.GRAY + recipe.data.extraInfo,
-                    28,
-                    147,
-                    0x505050,
-                    false);
+                GuiDraw.drawString(EnumChatFormatting.GRAY + recipe.data.extraInfo, 28, 147, 0x505050, false);
             }
         }
     }
@@ -952,13 +922,13 @@ public class GTNEINeutronInteractionHandler extends TemplateRecipeHandler {
             } else if (relX >= 95 && relX <= 145 && relY >= 12 && relY <= 28) {
                 currenttip.add(EnumChatFormatting.GOLD + "Direct Heat by Disintegration");
                 currenttip.add(
-                    EnumChatFormatting.GRAY + String
-                        .format(Locale.US, "Fission heat: %.2f °C per fission reaction", r2.data.directHeatC));
+                    EnumChatFormatting.GRAY
+                        + String.format(Locale.US, "Fission heat: %.2f °C per fission reaction", r2.data.directHeatC));
             } else if (relX >= 95 && relX <= 145 && relY >= 44 && relY <= 62) {
                 currenttip.add(EnumChatFormatting.YELLOW + "Direct Energy");
                 currenttip.add(
-                    EnumChatFormatting.GRAY + String
-                        .format(Locale.US, "Energy released: %.0f EU per fission reaction", r2.data.directEU));
+                    EnumChatFormatting.GRAY
+                        + String.format(Locale.US, "Energy released: %.0f EU per fission reaction", r2.data.directEU));
             } else if (relX >= 25 && relX <= 140 && relY >= 52 && relY <= 66) {
                 currenttip.add(EnumChatFormatting.GREEN + "Neutrons Multiplication");
                 currenttip.add(EnumChatFormatting.GRAY + "New fast neutrons produced (varies with core temperature)");
@@ -972,8 +942,7 @@ public class GTNEINeutronInteractionHandler extends TemplateRecipeHandler {
     }
 
     @Override
-    public List<String> handleItemTooltip(GuiRecipe<?> gui, ItemStack stack, List<String> currenttip,
-        int recipeIndex) {
+    public List<String> handleItemTooltip(GuiRecipe<?> gui, ItemStack stack, List<String> currenttip, int recipeIndex) {
         currenttip = super.handleItemTooltip(gui, stack, currenttip, recipeIndex);
         if (recipeIndex < 0 || recipeIndex >= arecipes.size() || stack == null) return currenttip;
 
@@ -1007,8 +976,8 @@ public class GTNEINeutronInteractionHandler extends TemplateRecipeHandler {
         } else if (data.absorptionOutput != null && matches(stack, data.absorptionOutput)) {
             currenttip
                 .add(EnumChatFormatting.DARK_RED + "Depleted Component" + EnumChatFormatting.GRAY + " (Byproduct)");
-            currenttip.add(
-                EnumChatFormatting.GRAY + "Produced after absorbing full neutron capacity in the Nuclear Reactor");
+            currenttip
+                .add(EnumChatFormatting.GRAY + "Produced after absorbing full neutron capacity in the Nuclear Reactor");
         }
         return currenttip;
     }

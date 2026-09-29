@@ -3,11 +3,13 @@ package gregtech.common.tileentities.machines.multi.nuclear;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.PacketBuffer;
 import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
+
 import com.gtnewhorizons.modularui.common.internal.network.NetworkUtils;
 
 public class ReactorGridSyncData {
@@ -26,6 +28,7 @@ public class ReactorGridSyncData {
     public List<ReactorGridCellData> cells = new ArrayList<>();
 
     public static class ReactorGridCellData {
+
         public boolean exists = false;
         public boolean isFluid = false;
         public ItemStack itemStack = null;
@@ -48,7 +51,8 @@ public class ReactorGridSyncData {
             if (fastAbsorbed != that.fastAbsorbed || thermalAbsorbed != that.thermalAbsorbed) return false;
             if (directEU != that.directEU) return false;
             if (!ItemStack.areItemStacksEqual(itemStack, that.itemStack)) return false;
-            if (fluidStack == null ? that.fluidStack != null : !fluidStack.isFluidStackIdentical(that.fluidStack)) return false;
+            if (fluidStack == null ? that.fluidStack != null : !fluidStack.isFluidStackIdentical(that.fluidStack))
+                return false;
             return true;
         }
 
@@ -154,13 +158,15 @@ public class ReactorGridSyncData {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ReactorGridSyncData that = (ReactorGridSyncData) o;
-        if (gridSize != that.gridSize || pipeTier != that.pipeTier || directPowerEUt != that.directPowerEUt) return false;
+        if (gridSize != that.gridSize || pipeTier != that.pipeTier || directPowerEUt != that.directPowerEUt)
+            return false;
         if (Math.abs(coreTemp - that.coreTemp) > 0.5f) return false;
         if (Math.abs(avgTemp - that.avgTemp) > 0.5f) return false;
         if (Math.abs(efficiency - that.efficiency) > 0.005) return false;
         if (cells.size() != that.cells.size()) return false;
         for (int i = 0; i < cells.size(); i++) {
-            if (!cells.get(i).equals(that.cells.get(i))) return false;
+            if (!cells.get(i)
+                .equals(that.cells.get(i))) return false;
         }
         return true;
     }

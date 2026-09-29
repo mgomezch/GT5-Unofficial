@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import gregtech.common.tileentities.machines.multi.nuclear.INuclearTile;
 import gregtech.common.tileentities.machines.multi.nuclear.MTEHatchNuclearHatch;
 import gregtech.common.tileentities.machines.multi.nuclear.NuclearSimulationEngine;
 
@@ -31,6 +32,9 @@ public class StandaloneNuclearGrid {
     private int lastFastAbsorbed = 0;
     private int lastThermalAbsorbed = 0;
     private int lastEscapedNeutrons = 0;
+    private int lastWallReflected = 0;
+    private int lastWallAbsorbed = 0;
+    private double lastWallHeatPool = 0;
 
     // Historical accumulators
     private long totalNeutronsGenerated = 0;
@@ -175,7 +179,11 @@ public class StandaloneNuclearGrid {
     public void clearGrid() {
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
-                grid[x][y] = new SimTile(SimTile.TileType.EMPTY);
+                if (NuclearSimulationEngine.isCornerNullCell(x, y, width, height)) {
+                    grid[x][y] = new SimTile(SimTile.TileType.NULL_WALL);
+                } else {
+                    grid[x][y] = new SimTile(SimTile.TileType.EMPTY);
+                }
             }
         }
         resetMetrics();
@@ -207,6 +215,9 @@ public class StandaloneNuclearGrid {
 
     public void setTile(int x, int y, SimTile.TileType type) {
         if (x >= 0 && x < width && y >= 0 && y < height) {
+            if (NuclearSimulationEngine.isCornerNullCell(x, y, width, height)) {
+                return;
+            }
             grid[x][y].setType(type);
         }
     }
@@ -247,11 +258,17 @@ public class StandaloneNuclearGrid {
                     if (name != null && name.contains("highpressure")) {
                         int reqTier = MTEHatchNuclearHatch.getRequiredFluidTier(name);
                         if (pipeTier < reqTier) {
-                            triggerExplosion("Catastrophic overpressure explosion: " + name + " requires "
-                                + NuclearSimulationEngine.getPipeTierVoltageName(reqTier) + " ("
-                                + NuclearSimulationEngine.getPipeTierName(reqTier) + ") casing or higher, but reactor is only "
-                                + NuclearSimulationEngine.getPipeTierVoltageName(pipeTier) + " ("
-                                + NuclearSimulationEngine.getPipeTierName(pipeTier) + ")");
+                            triggerExplosion(
+                                "Catastrophic overpressure explosion: " + name
+                                    + " requires "
+                                    + NuclearSimulationEngine.getPipeTierVoltageName(reqTier)
+                                    + " ("
+                                    + NuclearSimulationEngine.getPipeTierName(reqTier)
+                                    + ") casing or higher, but reactor is only "
+                                    + NuclearSimulationEngine.getPipeTierVoltageName(pipeTier)
+                                    + " ("
+                                    + NuclearSimulationEngine.getPipeTierName(pipeTier)
+                                    + ")");
                             return false;
                         }
                     }
@@ -315,7 +332,17 @@ public class StandaloneNuclearGrid {
         }
 
         // 3. Call the mod's pure Java NuclearSimulationEngine
-        NuclearSimulationEngine.SimulationResult res = NuclearSimulationEngine.simulate(grid, width, height);
+        INuclearTile[][] simGrid = new INuclearTile[width][height];
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                if (grid[x][y] != null && grid[x][y].getType() == SimTile.TileType.NULL_WALL) {
+                    simGrid[x][y] = null;
+                } else {
+                    simGrid[x][y] = grid[x][y];
+                }
+            }
+        }
+        NuclearSimulationEngine.SimulationResult res = NuclearSimulationEngine.simulate(simGrid, width, height);
 
         coreMaxTemp = res.maxTemperature;
         coreAvgTemp = res.averageTemperature;
@@ -323,6 +350,9 @@ public class StandaloneNuclearGrid {
         lastFastAbsorbed = res.fastNeutronsAbsorbed;
         lastThermalAbsorbed = res.thermalNeutronsAbsorbed;
         lastEscapedNeutrons = res.neutronsEscaped;
+        lastWallReflected = res.wallNeutronsReflected;
+        lastWallAbsorbed = res.wallNeutronsAbsorbed;
+        lastWallHeatPool = res.wallHeatPool;
         efficiency = NuclearSimulationEngine.calculateEfficiency(coreAvgTemp);
 
         totalNeutronsGenerated += lastNeutronsProduced;
@@ -767,6 +797,18 @@ public class StandaloneNuclearGrid {
 
     public int getLastEscapedNeutrons() {
         return lastEscapedNeutrons;
+    }
+
+    public int getLastWallReflected() {
+        return lastWallReflected;
+    }
+
+    public int getLastWallAbsorbed() {
+        return lastWallAbsorbed;
+    }
+
+    public double getLastWallHeatPool() {
+        return lastWallHeatPool;
     }
 
     public long getTotalNeutronsGenerated() {

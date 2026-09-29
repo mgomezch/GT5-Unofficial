@@ -253,13 +253,15 @@ public class NEIGTConfig implements IConfigureNEI {
                 .build());
 
         event.registerHandlerInfo(
-            new HandlerInfo.Builder(NEUTRON_INTERACTION_HANDLER.getOverlayIdentifier(), "GregTech", Mods.ModIDs.GREG_TECH)
-                .setHeight(154)
-                .setShiftY(0)
-                .setDisplayStack(ItemList.Machine_Nuclear_Reactor.get(1L))
-                .setMaxRecipesPerPage(1)
-                .setShowBadge(true)
-                .build());
+            new HandlerInfo.Builder(
+                NEUTRON_INTERACTION_HANDLER.getOverlayIdentifier(),
+                "GregTech",
+                Mods.ModIDs.GREG_TECH).setHeight(154)
+                    .setShiftY(0)
+                    .setDisplayStack(ItemList.Machine_Nuclear_Reactor.get(1L))
+                    .setMaxRecipesPerPage(1)
+                    .setShowBadge(true)
+                    .build());
     }
 
     private HandlerInfo.Builder createHandlerInfoBuilderTemplate(RecipeCategory recipeCategory) {

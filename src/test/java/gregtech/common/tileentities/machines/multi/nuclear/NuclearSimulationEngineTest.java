@@ -372,7 +372,9 @@ public class NuclearSimulationEngineTest {
         // Step with hot dry hatch receiving coolant
         grid.step();
         assertFalse(grid.isExploded(), "Injecting coolant into dry hatch above boiling threshold must NOT explode");
-        assertTrue(grid.isPowerFailed(), "Injecting coolant into dry hatch above boiling threshold must trigger powerfail shutdown");
+        assertTrue(
+            grid.isPowerFailed(),
+            "Injecting coolant into dry hatch above boiling threshold must trigger powerfail shutdown");
         assertTrue(
             grid.getPowerFailReason()
                 .contains("Thermal Shock"));
@@ -471,20 +473,21 @@ public class NuclearSimulationEngineTest {
     @Test
     void testOverheatingHatchesVoidContentsWithoutExploding() {
         // High core temperature exceeding Electrum casing limit (1000°C)
-        gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid grid =
-            new gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid(
-                3, 3, NuclearSimulationEngine.PIPE_TIER_ELECTRUM);
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid grid = new gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid(
+            3,
+            3,
+            NuclearSimulationEngine.PIPE_TIER_ELECTRUM);
 
         // Put a superheated fuel rod and superheated coolant hatch
-        gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile fuelTile =
-            grid.getTile(1, 1);
-        fuelTile.setType(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.FUEL_URANIUM_QUAD);
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile fuelTile = grid.getTile(1, 1);
+        fuelTile
+            .setType(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.FUEL_URANIUM_QUAD);
         fuelTile.setTemperature(3000.0); // Well above 1000°C limit
 
         NuclearSimulationEngine.coolantFeedRate = 0; // Prevent refilling so hatch actually overheats
-        gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile hatchTile =
-            grid.getTile(0, 1);
-        hatchTile.setType(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.HATCH_IC2_COOLANT);
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile hatchTile = grid.getTile(0, 1);
+        hatchTile
+            .setType(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.HATCH_IC2_COOLANT);
         hatchTile.setInputFluidAmount(10);
         hatchTile.setOutputFluidAmount(200);
         hatchTile.setTemperature(3000.0);
@@ -499,30 +502,45 @@ public class NuclearSimulationEngineTest {
         assertEquals(0, hatchTile.getOutputFluidAmount(), "Overheating fluid hatch must void output fluid");
 
         // Overheating fuel bus must have voided its fuel
-        assertEquals(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.EMPTY,
-            fuelTile.getType(), "Overheating fuel tile must void its fuel contents");
+        assertEquals(
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.EMPTY,
+            fuelTile.getType(),
+            "Overheating fuel tile must void its fuel contents");
     }
 
     @Test
     void testHighPressureCoolantExplodesOnInsufficientCasing() {
         // Electrum (EV, tier 0) casing cannot withstand High-Pressure Distilled Water (requires Osmium / LuV, tier 2)
-        gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid gridEV =
-            new gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid(
-                3, 3, NuclearSimulationEngine.PIPE_TIER_ELECTRUM);
-        gridEV.setTile(0, 1, gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.HATCH_HP_DISTILLED_WATER);
-        gridEV.getTile(0, 1).setInputFluidAmount(100);
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid gridEV = new gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid(
+            3,
+            3,
+            NuclearSimulationEngine.PIPE_TIER_ELECTRUM);
+        gridEV.setTile(
+            0,
+            1,
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.HATCH_HP_DISTILLED_WATER);
+        gridEV.getTile(0, 1)
+            .setInputFluidAmount(100);
 
         gridEV.step();
         assertTrue(gridEV.isExploded(), "Using HP water on Electrum casing must trigger catastrophic explosion!");
-        assertTrue(gridEV.getExplosionReason().toLowerCase().contains("overpressure"),
+        assertTrue(
+            gridEV.getExplosionReason()
+                .toLowerCase()
+                .contains("overpressure"),
             "Explosion reason must mention overpressure");
 
         // Same HP coolant in Osmium (LuV, tier 2) casing must NOT explode
-        gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid gridLuV =
-            new gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid(
-                3, 3, NuclearSimulationEngine.PIPE_TIER_OSMIUM);
-        gridLuV.setTile(0, 1, gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.HATCH_HP_DISTILLED_WATER);
-        gridLuV.getTile(0, 1).setInputFluidAmount(100);
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid gridLuV = new gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid(
+            3,
+            3,
+            NuclearSimulationEngine.PIPE_TIER_OSMIUM);
+        gridLuV.setTile(
+            0,
+            1,
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.HATCH_HP_DISTILLED_WATER);
+        gridLuV.getTile(0, 1)
+            .setInputFluidAmount(100);
 
         gridLuV.step();
         assertFalse(gridLuV.isExploded(), "HP water on Osmium (LuV) casing must be safe from casing explosion!");
@@ -530,18 +548,29 @@ public class NuclearSimulationEngineTest {
 
     @Test
     void testDryCoolantThermalShockTriggersPowerfailShutdown() {
-        gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid grid =
-            new gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid(
-                3, 3, NuclearSimulationEngine.PIPE_TIER_ELECTRUM);
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid grid = new gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid(
+            3,
+            3,
+            NuclearSimulationEngine.PIPE_TIER_ELECTRUM);
 
         // Grid contains fuel, reflector, and betavoltaic
-        grid.setTile(1, 1, gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.FUEL_URANIUM_QUAD);
-        grid.setTile(1, 2, gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.REFLECTOR_BERYLLIUM);
-        grid.setTile(1, 0, gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.BETAVOLTAIC_HV);
+        grid.setTile(
+            1,
+            1,
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.FUEL_URANIUM_QUAD);
+        grid.setTile(
+            1,
+            2,
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.REFLECTOR_BERYLLIUM);
+        grid.setTile(
+            1,
+            0,
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.BETAVOLTAIC_HV);
 
         // Dry superheated coolant hatch (> 100°C threshold)
         gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile hatch = grid.getTile(0, 1);
-        hatch.setType(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.HATCH_DISTILLED_WATER);
+        hatch.setType(
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.HATCH_DISTILLED_WATER);
         hatch.setInputFluidAmount(0);
         hatch.setWasDry(true);
         hatch.setTemperature(350.0); // Superheated
@@ -553,69 +582,217 @@ public class NuclearSimulationEngineTest {
 
         // Must trigger powerfail shutdown
         assertTrue(grid.isPowerFailed(), "Reactor must shut down with powerfail on dry coolant thermal shock!");
-        assertTrue(grid.getPowerFailReason().contains("Thermal Shock"), "Reason must report thermal shock");
+        assertTrue(
+            grid.getPowerFailReason()
+                .contains("Thermal Shock"),
+            "Reason must report thermal shock");
 
         // Fuel must be voided
-        assertEquals(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.EMPTY,
-            grid.getTile(1, 1).getType(), "Fuel must be voided upon dry coolant shutdown");
+        assertEquals(
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.EMPTY,
+            grid.getTile(1, 1)
+                .getType(),
+            "Fuel must be voided upon dry coolant shutdown");
 
         // Coolant must be voided
         assertEquals(0, hatch.getInputFluidAmount(), "Coolant fluid must be voided");
 
         // Crucially, Reflector and Betavoltaic MUST be preserved!
-        assertEquals(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.REFLECTOR_BERYLLIUM,
-            grid.getTile(1, 2).getType(), "Reflector must NOT be voided on dry coolant shutdown!");
-        assertEquals(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.BETAVOLTAIC_HV,
-            grid.getTile(1, 0).getType(), "Betavoltaic cell must NOT be voided on dry coolant shutdown!");
+        assertEquals(
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.REFLECTOR_BERYLLIUM,
+            grid.getTile(1, 2)
+                .getType(),
+            "Reflector must NOT be voided on dry coolant shutdown!");
+        assertEquals(
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.BETAVOLTAIC_HV,
+            grid.getTile(1, 0)
+                .getType(),
+            "Betavoltaic cell must NOT be voided on dry coolant shutdown!");
     }
 
     @Test
     void testLossOfCoolantTriggersDryCoolantShutdown() {
-        gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid grid =
-            new gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid(
-                3, 3, NuclearSimulationEngine.PIPE_TIER_ELECTRUM);
+        gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid grid = new gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid(
+            3,
+            3,
+            NuclearSimulationEngine.PIPE_TIER_ELECTRUM);
 
         // Active fuel and an empty coolant hatch with no fluid feed
         NuclearSimulationEngine.coolantFeedRate = 0; // Simulate fluid supply failure
-        grid.setTile(1, 1, gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.FUEL_URANIUM_QUAD);
-        grid.setTile(1, 2, gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.REFLECTOR_BERYLLIUM);
-        grid.setTile(0, 1, gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.HATCH_IC2_COOLANT);
-        grid.getTile(0, 1).setInputFluidAmount(0);
+        grid.setTile(
+            1,
+            1,
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.FUEL_URANIUM_QUAD);
+        grid.setTile(
+            1,
+            2,
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.REFLECTOR_BERYLLIUM);
+        grid.setTile(
+            0,
+            1,
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.HATCH_IC2_COOLANT);
+        grid.getTile(0, 1)
+            .setInputFluidAmount(0);
 
         grid.step();
 
         // Must trigger loss of coolant shutdown without exploding
         assertFalse(grid.isExploded(), "Loss of coolant must not explode the reactor");
         assertTrue(grid.isPowerFailed(), "Reactor must powerfail when coolant is completely depleted");
-        assertEquals(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.EMPTY,
-            grid.getTile(1, 1).getType(), "Fuel must be voided upon loss-of-coolant shutdown");
-        assertEquals(gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.REFLECTOR_BERYLLIUM,
-            grid.getTile(1, 2).getType(), "Reflector must remain intact");
+        assertEquals(
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.EMPTY,
+            grid.getTile(1, 1)
+                .getType(),
+            "Fuel must be voided upon loss-of-coolant shutdown");
+        assertEquals(
+            gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile.TileType.REFLECTOR_BERYLLIUM,
+            grid.getTile(1, 2)
+                .getType(),
+            "Reflector must remain intact");
     }
 
     @Test
     void testReactorFootprintAndWallThickness() {
-        int[] coreSizes = { 3, 5, 7 };
+        int[] coreSizes = { 3, 7, 11 };
         int[] expectedFootprints = { 5, 9, 13 };
-        int[] expectedWallThickness = { 1, 2, 3 };
 
         for (int i = 0; i < coreSizes.length; i++) {
             int core = coreSizes[i];
             int footprint = expectedFootprints[i];
             int wall = (footprint - core) / 2;
-            assertEquals(expectedWallThickness[i], wall, "Wall thickness for core " + core + " must match");
+            assertEquals(1, wall, "Wall thickness for 5-tall octagonal reactor must be 1 block of casing");
             assertEquals(core, footprint - 2 * wall, "Internal core dimension must match");
         }
     }
 
     @Test
+    void testIsCornerNullCell() {
+        // Tier 1: 3x3 Core (5 active cells, 4 corner null cells)
+        int nullCount3 = 0;
+        for (int x = 0; x < 3; x++) {
+            for (int y = 0; y < 3; y++) {
+                if (NuclearSimulationEngine.isCornerNullCell(x, y, 3, 3)) {
+                    nullCount3++;
+                    assertTrue((x == 0 || x == 2) && (y == 0 || y == 2));
+                }
+            }
+        }
+        assertEquals(4, nullCount3);
+
+        // Tier 2: 7x7 Core (45 active cells, 4 corner null cells)
+        int nullCount7 = 0;
+        for (int x = 0; x < 7; x++) {
+            for (int y = 0; y < 7; y++) {
+                if (NuclearSimulationEngine.isCornerNullCell(x, y, 7, 7)) {
+                    nullCount7++;
+                    assertTrue((x == 0 || x == 6) && (y == 0 || y == 6));
+                }
+            }
+        }
+        assertEquals(4, nullCount7);
+
+        // Tier 3: 11x11 Core (109 active cells, 12 corner null cells)
+        int nullCount11 = 0;
+        for (int x = 0; x < 11; x++) {
+            for (int y = 0; y < 11; y++) {
+                if (NuclearSimulationEngine.isCornerNullCell(x, y, 11, 11)) {
+                    nullCount11++;
+                }
+            }
+        }
+        assertEquals(12, nullCount11);
+        assertEquals(109, (11 * 11) - nullCount11);
+    }
+
+    @Test
+    void testWallReflectionAndAbsorption() {
+        MockNuclearTile[][] grid = new MockNuclearTile[3][3];
+        grid[1][1] = new MockNuclearTile(true, 100); // Fuel in center
+        grid[0][1] = new MockNuclearTile(false, 0); // Non-fuel neighbor
+        grid[2][1] = new MockNuclearTile(false, 0);
+        grid[1][0] = new MockNuclearTile(false, 0);
+        grid[1][2] = new MockNuclearTile(false, 0);
+        // Corners remain null (cut corner null cells)
+
+        // 1. 100% reflection
+        NuclearSimulationEngine.wallReflectionChance = 1.0;
+        NuclearSimulationEngine.SimulationResult resReflect = NuclearSimulationEngine.simulate(grid, 3, 3);
+        assertTrue(resReflect.wallNeutronsReflected > 0, "Neutrons hitting walls/null cells must be reflected");
+        assertEquals(0, resReflect.wallNeutronsAbsorbed, "No neutrons should be absorbed when 100% reflection");
+
+        // 2. 0% reflection (100% absorption)
+        NuclearSimulationEngine.wallReflectionChance = 0.0;
+        NuclearSimulationEngine.wallAbsorbHeatPerNeutron = 15.0;
+        NuclearSimulationEngine.SimulationResult resAbsorb = NuclearSimulationEngine.simulate(grid, 3, 3);
+        assertTrue(resAbsorb.wallNeutronsAbsorbed > 0, "Neutrons hitting walls/null cells must be absorbed");
+        assertEquals(0, resAbsorb.wallNeutronsReflected, "No neutrons should be reflected when 0% reflection");
+        assertEquals(
+            resAbsorb.wallNeutronsAbsorbed * 15.0,
+            resAbsorb.wallHeatPool,
+            1e-4,
+            "Wall heat pool must equal absorbed * heatPerNeutron");
+    }
+
+    @Test
+    void testWallHeatPoolEqualDistribution() {
+        MockNuclearTile[][] grid = new MockNuclearTile[3][3];
+        MockNuclearTile center = new MockNuclearTile(true, 100);
+        MockNuclearTile n1 = new MockNuclearTile(false, 0);
+        MockNuclearTile n2 = new MockNuclearTile(false, 0);
+        center.heatCoeff = 0.0;
+        n1.heatCoeff = 0.0;
+        n1.absorbProb = 0.0;
+        n1.scatterProb = 0.0;
+        n2.heatCoeff = 0.0;
+        n2.absorbProb = 0.0;
+        n2.scatterProb = 0.0;
+        grid[1][1] = center;
+        grid[0][1] = n1;
+        grid[2][1] = n2;
+        // Remaining 6 cells are null
+
+        NuclearSimulationEngine.wallReflectionChance = 0.0; // All wall neutrons absorbed
+        NuclearSimulationEngine.wallAbsorbHeatPerNeutron = 12.0;
+
+        double n1HeatBefore = n1.heatEU;
+        double n2HeatBefore = n2.heatEU;
+        NuclearSimulationEngine.SimulationResult res = NuclearSimulationEngine.simulate(grid, 3, 3);
+
+        assertTrue(res.wallHeatPool > 0);
+        // Active tile count is 3 (center, n1, n2). Heat pool divided by 3 added to each.
+        double expectedShare = res.wallHeatPool / 3.0;
+        assertEquals(
+            expectedShare,
+            n1.heatEU - n1HeatBefore,
+            1e-4,
+            "Non-null cell n1 must receive equal share of wall heat pool");
+        assertEquals(
+            expectedShare,
+            n2.heatEU - n2HeatBefore,
+            1e-4,
+            "Non-null cell n2 must receive equal share of wall heat pool");
+    }
+
+    @Test
     void testNeutronComponentInteractionData() {
-        gregtech.nei.GTNEINeutronInteractionHandler.NeutronComponentData graphite =
-            new gregtech.nei.GTNEINeutronInteractionHandler.NeutronComponentData(
-                null, "Graphite Moderator Block", "Moderator",
-                0.93, 0.002, 0.50, 0.621, 0.009,
-                false, 0, 0, 0, 0, false, null, 0,
-                "Slows fast neutrons into thermal neutrons");
+        gregtech.nei.GTNEINeutronInteractionHandler.NeutronComponentData graphite = new gregtech.nei.GTNEINeutronInteractionHandler.NeutronComponentData(
+            null,
+            "Graphite Moderator Block",
+            "Moderator",
+            0.93,
+            0.002,
+            0.50,
+            0.621,
+            0.009,
+            false,
+            0,
+            0,
+            0,
+            0,
+            false,
+            null,
+            0,
+            "Slows fast neutrons into thermal neutrons");
 
         assertEquals(0.93, graphite.fastScattering, 1e-4);
         assertEquals(0.002, graphite.fastAbsorption, 1e-4);
@@ -626,13 +803,24 @@ public class NuclearSimulationEngineTest {
         assertFalse(graphite.hasCapture);
         assertFalse(graphite.hasAbsorption);
 
-        gregtech.nei.GTNEINeutronInteractionHandler.NeutronComponentData uraniumQuad =
-            new gregtech.nei.GTNEINeutronInteractionHandler.NeutronComponentData(
-                null, "Quad Uranium Fuel Rod", "Fuel Rod",
-                0.15, 0.25, 0.10, 0.10, 0.80,
-                true, 8, 56.0, 0.88, 16.0,
-                true, null, 163_840_000L,
-                "Base: 16 Fast Neutrons/t | Standard fission fuel");
+        gregtech.nei.GTNEINeutronInteractionHandler.NeutronComponentData uraniumQuad = new gregtech.nei.GTNEINeutronInteractionHandler.NeutronComponentData(
+            null,
+            "Quad Uranium Fuel Rod",
+            "Fuel Rod",
+            0.15,
+            0.25,
+            0.10,
+            0.10,
+            0.80,
+            true,
+            8,
+            56.0,
+            0.88,
+            16.0,
+            true,
+            null,
+            163_840_000L,
+            "Base: 16 Fast Neutrons/t | Standard fission fuel");
 
         assertTrue(uraniumQuad.hasCapture);
         assertEquals(8, uraniumQuad.fastNeutronEnergyEU);

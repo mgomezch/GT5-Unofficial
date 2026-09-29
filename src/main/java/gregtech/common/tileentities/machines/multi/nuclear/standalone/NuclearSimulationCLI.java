@@ -526,7 +526,11 @@ public class NuclearSimulationCLI {
             .append(String.format(java.util.Locale.US, "%.1f", p != null ? p.directPowerEUt : 0.0))
             .append(",");
         sb.append("\"totalTurbinesNeeded\":")
-            .append(String.format(java.util.Locale.US, "%.2f", p != null ? (p.xlstTurbinesNeeded + p.xlstHpTurbinesNeeded + p.xlstScTurbinesNeeded) : 0.0))
+            .append(
+                String.format(
+                    java.util.Locale.US,
+                    "%.2f",
+                    p != null ? (p.xlstTurbinesNeeded + p.xlstHpTurbinesNeeded + p.xlstScTurbinesNeeded) : 0.0))
             .append(",");
         sb.append("\"xlstTurbinesNeeded\":")
             .append(String.format(java.util.Locale.US, "%.2f", p != null ? p.xlstTurbinesNeeded : 0.0))

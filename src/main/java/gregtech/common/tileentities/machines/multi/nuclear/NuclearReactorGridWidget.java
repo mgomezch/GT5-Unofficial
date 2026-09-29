@@ -2,12 +2,15 @@ package gregtech.common.tileentities.machines.multi.nuclear;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import net.minecraft.util.EnumChatFormatting;
-import codechicken.lib.gui.GuiDraw;
+
 import com.gtnewhorizons.modularui.api.drawable.FluidDrawable;
 import com.gtnewhorizons.modularui.api.drawable.ItemDrawable;
 import com.gtnewhorizons.modularui.api.screen.Cursor;
 import com.gtnewhorizons.modularui.api.widget.Widget;
+
+import codechicken.lib.gui.GuiDraw;
 import gregtech.api.gui.modularui.GTUITextures;
 
 public class NuclearReactorGridWidget extends Widget {
@@ -32,47 +35,64 @@ public class NuclearReactorGridWidget extends Widget {
         }
 
         int N = sync.gridSize;
-        int offset = (126 - N * 18) / 2;
+        int cellSize = (N <= 7) ? 18 : (126 / N);
+        int gridPx = N * cellSize;
+        int offset = (126 - gridPx) / 2;
 
         for (int gx = 0; gx < N; gx++) {
             for (int gy = 0; gy < N; gy++) {
-                int px = offset + gx * 18;
-                int py = offset + gy * 18;
+                int px = offset + gx * cellSize;
+                int py = offset + gy * cellSize;
+
+                if (NuclearSimulationEngine.isCornerNullCell(gx, gy, N, N)) {
+                    // Draw reflective casing wall block
+                    GuiDraw.drawRect(px, py, cellSize, cellSize, 0xFF1E2124);
+                    GuiDraw.drawRect(px + 1, py + 1, cellSize - 2, cellSize - 2, 0xFF2A2E33);
+                    continue;
+                }
+
                 int idx = gx * N + gy;
                 ReactorGridSyncData.ReactorGridCellData cell = (idx < sync.cells.size()) ? sync.cells.get(idx) : null;
 
                 // Draw slot border / background
-                GTUITextures.SLOT_DARK_GRAY.draw(px, py, 18, 18, partialTicks);
+                if (cellSize == 18) {
+                    GTUITextures.SLOT_DARK_GRAY.draw(px, py, 18, 18, partialTicks);
+                } else {
+                    GuiDraw.drawRect(px, py, cellSize, cellSize, 0xFF373737);
+                    GuiDraw.drawRect(px + 1, py + 1, cellSize - 2, cellSize - 2, 0xFF1E1E1E);
+                }
 
                 if (cell != null && cell.exists) {
+                    int innerSize = Math.max(1, cellSize - 2);
                     // Draw cell contents (Item or Fluid)
                     if (cell.itemStack != null) {
-                        new ItemDrawable(cell.itemStack).draw(px + 1, py + 1, 16, 16, partialTicks);
+                        new ItemDrawable(cell.itemStack).draw(px + 1, py + 1, innerSize, innerSize, partialTicks);
                     } else if (cell.fluidStack != null) {
-                        new FluidDrawable().setFluid(cell.fluidStack).draw(px + 1, py + 1, 16, 16, partialTicks);
+                        new FluidDrawable().setFluid(cell.fluidStack)
+                            .draw(px + 1, py + 1, innerSize, innerSize, partialTicks);
                     } else if (cell.isFluid) {
                         // Empty coolant hatch: subtle blue tint
-                        GuiDraw.drawRect(px + 1, py + 1, 16, 16, 0x300055AA);
+                        GuiDraw.drawRect(px + 1, py + 1, innerSize, innerSize, 0x300055AA);
                     }
 
                     // Mode Shading Overlays
                     if (reactor.mCurrentGuiMode == MTENuclearReactor.GUI_MODE_TEMPERATURE) {
                         double maxTemp = NuclearSimulationEngine.getMaxOperatingTemperature(sync.pipeTier);
                         int color = NuclearColorMaps.getTemperatureColor(cell.temperature, maxTemp);
-                        GuiDraw.drawRect(px + 1, py + 1, 16, 16, color);
+                        GuiDraw.drawRect(px + 1, py + 1, innerSize, innerSize, color);
                     } else if (reactor.mCurrentGuiMode == MTENuclearReactor.GUI_MODE_NEUTRON_FLUX) {
                         int color = NuclearColorMaps.getNeutronColor(cell.fastFlux + cell.thermalFlux);
-                        GuiDraw.drawRect(px + 1, py + 1, 16, 16, color);
+                        GuiDraw.drawRect(px + 1, py + 1, innerSize, innerSize, color);
                     } else if (reactor.mCurrentGuiMode == MTENuclearReactor.GUI_MODE_NEUTRON_ABSORPTION) {
                         int color = NuclearColorMaps.getNeutronColor(5.0 * (cell.fastAbsorbed + cell.thermalAbsorbed));
-                        GuiDraw.drawRect(px + 1, py + 1, 16, 16, color);
+                        GuiDraw.drawRect(px + 1, py + 1, innerSize, innerSize, color);
                     }
 
                     // Overheating warning flash (> 85% safe temp limit)
                     double maxTemp = NuclearSimulationEngine.getMaxOperatingTemperature(sync.pipeTier);
                     if (cell.temperature > maxTemp * 0.85) {
                         if ((System.currentTimeMillis() / 400) % 2 == 0) {
-                            GuiDraw.drawRect(px + 1, py + 1, 16, 16, 0x60FF0000);
+                            GuiDraw.drawRect(px + 1, py + 1, innerSize, innerSize, 0x60FF0000);
                         }
                     }
                 }
@@ -85,12 +105,13 @@ public class NuclearReactorGridWidget extends Widget {
             if (cursor != null) {
                 int mx = cursor.getX() - getPos().x;
                 int my = cursor.getY() - getPos().y;
-                int hx = (mx - offset) / 18;
-                int hy = (my - offset) / 18;
+                int hx = (mx - offset) / cellSize;
+                int hy = (my - offset) / cellSize;
                 if (hx >= 0 && hx < N && hy >= 0 && hy < N) {
-                    int hpx = offset + hx * 18;
-                    int hpy = offset + hy * 18;
-                    GuiDraw.drawRect(hpx + 1, hpy + 1, 16, 16, 0x80FFFFFF);
+                    int hpx = offset + hx * cellSize;
+                    int hpy = offset + hy * cellSize;
+                    GuiDraw
+                        .drawRect(hpx + 1, hpy + 1, Math.max(1, cellSize - 2), Math.max(1, cellSize - 2), 0x80FFFFFF);
                 }
             }
         }
@@ -103,15 +124,26 @@ public class NuclearReactorGridWidget extends Widget {
         if (sync == null || sync.gridSize <= 0) return list;
 
         int N = sync.gridSize;
-        int offset = (126 - N * 18) / 2;
+        int cellSize = (N <= 7) ? 18 : (126 / N);
+        int gridPx = N * cellSize;
+        int offset = (126 - gridPx) / 2;
         Cursor cursor = getContext().getCursor();
         if (cursor == null) return list;
 
         int mx = cursor.getX() - getPos().x;
         int my = cursor.getY() - getPos().y;
-        int hx = (mx - offset) / 18;
-        int hy = (my - offset) / 18;
+        int hx = (mx - offset) / cellSize;
+        int hy = (my - offset) / cellSize;
         if (hx < 0 || hx >= N || hy < 0 || hy >= N) return list;
+
+        if (NuclearSimulationEngine.isCornerNullCell(hx, hy, N, N)) {
+            list.add(EnumChatFormatting.DARK_GRAY + "Reflective Casing Wall");
+            list.add(EnumChatFormatting.GRAY + "Reflects & dissipates neutron energy");
+            list.add(
+                EnumChatFormatting.DARK_GRAY + String
+                    .format("Wall Reflection: %.0f%%", NuclearSimulationEngine.DEFAULT_WALL_REFLECTION_CHANCE * 100));
+            return list;
+        }
 
         int idx = hx * N + hy;
         if (idx < 0 || idx >= sync.cells.size()) return list;
@@ -124,11 +156,18 @@ public class NuclearReactorGridWidget extends Widget {
         double maxTemp = NuclearSimulationEngine.getMaxOperatingTemperature(sync.pipeTier);
 
         if (reactor.mCurrentGuiMode == MTENuclearReactor.GUI_MODE_TEMPERATURE) {
-            list.add(EnumChatFormatting.GOLD + "Temperature: " + EnumChatFormatting.YELLOW + String.format("%.1f °C", cell.temperature));
+            list.add(
+                EnumChatFormatting.GOLD + "Temperature: "
+                    + EnumChatFormatting.YELLOW
+                    + String.format("%.1f °C", cell.temperature));
             if (cell.itemStack != null) {
                 list.add(EnumChatFormatting.WHITE + cell.itemStack.getDisplayName());
             } else if (cell.fluidStack != null) {
-                list.add(EnumChatFormatting.AQUA + cell.fluidStack.getLocalizedName() + " (" + String.format("%,d", cell.fluidStack.amount) + " L)");
+                list.add(
+                    EnumChatFormatting.AQUA + cell.fluidStack.getLocalizedName()
+                        + " ("
+                        + String.format("%,d", cell.fluidStack.amount)
+                        + " L)");
             } else if (cell.isFluid) {
                 list.add(EnumChatFormatting.DARK_GRAY + "Empty Coolant Hatch");
             } else {
@@ -140,7 +179,9 @@ public class NuclearReactorGridWidget extends Widget {
             } else {
                 list.add(EnumChatFormatting.GREEN + "Thermal Stability: Nominal");
             }
-            list.add(EnumChatFormatting.GRAY + String.format("Neutrons: %d fast/s, %d thermal/s", cell.fastFlux, cell.thermalFlux));
+            list.add(
+                EnumChatFormatting.GRAY
+                    + String.format("Neutrons: %d fast/s, %d thermal/s", cell.fastFlux, cell.thermalFlux));
         } else {
             // Component mode
             if (cell.itemStack != null) {
@@ -149,7 +190,12 @@ public class NuclearReactorGridWidget extends Widget {
                     list.add(EnumChatFormatting.GRAY + "Amount: " + cell.itemStack.stackSize);
                 }
                 if (cell.directEU > 0) {
-                    list.add(EnumChatFormatting.AQUA + "Betavoltaic Power: " + EnumChatFormatting.GREEN + "+" + cell.directEU + " EU/t");
+                    list.add(
+                        EnumChatFormatting.AQUA + "Betavoltaic Power: "
+                            + EnumChatFormatting.GREEN
+                            + "+"
+                            + cell.directEU
+                            + " EU/t");
                 }
             } else if (cell.fluidStack != null) {
                 list.add(EnumChatFormatting.AQUA + cell.fluidStack.getLocalizedName());
@@ -162,14 +208,19 @@ public class NuclearReactorGridWidget extends Widget {
 
             String tempColor = (cell.temperature > maxTemp * 0.85) ? EnumChatFormatting.RED.toString()
                 : (cell.temperature > maxTemp * 0.5) ? EnumChatFormatting.YELLOW.toString()
-                : EnumChatFormatting.GREEN.toString();
-            list.add(EnumChatFormatting.GRAY + "Temperature: " + tempColor + String.format("%.1f °C", cell.temperature));
+                    : EnumChatFormatting.GREEN.toString();
+            list.add(
+                EnumChatFormatting.GRAY + "Temperature: " + tempColor + String.format("%.1f °C", cell.temperature));
 
             if (cell.fastFlux > 0 || cell.thermalFlux > 0) {
-                list.add(EnumChatFormatting.DARK_GRAY + String.format("Flux: %d fast, %d thermal", cell.fastFlux, cell.thermalFlux));
+                list.add(
+                    EnumChatFormatting.DARK_GRAY
+                        + String.format("Flux: %d fast, %d thermal", cell.fastFlux, cell.thermalFlux));
             }
             if (cell.fastAbsorbed > 0 || cell.thermalAbsorbed > 0) {
-                list.add(EnumChatFormatting.DARK_GRAY + String.format("Absorbed: %d fast, %d thermal", cell.fastAbsorbed, cell.thermalAbsorbed));
+                list.add(
+                    EnumChatFormatting.DARK_GRAY
+                        + String.format("Absorbed: %d fast, %d thermal", cell.fastAbsorbed, cell.thermalAbsorbed));
             }
         }
         return list;
