@@ -353,7 +353,7 @@ public class StandaloneNuclearGrid {
         lastWallReflected = res.wallNeutronsReflected;
         lastWallAbsorbed = res.wallNeutronsAbsorbed;
         lastWallHeatPool = res.wallHeatPool;
-        efficiency = NuclearSimulationEngine.calculateEfficiency(coreAvgTemp);
+        efficiency = res.averageReactivity;
 
         totalNeutronsGenerated += lastNeutronsProduced;
         recordTraceSnapshot("POST_SIMULATE", "Nuclear fission, diffusion and boiling completed");

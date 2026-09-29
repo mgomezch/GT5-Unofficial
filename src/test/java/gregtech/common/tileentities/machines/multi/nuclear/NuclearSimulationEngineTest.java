@@ -830,4 +830,54 @@ public class NuclearSimulationEngineTest {
         assertTrue(uraniumQuad.hasAbsorption);
         assertEquals(163_840_000L, uraniumQuad.neutronsRequired);
     }
+
+    @Test
+    void testMaxTemperatureAndAverageReactivityOverFuelCells() {
+        NuclearSimulationEngine.setSimulationParameters(600.0, 2200.0, 1.0, 1.1, 18.0, 200.0);
+
+        INuclearTile[][] grid = new INuclearTile[3][3];
+        // Fuel 1: temp 600°C -> efficiency 1.0
+        MockNuclearTile fuel1 = new MockNuclearTile(true, 100);
+        fuel1.setTemperature(600.0);
+        grid[0][0] = fuel1;
+
+        // Fuel 2: temp 1400°C -> efficiency 0.5
+        MockNuclearTile fuel2 = new MockNuclearTile(true, 100);
+        fuel2.setTemperature(1400.0);
+        grid[1][1] = fuel2;
+
+        // Non-fuel moderator: temp 2000°C (higher temp than fuels, should set maxTemperature but not dilute reactivity)
+        MockNuclearTile moderator = new MockNuclearTile(false, 0);
+        moderator.setTemperature(2000.0);
+        grid[2][2] = moderator;
+
+        NuclearSimulationEngine.SimulationResult res = NuclearSimulationEngine.simulate(grid, 3, 3);
+        double maxTileTemp = Math
+            .max(moderator.getTemperature(), Math.max(fuel1.getTemperature(), fuel2.getTemperature()));
+        assertEquals(
+            maxTileTemp,
+            res.maxTemperature,
+            1e-4,
+            "Max temperature must reflect the highest temp in the core");
+
+        // Reactivity should be the average over the 2 fuel cells: (1.0 + 0.5) / 2 = 0.75 (approx, taking into account
+        // any tick temperature changes)
+        // Note: during simulation tick, fuel temperatures may increase due to fission heat, so calculate expected
+        // average from their final temps
+        double expectedReactivity = (NuclearSimulationEngine.calculateEfficiency(fuel1.getTemperature())
+            + NuclearSimulationEngine.calculateEfficiency(fuel2.getTemperature())) / 2.0;
+        assertEquals(
+            expectedReactivity,
+            res.averageReactivity,
+            1e-4,
+            "Reactivity must be average strictly over fuel cells");
+
+        // Test grid with NO fuel cells
+        INuclearTile[][] noFuelGrid = new INuclearTile[2][2];
+        noFuelGrid[0][0] = new MockNuclearTile(false, 0);
+        NuclearSimulationEngine.SimulationResult noFuelRes = NuclearSimulationEngine.simulate(noFuelGrid, 2, 2);
+        assertEquals(0.0, noFuelRes.averageReactivity, 1e-6, "Reactivity must be 0.0 when no fuel cells are present");
+
+        NuclearSimulationEngine.resetDefaultParameters();
+    }
 }

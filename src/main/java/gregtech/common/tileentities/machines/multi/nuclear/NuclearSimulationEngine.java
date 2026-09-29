@@ -250,6 +250,7 @@ public class NuclearSimulationEngine {
         public int neutronsEscaped = 0;
         public double maxTemperature = AMBIENT_TEMP;
         public double averageTemperature = AMBIENT_TEMP;
+        public double averageReactivity = 0.0;
         public double totalHeatEU = 0;
     }
 
@@ -262,6 +263,8 @@ public class NuclearSimulationEngine {
 
         double sumTemp = 0;
         int activeTileCount = 0;
+        double sumFuelReactivity = 0;
+        int fuelTileCount = 0;
 
         for (int x = 0; x < sizeX; x++) {
             for (int y = 0; y < sizeY; y++) {
@@ -273,15 +276,17 @@ public class NuclearSimulationEngine {
                     }
                     sumTemp += temp;
                     activeTileCount++;
+                    if (tile.isFuel()) {
+                        sumFuelReactivity += calculateEfficiency(temp);
+                        fuelTileCount++;
+                    }
                 }
             }
         }
         if (activeTileCount > 0) {
             result.averageTemperature = sumTemp / activeTileCount;
         }
-
-        // Calculate reactivity efficiency with negative temperature coefficient (self-stabilization)
-        double efficiency = calculateEfficiency(result.averageTemperature);
+        result.averageReactivity = (fuelTileCount > 0) ? (sumFuelReactivity / fuelTileCount) : 0.0;
 
         // 1. NEUTRON GENERATION & RAYCASTING
         for (int i = 0; i < sizeX; i++) {
@@ -289,7 +294,8 @@ public class NuclearSimulationEngine {
                 INuclearTile tile = grid[i][j];
                 if (tile == null || !tile.isFuel()) continue;
 
-                int neutronsProduced = tile.generateNeutrons(efficiency);
+                double localEfficiency = calculateEfficiency(tile.getTemperature());
+                int neutronsProduced = tile.generateNeutrons(localEfficiency);
                 if (neutronsProduced <= 0) continue;
 
                 result.totalNeutronsGenerated += neutronsProduced;
@@ -444,7 +450,9 @@ public class NuclearSimulationEngine {
             for (int y = 0; y < sizeY; y++) {
                 INuclearTile tile = grid[x][y];
                 if (tile != null) {
-                    tile.nuclearTick(efficiency);
+                    double tileEfficiency = tile.isFuel() ? calculateEfficiency(tile.getTemperature())
+                        : result.averageReactivity;
+                    tile.nuclearTick(tileEfficiency);
                 }
             }
         }
@@ -464,6 +472,32 @@ public class NuclearSimulationEngine {
                 }
             }
         }
+
+        // Recalculate max and average temperature, and average reactivity over fuel cells at end of tick
+        result.maxTemperature = AMBIENT_TEMP;
+        sumTemp = 0;
+        sumFuelReactivity = 0;
+        fuelTileCount = 0;
+        for (int x = 0; x < sizeX; x++) {
+            for (int y = 0; y < sizeY; y++) {
+                INuclearTile tile = grid[x][y];
+                if (tile != null) {
+                    double temp = tile.getTemperature();
+                    if (temp > result.maxTemperature) {
+                        result.maxTemperature = temp;
+                    }
+                    sumTemp += temp;
+                    if (tile.isFuel()) {
+                        sumFuelReactivity += calculateEfficiency(temp);
+                        fuelTileCount++;
+                    }
+                }
+            }
+        }
+        if (activeTileCount > 0) {
+            result.averageTemperature = sumTemp / activeTileCount;
+        }
+        result.averageReactivity = (fuelTileCount > 0) ? (sumFuelReactivity / fuelTileCount) : 0.0;
 
         return result;
     }

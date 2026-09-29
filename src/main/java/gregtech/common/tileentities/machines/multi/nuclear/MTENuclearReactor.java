@@ -107,7 +107,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     public int mFastAbsorbed = 0;
     public int mThermalAbsorbed = 0;
     public int mEscapedNeutrons = 0;
-    public double mEfficiency = 1.0;
+    public double mReactivity = 1.0;
     public long mDirectPowerEUt = 0;
     public static final int GUI_MODE_COMPONENTS = 0;
     public static final int GUI_MODE_TEMPERATURE = 1;
@@ -497,7 +497,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         if (GTMod.proxy.powerfailTracker != null) {
             GTMod.proxy.powerfailTracker.createPowerfailEvent(base);
         }
-        mEfficiency = 0;
+        super.mEfficiency = 0;
+        mReactivity = 0.0;
 
         World world = base.getWorld();
         int cX = base.getXCoord();
@@ -633,7 +634,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
         mMaxProgresstime = 20;
-        mEfficiency = 10000;
+        super.mEfficiency = 10000;
         mEfficiencyIncrease = 10000;
         return CheckRecipeResultRegistry.SUCCESSFUL;
     }
@@ -736,7 +737,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                 mFastAbsorbed = res.fastNeutronsAbsorbed;
                 mThermalAbsorbed = res.thermalNeutronsAbsorbed;
                 mEscapedNeutrons = res.neutronsEscaped;
-                mEfficiency = NuclearSimulationEngine.calculateEfficiency(mAvgTemp);
+                mReactivity = res.averageReactivity;
 
                 // Sum direct EU from betavoltaic cells across the grid
                 long directEU = 0;
@@ -815,7 +816,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             this.coreDimension = data.coreDimension;
             this.mCoreTemp = data.coreTemp;
             this.mAvgTemp = data.avgTemp;
-            this.mEfficiency = data.efficiency;
+            this.mReactivity = data.efficiency;
             this.mPipeTier = data.pipeTier;
             this.mDirectPowerEUt = data.directPowerEUt;
             this.mNeutronsProduced = data.neutronsProduced;
@@ -831,7 +832,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         data.coreDimension = this.coreDimension;
         data.coreTemp = (float) this.mCoreTemp;
         data.avgTemp = (float) this.mAvgTemp;
-        data.efficiency = this.mEfficiency;
+        data.efficiency = this.mReactivity;
         data.pipeTier = this.mPipeTier;
         data.directPowerEUt = this.mDirectPowerEUt;
         data.neutronsProduced = this.mNeutronsProduced;
@@ -954,7 +955,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             new TextWidget()
                 .setStringSupplier(
                     () -> String.format(
-                        "Peak Temp: %.1f / %.0f °C",
+                        "Max Temp: %.1f / %.0f °C",
                         mCoreTemp,
                         NuclearSimulationEngine.getMaxOperatingTemperature(mPipeTier)))
                 .setDefaultColor(Color.rgb(255, 200, 0))
@@ -963,7 +964,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         screenElements.widget(
             new TextWidget()
                 .setStringSupplier(
-                    () -> String.format("Reactivity: %.1f%%  Flux: %d/s", mEfficiency / 100.0, mNeutronsProduced))
+                    () -> String.format("Avg Reactivity: %.1f%%  Flux: %d/s", mReactivity * 100.0, mNeutronsProduced))
                 .setDefaultColor(Color.rgb(100, 200, 255))
                 .setTextAlignment(Alignment.CenterLeft)
                 .setEnabled(widget -> mMachine));
@@ -1067,20 +1068,26 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             }
             if (mCurrentGuiMode == GUI_MODE_TEMPERATURE) {
                 return String.format(
-                    EnumChatFormatting.GOLD + "Peak: %.1f °C  " + EnumChatFormatting.DARK_GREEN + "Eff: %.1f %%",
+                    EnumChatFormatting.GOLD + "Max: %.1f °C  "
+                        + EnumChatFormatting.DARK_GREEN
+                        + "Avg Reactivity: %.1f %%",
                     sync.coreTemp,
-                    sync.efficiency / 100.0);
+                    sync.efficiency * 100.0);
             }
             if (mCurrentGuiMode == GUI_MODE_NEUTRON_FLUX) {
                 return String.format(
-                    EnumChatFormatting.AQUA + "Flux: %d/s  " + EnumChatFormatting.DARK_GREEN + "Eff: %.1f %%",
+                    EnumChatFormatting.AQUA + "Flux: %d/s  "
+                        + EnumChatFormatting.DARK_GREEN
+                        + "Avg Reactivity: %.1f %%",
                     sync.neutronsProduced,
-                    sync.efficiency / 100.0);
+                    sync.efficiency * 100.0);
             }
-            if (sync.efficiency > 0.001) {
+            if (sync.efficiency > 0.0001) {
                 return String.format(
-                    EnumChatFormatting.DARK_GREEN + "Eff: %.1f %%  " + EnumChatFormatting.GOLD + "Peak: %.0f°C",
-                    sync.efficiency / 100.0,
+                    EnumChatFormatting.DARK_GREEN + "Avg Reactivity: %.1f %%  "
+                        + EnumChatFormatting.GOLD
+                        + "Max: %.0f°C",
+                    sync.efficiency * 100.0,
                     sync.coreTemp);
             }
             return EnumChatFormatting.GRAY + "Status: Ready / Idle";
