@@ -672,8 +672,8 @@ public class NuclearSimulationWebServer {
                 .cell:hover { transform: scale(1.06); z-index: 10; border-color: #fff; }
               }
               .cell.selected { border: 2px solid var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
-              .cell.wall-cell { background: #181b1f !important; border: 1px solid #282c34 !important; color: #5c6370; cursor: not-allowed !important; opacity: 0.7; }
-              .cell.wall-cell:hover { transform: none !important; border-color: #3b4252 !important; }
+              .cell.wall-cell { background: transparent !important; border: none !important; color: transparent; cursor: default !important; opacity: 0; pointer-events: none; }
+              .cell.wall-cell:hover { transform: none !important; border: none !important; }
               .cell .cell-temp { font-size: 0.65rem; opacity: 0.9; }
               .cell .cell-code { font-size: 0.8rem; }
 

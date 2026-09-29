@@ -45,9 +45,7 @@ public class NuclearReactorGridWidget extends Widget {
                 int py = offset + gy * cellSize;
 
                 if (NuclearSimulationEngine.isCornerNullCell(gx, gy, N, N)) {
-                    // Draw reflective casing wall block
-                    GuiDraw.drawRect(px, py, cellSize, cellSize, 0xFF1E2124);
-                    GuiDraw.drawRect(px + 1, py + 1, cellSize - 2, cellSize - 2, 0xFF2A2E33);
+                    // Null cells are empty spaces showing the window background, matching MI style
                     continue;
                 }
 
@@ -108,10 +106,16 @@ public class NuclearReactorGridWidget extends Widget {
                 int hx = (mx - offset) / cellSize;
                 int hy = (my - offset) / cellSize;
                 if (hx >= 0 && hx < N && hy >= 0 && hy < N) {
-                    int hpx = offset + hx * cellSize;
-                    int hpy = offset + hy * cellSize;
-                    GuiDraw
-                        .drawRect(hpx + 1, hpy + 1, Math.max(1, cellSize - 2), Math.max(1, cellSize - 2), 0x80FFFFFF);
+                    if (!NuclearSimulationEngine.isCornerNullCell(hx, hy, N, N)) {
+                        int hpx = offset + hx * cellSize;
+                        int hpy = offset + hy * cellSize;
+                        GuiDraw.drawRect(
+                            hpx + 1,
+                            hpy + 1,
+                            Math.max(1, cellSize - 2),
+                            Math.max(1, cellSize - 2),
+                            0x80FFFFFF);
+                    }
                 }
             }
         }
@@ -137,11 +141,6 @@ public class NuclearReactorGridWidget extends Widget {
         if (hx < 0 || hx >= N || hy < 0 || hy >= N) return list;
 
         if (NuclearSimulationEngine.isCornerNullCell(hx, hy, N, N)) {
-            list.add(EnumChatFormatting.DARK_GRAY + "Reflective Casing Wall");
-            list.add(EnumChatFormatting.GRAY + "Reflects & dissipates neutron energy");
-            list.add(
-                EnumChatFormatting.DARK_GRAY + String
-                    .format("Wall Reflection: %.0f%%", NuclearSimulationEngine.DEFAULT_WALL_REFLECTION_CHANCE * 100));
             return list;
         }
 

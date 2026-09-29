@@ -75,9 +75,15 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     implements ISurvivalConstructable, ICasingTextureProvider {
 
     protected static final int CASING_INDEX = NuclearCasing.getTextureId();
-    protected static final String STRUCTURE_3X3 = "3x3";
-    protected static final String STRUCTURE_5X5 = "5x5";
-    protected static final String STRUCTURE_7X7 = "7x7";
+    public static final String STRUCTURE_TIER_1 = "tier_1";
+    public static final String STRUCTURE_TIER_2 = "tier_2";
+    public static final String STRUCTURE_TIER_3 = "tier_3";
+    @Deprecated
+    protected static final String STRUCTURE_3X3 = STRUCTURE_TIER_1;
+    @Deprecated
+    protected static final String STRUCTURE_5X5 = STRUCTURE_TIER_2;
+    @Deprecated
+    protected static final String STRUCTURE_7X7 = STRUCTURE_TIER_3;
 
     private static IStructureDefinition<MTENuclearReactor> STRUCTURE_DEFINITION = null;
 
@@ -86,6 +92,13 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     public int coreDimension = 0;
     public INuclearTile[][] mGrid = null;
     public final List<IGregTechTileEntity> mNuclearTiles = new ArrayList<>();
+
+    public int getReactorTier() {
+        if (gridSize == 3) return 1;
+        if (gridSize == 7) return 2;
+        if (gridSize == 11) return 3;
+        return 0;
+    }
 
     // Telemetry
     public double mCoreTemp = 20.0;
@@ -937,13 +950,6 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     protected void drawTexts(DynamicPositionedColumn screenElements, SlotWidget inventorySlot) {
         super.drawTexts(screenElements, inventorySlot);
 
-        screenElements.widget(
-            new TextWidget()
-                .setStringSupplier(
-                    () -> "Core Size: " + (coreDimension > 0 ? coreDimension + "x" + coreDimension : "Offline"))
-                .setDefaultColor(Color.rgb(0, 255, 128))
-                .setTextAlignment(Alignment.CenterLeft)
-                .setEnabled(widget -> mMachine));
         screenElements.widget(
             new TextWidget()
                 .setStringSupplier(
