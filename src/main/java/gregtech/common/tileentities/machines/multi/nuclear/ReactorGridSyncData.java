@@ -11,6 +11,7 @@ import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
 
 import com.gtnewhorizons.modularui.common.internal.network.NetworkUtils;
+import cpw.mods.fml.common.network.ByteBufUtils;
 
 public class ReactorGridSyncData {
 
@@ -25,6 +26,8 @@ public class ReactorGridSyncData {
     public int fastAbsorbed = 0;
     public int thermalAbsorbed = 0;
     public int escapedNeutrons = 0;
+    public int outputCoolantRate = 0;
+    public String outputCoolantName = "";
     public List<ReactorGridCellData> cells = new ArrayList<>();
 
     public static class ReactorGridCellData {
@@ -78,6 +81,8 @@ public class ReactorGridSyncData {
         buf.writeVarIntToBuffer(data.fastAbsorbed);
         buf.writeVarIntToBuffer(data.thermalAbsorbed);
         buf.writeVarIntToBuffer(data.escapedNeutrons);
+        buf.writeVarIntToBuffer(data.outputCoolantRate);
+        ByteBufUtils.writeUTF8String(buf, data.outputCoolantName != null ? data.outputCoolantName : "");
 
         buf.writeVarIntToBuffer(data.cells.size());
         for (ReactorGridCellData cell : data.cells) {
@@ -120,6 +125,8 @@ public class ReactorGridSyncData {
         data.fastAbsorbed = buf.readVarIntFromBuffer();
         data.thermalAbsorbed = buf.readVarIntFromBuffer();
         data.escapedNeutrons = buf.readVarIntFromBuffer();
+        data.outputCoolantRate = buf.readVarIntFromBuffer();
+        data.outputCoolantName = ByteBufUtils.readUTF8String(buf);
 
         int cellCount = buf.readVarIntFromBuffer();
         for (int i = 0; i < cellCount; i++) {

@@ -43,6 +43,8 @@ public class MTEHatchNuclearHatch extends MTEHatch implements INuclearTile {
     public int mLastThermalFlux = 0;
     public int mLastFastAbsorbed = 0;
     public int mLastThermalAbsorbed = 0;
+    public int mLastProducedAmount = 0;
+    public String mLastProducedFluidName = "";
     public int mReactorPipeTier = -1;
     public boolean mWasDry = false;
 
@@ -450,6 +452,8 @@ public class MTEHatchNuclearHatch extends MTEHatch implements INuclearTile {
         }
 
         // Coolant heat absorption (continuous above ambient for IC2 coolant; phase transition boiling for water)
+        mLastProducedAmount = 0;
+        mLastProducedFluidName = "";
         if (mTemperature > minOperatingTemp) {
             double heatAvailable = (mTemperature - minOperatingTemp) * NuclearSimulationEngine.EU_PER_DEGREE;
             int maxFluidByHeat = (heatPerMB > 0) ? (int) Math.floor(heatAvailable / heatPerMB) : mInputFluid.amount;
@@ -476,6 +480,8 @@ public class MTEHatchNuclearHatch extends MTEHatch implements INuclearTile {
                     if (mInputFluid.amount <= 0) mInputFluid = null;
 
                     addOutputFluid(outputFluidName, outAmount);
+                    mLastProducedAmount = outAmount;
+                    mLastProducedFluidName = outputFluidName;
                     double heatConsumed = fluidToProcess * heatPerMB;
                     mTemperature = Math
                         .max(minOperatingTemp, mTemperature - (heatConsumed / NuclearSimulationEngine.EU_PER_DEGREE));

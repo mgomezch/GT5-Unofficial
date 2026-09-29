@@ -20,6 +20,9 @@ import net.minecraft.util.EnumChatFormatting;
 import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
+import net.minecraftforge.fluids.Fluid;
+import net.minecraftforge.fluids.FluidRegistry;
+import net.minecraftforge.fluids.FluidStack;
 
 import com.gtnewhorizon.structurelib.StructureLibAPI;
 import com.gtnewhorizon.structurelib.alignment.constructable.ISurvivalConstructable;
@@ -111,6 +114,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     public long mDirectPowerEUt = 0;
     public long mWallNeutronAccumulator = 0;
     public int mWallMaintenanceTimer = 0;
+    public int mOutputCoolantRate = 0;
+    public String mOutputCoolantName = "";
     public static final int GUI_MODE_COMPONENTS = 0;
     public static final int GUI_MODE_TEMPERATURE = 1;
     public static final int GUI_MODE_NEUTRON_FLUX = 2;
@@ -533,6 +538,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         mReactivity = 0.0;
         mWallNeutronAccumulator = 0;
         mWallMaintenanceTimer = 0;
+        mOutputCoolantRate = 0;
+        mOutputCoolantName = "";
 
         World world = base.getWorld();
         int cX = base.getXCoord();
@@ -554,6 +561,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         if (!mMachine) {
             mWallNeutronAccumulator = 0;
             mWallMaintenanceTimer = 0;
+            mOutputCoolantRate = 0;
+            mOutputCoolantName = "";
             for (IGregTechTileEntity te : mNuclearTiles) {
                 if (te != null && te.getMetaTileEntity() instanceof MTEHatchNuclearHatch hatch) {
                     hatch.mWasDry = false;
@@ -665,13 +674,23 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     }
 
     @Override
+    public boolean showRecipeTextInGUI() {
+        return false;
+    }
+
+    @Override
+    public boolean shouldDisplayCheckRecipeResult() {
+        return false;
+    }
+
+    @Override
     public CheckRecipeResult checkProcessing() {
         if (!mMachine || mGrid == null) {
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
         mMaxProgresstime = 20;
-        super.mEfficiency = 10000;
-        mEfficiencyIncrease = 10000;
+        super.mEfficiency = (int) Math.round(getMaintenanceEfficiency() * 10000);
+        mEfficiencyIncrease = 0;
         return CheckRecipeResultRegistry.SUCCESSFUL;
     }
 
@@ -804,6 +823,29 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                 }
                 mDirectPowerEUt = directEU;
 
+                // Sum output coolant production across all coolant hatches
+                int totalCoolantProduced = 0;
+                String coolantName = "";
+                for (IGregTechTileEntity te : mNuclearTiles) {
+                    if (te != null && te.getMetaTileEntity() instanceof MTEHatchNuclearHatch hatch) {
+                        if (hatch.mLastProducedAmount > 0) {
+                            totalCoolantProduced += hatch.mLastProducedAmount;
+                            if (coolantName.isEmpty() && hatch.mLastProducedFluidName != null
+                                && !hatch.mLastProducedFluidName.isEmpty()) {
+                                Fluid f = FluidRegistry.getFluid(hatch.mLastProducedFluidName);
+                                if (f != null) {
+                                    coolantName = f.getLocalizedName(new FluidStack(f, 1000));
+                                } else {
+                                    coolantName = hatch.mLastProducedFluidName;
+                                }
+                            }
+                        }
+                    }
+                }
+                mOutputCoolantRate = totalCoolantProduced;
+                mOutputCoolantName = coolantName;
+                super.mEfficiency = (int) Math.round(maintEff * 10000);
+
                 // 4. Check casing-dependent maximum operating temperature:
                 // Overheating hatches void items and fluids inside, but do NOT explode!
                 double maxTemp = NuclearSimulationEngine.getMaxOperatingTemperature(mPipeTier);
@@ -844,6 +886,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         aNBT.setLong("mDirectPowerEUt", mDirectPowerEUt);
         aNBT.setLong("mWallNeutronAccumulator", mWallNeutronAccumulator);
         aNBT.setInteger("mWallMaintenanceTimer", mWallMaintenanceTimer);
+        aNBT.setInteger("mOutputCoolantRate", mOutputCoolantRate);
+        aNBT.setString("mOutputCoolantName", mOutputCoolantName != null ? mOutputCoolantName : "");
     }
 
     @Override
@@ -857,6 +901,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         mDirectPowerEUt = aNBT.getLong("mDirectPowerEUt");
         mWallNeutronAccumulator = aNBT.getLong("mWallNeutronAccumulator");
         mWallMaintenanceTimer = aNBT.getInteger("mWallMaintenanceTimer");
+        mOutputCoolantRate = aNBT.getInteger("mOutputCoolantRate");
+        mOutputCoolantName = aNBT.getString("mOutputCoolantName");
     }
 
     public ReactorGridSyncData getClientGridData() {
@@ -880,6 +926,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             this.mFastAbsorbed = data.fastAbsorbed;
             this.mThermalAbsorbed = data.thermalAbsorbed;
             this.mEscapedNeutrons = data.escapedNeutrons;
+            this.mOutputCoolantRate = data.outputCoolantRate;
+            this.mOutputCoolantName = data.outputCoolantName;
         }
     }
 
@@ -896,6 +944,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         data.fastAbsorbed = this.mFastAbsorbed;
         data.thermalAbsorbed = this.mThermalAbsorbed;
         data.escapedNeutrons = this.mEscapedNeutrons;
+        data.outputCoolantRate = this.mOutputCoolantRate;
+        data.outputCoolantName = this.mOutputCoolantName;
 
         if (mGrid != null && gridSize > 0) {
             for (int x = 0; x < gridSize; x++) {
@@ -1039,9 +1089,16 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         screenElements.widget(
             new TextWidget()
                 .setStringSupplier(
-                    () -> (mDirectPowerEUt > 0)
-                        ? String.format("Pipes: %s | Beta: %d EU/t", getPipeTierName(mPipeTier), mDirectPowerEUt)
-                        : "Pipes: " + getPipeTierName(mPipeTier))
+                    () -> (mOutputCoolantRate > 0 && mOutputCoolantName != null && !mOutputCoolantName.isEmpty())
+                        ? String.format("Coolant Output: %,d L/s %s", mOutputCoolantRate, mOutputCoolantName)
+                        : "Coolant Output: 0 L/s")
+                .setDefaultColor(Color.rgb(100, 220, 255))
+                .setTextAlignment(Alignment.CenterLeft)
+                .setEnabled(widget -> mMachine));
+        screenElements.widget(
+            new TextWidget()
+                .setStringSupplier(
+                    () -> String.format("EU Output: %d EU/t", mDirectPowerEUt))
                 .setDefaultColor(Color.rgb(180, 220, 180))
                 .setTextAlignment(Alignment.CenterLeft)
                 .setEnabled(widget -> mMachine));
