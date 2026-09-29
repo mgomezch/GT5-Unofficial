@@ -440,11 +440,11 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
 
     @Override
     public void construct(ItemStack stackSize, boolean hintsOnly) {
-        int tier = stackSize.stackSize;
-        if (tier == 2) {
-            buildPiece(STRUCTURE_5X5, stackSize, hintsOnly, 4, 3, 0);
-        } else if (tier == 3) {
+        int tier = stackSize == null ? 1 : stackSize.stackSize;
+        if (tier >= 3) {
             buildPiece(STRUCTURE_7X7, stackSize, hintsOnly, 6, 3, 0);
+        } else if (tier == 2) {
+            buildPiece(STRUCTURE_5X5, stackSize, hintsOnly, 4, 3, 0);
         } else {
             buildPiece(STRUCTURE_3X3, stackSize, hintsOnly, 2, 3, 0);
         }
@@ -453,11 +453,11 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     @Override
     public int survivalConstruct(ItemStack stackSize, int elementBudget, ISurvivalBuildEnvironment env) {
         if (mMachine) return -1;
-        int tier = stackSize.stackSize;
-        if (tier == 2) {
-            return survivalBuildPiece(STRUCTURE_5X5, stackSize, 4, 3, 0, elementBudget, env, false, true);
-        } else if (tier == 3) {
+        int tier = stackSize == null ? 1 : stackSize.stackSize;
+        if (tier >= 3) {
             return survivalBuildPiece(STRUCTURE_7X7, stackSize, 6, 3, 0, elementBudget, env, false, true);
+        } else if (tier == 2) {
+            return survivalBuildPiece(STRUCTURE_5X5, stackSize, 4, 3, 0, elementBudget, env, false, true);
         } else {
             return survivalBuildPiece(STRUCTURE_3X3, stackSize, 2, 3, 0, elementBudget, env, false, true);
         }
