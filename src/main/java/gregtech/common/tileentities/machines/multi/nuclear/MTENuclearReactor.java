@@ -102,9 +102,9 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     public final List<IGregTechTileEntity> mNuclearTiles = new ArrayList<>();
 
     public int getReactorTier() {
-        if (gridSize == 3) return 1;
-        if (gridSize == 7) return 2;
-        if (gridSize == 11) return 3;
+        if (gridSize == 5) return 1;
+        if (gridSize == 9) return 2;
+        if (gridSize == 13) return 3;
         return 0;
     }
 
@@ -1392,9 +1392,12 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             }
             String name = stack.getUnlocalizedName()
                 .toLowerCase();
+            if (name.contains("thorium")) baseNeutrons /= 2;
             if (name.contains("naquadah")) baseNeutrons *= 4;
 
-            int produced = (int) Math.round(baseNeutrons * efficiency);
+            int chainNeutrons = (int) Math
+                .round(bus.mLastThermalAbsorbed * NuclearSimulationEngine.thermalFissionMultiplier);
+            int produced = (int) Math.round((baseNeutrons + chainNeutrons) * efficiency);
             bus.mLastNeutronsGenerated = produced;
             return produced;
         } else if (tile.isHatch()) {
@@ -1752,18 +1755,16 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         hatch.mLastProducedAmount = 0;
         hatch.mLastProducedFluidName = "";
         if (hatch.mTemperature > minOperatingTemp) {
-            double heatAvailable = (hatch.mTemperature - minOperatingTemp) * NuclearSimulationEngine.EU_PER_DEGREE;
+            double deltaT = hatch.mTemperature - minOperatingTemp;
+            double heatAvailable = deltaT * NuclearSimulationEngine.EU_PER_DEGREE;
             int maxFluidByHeat = (heatPerMB > 0) ? (int) Math.floor(heatAvailable / heatPerMB)
                 : hatch.mInputFluid.amount;
-            int fluidToProcess = Math.min(hatch.mInputFluid.amount, maxFluidByHeat);
 
-            // Cap rate by hatch tier
-            int maxRate = 100 * (1 << hatch.mTier);
-            fluidToProcess = Math.min(fluidToProcess, maxRate);
-
-            // Scale heat transfer and coolant production by maintenance efficiency
+            // Calculate turnover fraction based on deltaT above boiling threshold
+            double frac = NuclearSimulationEngine.calculateTurnoverFraction(deltaT);
             double effFactor = Math.max(0.0, Math.min(1.0, efficiency));
-            fluidToProcess = (int) Math.round(fluidToProcess * effFactor);
+            int desiredTurnover = Math.max(1, (int) Math.round(hatch.mCapacity * frac * effFactor));
+            int fluidToProcess = Math.min(hatch.mInputFluid.amount, Math.min(desiredTurnover, maxFluidByHeat));
 
             if (fluidToProcess > 0) {
                 int outAmount = fluidToProcess * steamRatio;
