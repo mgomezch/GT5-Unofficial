@@ -2,10 +2,11 @@ package gregtech.common.tileentities.machines.multi.nuclear;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile;
-import gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile;
+import gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid;
 
 public class NuclearSimulationEngineTest {
 
