@@ -586,16 +586,24 @@ public class GTUtility {
 
     /** Uses thread analysis, works on dedicated servers. */
     public static boolean isServer() {
-        return FMLCommonHandler.instance()
-            .getEffectiveSide()
-            .isServer();
+        try {
+            return FMLCommonHandler.instance()
+                .getEffectiveSide()
+                .isServer();
+        } catch (Throwable t) {
+            return false;
+        }
     }
 
     /** Uses thread analysis, works on dedicated servers. */
     public static boolean isClient() {
-        return FMLCommonHandler.instance()
-            .getEffectiveSide()
-            .isClient();
+        try {
+            return FMLCommonHandler.instance()
+                .getEffectiveSide()
+                .isClient();
+        } catch (Throwable t) {
+            return false;
+        }
     }
 
     private static final char FORMAT_ESCAPE = '§';

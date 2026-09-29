@@ -281,6 +281,7 @@ import gregtech.common.tileentities.machines.multi.nanochip.modules.MTESplitterM
 import gregtech.common.tileentities.machines.multi.nanochip.modules.MTESuperconductorSplitterModule;
 import gregtech.common.tileentities.machines.multi.nanochip.modules.MTEWireTracerModule;
 import gregtech.common.tileentities.machines.multi.nuclear.MTEHatchNuclearBus;
+import gregtech.common.tileentities.machines.multi.nuclear.MTEHatchNuclearControl;
 import gregtech.common.tileentities.machines.multi.nuclear.MTEHatchNuclearHatch;
 import gregtech.common.tileentities.machines.multi.nuclear.MTENuclearReactor;
 import gregtech.common.tileentities.machines.multi.pcb.MTEPCBBioChamber;
@@ -8089,6 +8090,9 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
                 .getStackForm(1L));
         ItemList.Hatch_Nuclear_UHV.set(
             new MTEHatchNuclearHatch(NUCLEAR_HATCH_UHV.ID, "hatch.nuclear.fluid.tier.09", "Divine Nuclear Hatch", 9)
+                .getStackForm(1L));
+        ItemList.Hatch_Nuclear_Control.set(
+            new MTEHatchNuclearControl(NUCLEAR_CONTROL_HATCH.ID, "hatch.nuclear.control", "Nuclear Control Hatch", 4)
                 .getStackForm(1L));
 
         ItemList.Machine_Nuclear_Reactor.set(

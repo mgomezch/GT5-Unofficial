@@ -1064,6 +1064,7 @@ public enum ItemList implements IItemContainer {
     Hatch_Nuclear_ZPM,
     Hatch_Nuclear_UV,
     Hatch_Nuclear_UHV,
+    Hatch_Nuclear_Control,
     Machine_Nuclear_Reactor,
 
     Hatch_Output_ULV,

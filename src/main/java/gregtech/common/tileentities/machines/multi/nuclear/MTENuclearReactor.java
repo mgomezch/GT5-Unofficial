@@ -65,6 +65,7 @@ import gregtech.api.interfaces.metatileentity.IMetaTileEntity;
 import gregtech.api.interfaces.tileentity.ICasingTextureProvider;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.interfaces.tileentity.ITurnable;
+import gregtech.api.items.ItemCoolantCell;
 import gregtech.api.items.ItemRadioactiveCell;
 import gregtech.api.items.ItemRadioactiveCellIC;
 import gregtech.api.metatileentity.implementations.MTEEnhancedMultiBlockBase;
@@ -137,6 +138,24 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
 
     public int mHatchTier = -1;
     public boolean mHatchTierInconsistent = false;
+    protected int mCasing = 0;
+    public final List<MTEHatchNuclearControl> mControlHatches = new ArrayList<>();
+
+    public boolean addNuclearControlHatchToMachineList(IGregTechTileEntity aTileEntity, int aBaseCasingIndex) {
+        if (aTileEntity == null) return false;
+        IMetaTileEntity mte = aTileEntity.getMetaTileEntity();
+        if (mte instanceof MTEHatchNuclearControl controlHatch) {
+            mControlHatches.add(controlHatch);
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public void clearHatches() {
+        super.clearHatches();
+        mControlHatches.clear();
+    }
 
     public double getMaintenanceEfficiency() {
         if (!mMachine) return 0.0;
@@ -388,11 +407,12 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                             .adder(
                                 (t, te, index) -> t.addMaintenanceToMachineList(te, index)
                                     || t.addDynamoToMachineList(te, index)
-                                    || t.addExoticDynamoToMachineList(te, index))
+                                    || t.addExoticDynamoToMachineList(te, index)
+                                    || t.addNuclearControlHatchToMachineList(te, index))
                             .casingIndex(CASING_INDEX)
                             .hint(1)
                             .build(),
-                        NuclearCasing.asElement()))
+                        StructureUtility.onElementPass(t -> t.mCasing++, NuclearCasing.asElement())))
                 .addElement('p', chainItemPipeCasings(-1, (t, casingTier) -> {
                     if (casingTier < 3) {
                         t.mPipeTier = -1;
@@ -431,12 +451,13 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                     + "WARNING: Insufficient casing tier for HP coolants causes catastrophic explosion!")
             .beginVariableStructureBlock(5, 13, 5, 5, 5, 13, false)
             .addController("Front center, 2nd layer")
-            .addCasing("44+", "Nuclear Casings", false)
+            .addCasing("22+", "Nuclear Casings", false)
             .addCasing(
                 "21+",
                 "Item Pipe Casings (Electrum / Platinum / Osmium / Quantium / Fluxed Electrum / Black Plutonium)",
                 false)
             .addOtherStructurePart("Nuclear Bus / Hatch", "Top layer octagonal core positions", 1)
+            .addOtherStructurePart("Nuclear Control Hatch", "Any outer casing", 2)
             .addMaintenanceHatch("Any outer casing (Exactly 1)", 1)
             .addDynamoHatch("Any outer casing (Optional for Betavoltaic direct EU, max 1)", 1)
             .addSubChannel(GTStructureChannels.ITEM_PIPE_CASING)
@@ -596,6 +617,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         mPipeTier = -1;
         mHatchTier = -1;
         mHatchTierInconsistent = false;
+        mCasing = 0;
 
         if (checkPiece(STRUCTURE_3X3, 2, 3, 0, errors)) {
             gridSize = 5;
@@ -606,6 +628,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             mPipeTier = -1;
             mHatchTier = -1;
             mHatchTierInconsistent = false;
+            mCasing = 0;
             errors.clear();
             if (checkPiece(STRUCTURE_5X5, 4, 3, 0, errors)) {
                 gridSize = 9;
@@ -616,6 +639,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                 mPipeTier = -1;
                 mHatchTier = -1;
                 mHatchTierInconsistent = false;
+                mCasing = 0;
                 errors.clear();
                 if (checkPiece(STRUCTURE_7X7, 6, 3, 0, errors)) {
                     gridSize = 13;
@@ -640,6 +664,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         if (mHatchTierInconsistent) {
             errors.add(StructureErrors.of("GT5U.gui.text.structure_error.inconsistent_nuclear_hatch_tier"));
         }
+
+        checkCasingMin(errors, mCasing, 22);
 
         if (!errors.isEmpty()) {
             return;
@@ -692,6 +718,10 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         }
 
         updateNuclearTilesPipeTier();
+    }
+
+    public void verifyCasingMin(List<StructureError> errors, int current, int required) {
+        checkCasingMin(errors, current, required);
     }
 
     @Override
@@ -906,6 +936,16 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                             }
                         }
                     }
+                }
+
+                // 5. Update coolant tracking and nuclear control hatches
+                updateCoolantTracking();
+                updateControlHatches();
+            }
+        } else if (aBaseMetaTileEntity.isServerSide()) {
+            for (MTEHatchNuclearControl hatch : mControlHatches) {
+                if (hatch != null && hatch.isValid()) {
+                    hatch.setOutputRedstone((byte) 0);
                 }
             }
         }
@@ -1303,6 +1343,239 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             .getName()
             .toLowerCase();
         return name.contains("thorium") || name.contains("uranium") || name.contains("naquadah");
+    }
+
+    public static boolean isCoolantFluid(FluidStack fluid) {
+        if (fluid == null || fluid.getFluid() == null) return false;
+        String name = fluid.getFluid()
+            .getName()
+            .toLowerCase();
+        return name.contains("water") || name.contains("coolant") || name.contains("sodium") || name.contains("lead");
+    }
+
+    public static boolean isItemCoolant(ItemStack stack) {
+        if (stack == null) return false;
+        if (stack.getItem() instanceof ItemCoolantCell) return true;
+        String name = stack.getUnlocalizedName()
+            .toLowerCase();
+        return name.contains("coolant") || name.contains("heatcapacitor");
+    }
+
+    public void updateCoolantTracking() {
+        if (mGrid == null) return;
+        for (int x = 0; x < gridSize; x++) {
+            for (int y = 0; y < gridSize; y++) {
+                INuclearTile tile = mGrid[x][y];
+                if (tile instanceof NuclearGridTile gt) {
+                    if (gt.isHatch()) {
+                        MTEHatchNuclearHatch hatch = gt.getHatch();
+                        FluidStack fluid = hatch.mInputFluid;
+                        if (fluid != null && fluid.amount > 0) {
+                            if (isCoolantFluid(fluid)) {
+                                hatch.mUsedForCooling = true;
+                            } else {
+                                hatch.mUsedForCooling = false;
+                            }
+                        }
+                    } else if (gt.isBus()) {
+                        MTEHatchNuclearBus bus = gt.getBus();
+                        ItemStack stack = bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT];
+                        if (stack != null) {
+                            if (isItemCoolant(stack)) {
+                                bus.mUsedForCooling = true;
+                            } else {
+                                bus.mUsedForCooling = false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void updateControlHatches() {
+        for (MTEHatchNuclearControl hatch : mControlHatches) {
+            if (hatch != null && hatch.isValid()) {
+                byte signal = calculateSignalForMode(hatch.getMode());
+                hatch.setOutputRedstone(signal);
+            }
+        }
+    }
+
+    public byte calculateSignalForMode(int mode) {
+        if (mGrid == null || gridSize <= 0) return 0;
+
+        switch (mode) {
+            case MTEHatchNuclearControl.MODE_TEMP_MIN:
+            case MTEHatchNuclearControl.MODE_TEMP_MAX:
+            case MTEHatchNuclearControl.MODE_TEMP_AVG: {
+                double maxOperatingTemp = NuclearSimulationEngine.getMaxOperatingTemperature(mPipeTier);
+                if (maxOperatingTemp <= 0) maxOperatingTemp = 1000.0;
+                double minTemp = Double.MAX_VALUE;
+                double maxTemp = -Double.MAX_VALUE;
+                double sumTemp = 0.0;
+                int cellCount = 0;
+                for (int x = 0; x < gridSize; x++) {
+                    for (int y = 0; y < gridSize; y++) {
+                        INuclearTile tile = mGrid[x][y];
+                        if (tile != null) {
+                            double temp = tile.getTemperature();
+                            if (temp < minTemp) minTemp = temp;
+                            if (temp > maxTemp) maxTemp = temp;
+                            sumTemp += temp;
+                            cellCount++;
+                        }
+                    }
+                }
+                if (cellCount == 0) return 0;
+                double targetTemp = switch (mode) {
+                    case MTEHatchNuclearControl.MODE_TEMP_MIN -> minTemp;
+                    case MTEHatchNuclearControl.MODE_TEMP_MAX -> maxTemp;
+                    case MTEHatchNuclearControl.MODE_TEMP_AVG -> sumTemp / cellCount;
+                    default -> 0.0;
+                };
+                double ratio = Math.max(0.0, Math.min(1.0, targetTemp / maxOperatingTemp));
+                return (byte) Math.round(ratio * 15.0);
+            }
+
+            case MTEHatchNuclearControl.MODE_FUEL_DURABILITY_MIN:
+            case MTEHatchNuclearControl.MODE_FUEL_DURABILITY_MAX:
+            case MTEHatchNuclearControl.MODE_FUEL_DURABILITY_AVG: {
+                double minFuelDur = Double.MAX_VALUE;
+                double maxFuelDur = -Double.MAX_VALUE;
+                double sumFuelDur = 0.0;
+                int fuelCount = 0;
+                for (int x = 0; x < gridSize; x++) {
+                    for (int y = 0; y < gridSize; y++) {
+                        INuclearTile tile = mGrid[x][y];
+                        if (tile instanceof NuclearGridTile gt && gt.isBus()) {
+                            MTEHatchNuclearBus bus = gt.getBus();
+                            ItemStack stack = bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT];
+                            if (stack != null && isItemFuel(stack)) {
+                                double dur;
+                                if (stack.getItem() instanceof ItemRadioactiveCell radCell) {
+                                    int max = radCell.getMaxDamageEx();
+                                    int cur = radCell.getDamageOfStack(stack);
+                                    dur = max > 0 ? (double) (max - cur) / max : 0.0;
+                                } else if (stack.isItemStackDamageable() && stack.getMaxDamage() > 0) {
+                                    dur = (double) (stack.getMaxDamage() - stack.getItemDamage())
+                                        / stack.getMaxDamage();
+                                } else {
+                                    dur = 1.0;
+                                }
+                                dur = Math.max(0.0, Math.min(1.0, dur));
+                                if (dur < minFuelDur) minFuelDur = dur;
+                                if (dur > maxFuelDur) maxFuelDur = dur;
+                                sumFuelDur += dur;
+                                fuelCount++;
+                            }
+                        }
+                    }
+                }
+                if (fuelCount == 0) return 0;
+                double targetDur = switch (mode) {
+                    case MTEHatchNuclearControl.MODE_FUEL_DURABILITY_MIN -> minFuelDur;
+                    case MTEHatchNuclearControl.MODE_FUEL_DURABILITY_MAX -> maxFuelDur;
+                    case MTEHatchNuclearControl.MODE_FUEL_DURABILITY_AVG -> sumFuelDur / fuelCount;
+                    default -> 0.0;
+                };
+                return (byte) Math.round(targetDur * 15.0);
+            }
+
+            case MTEHatchNuclearControl.MODE_COMPONENT_DURABILITY_MIN:
+            case MTEHatchNuclearControl.MODE_COMPONENT_DURABILITY_MAX:
+            case MTEHatchNuclearControl.MODE_COMPONENT_DURABILITY_AVG: {
+                double minCompDur = Double.MAX_VALUE;
+                double maxCompDur = -Double.MAX_VALUE;
+                double sumCompDur = 0.0;
+                int compCount = 0;
+                for (int x = 0; x < gridSize; x++) {
+                    for (int y = 0; y < gridSize; y++) {
+                        INuclearTile tile = mGrid[x][y];
+                        if (tile instanceof NuclearGridTile gt && gt.isBus()) {
+                            MTEHatchNuclearBus bus = gt.getBus();
+                            ItemStack stack = bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT];
+                            if (stack != null && !isItemFuel(stack)
+                                && !isItemCoolant(stack)
+                                && stack.isItemStackDamageable()
+                                && stack.getMaxDamage() > 0) {
+                                double dur = (double) (stack.getMaxDamage() - stack.getItemDamage())
+                                    / stack.getMaxDamage();
+                                dur = Math.max(0.0, Math.min(1.0, dur));
+                                if (dur < minCompDur) minCompDur = dur;
+                                if (dur > maxCompDur) maxCompDur = dur;
+                                sumCompDur += dur;
+                                compCount++;
+                            }
+                        }
+                    }
+                }
+                if (compCount == 0) return 0;
+                double targetDur = switch (mode) {
+                    case MTEHatchNuclearControl.MODE_COMPONENT_DURABILITY_MIN -> minCompDur;
+                    case MTEHatchNuclearControl.MODE_COMPONENT_DURABILITY_MAX -> maxCompDur;
+                    case MTEHatchNuclearControl.MODE_COMPONENT_DURABILITY_AVG -> sumCompDur / compCount;
+                    default -> 0.0;
+                };
+                return (byte) Math.round(targetDur * 15.0);
+            }
+
+            case MTEHatchNuclearControl.MODE_COOLANT_LEVEL_MIN:
+            case MTEHatchNuclearControl.MODE_COOLANT_LEVEL_MAX:
+            case MTEHatchNuclearControl.MODE_COOLANT_LEVEL_AVG: {
+                double minCoolant = Double.MAX_VALUE;
+                double maxCoolant = -Double.MAX_VALUE;
+                double sumCoolant = 0.0;
+                int coolantCount = 0;
+                for (int x = 0; x < gridSize; x++) {
+                    for (int y = 0; y < gridSize; y++) {
+                        INuclearTile tile = mGrid[x][y];
+                        if (tile instanceof NuclearGridTile gt) {
+                            if (gt.isHatch()) {
+                                MTEHatchNuclearHatch hatch = gt.getHatch();
+                                if (hatch.mUsedForCooling) {
+                                    double level = 0.0;
+                                    if (hatch.mInputFluid != null && hatch.mCapacity > 0) {
+                                        level = (double) hatch.mInputFluid.amount / hatch.mCapacity;
+                                    }
+                                    level = Math.max(0.0, Math.min(1.0, level));
+                                    if (level < minCoolant) minCoolant = level;
+                                    if (level > maxCoolant) maxCoolant = level;
+                                    sumCoolant += level;
+                                    coolantCount++;
+                                }
+                            } else if (gt.isBus()) {
+                                MTEHatchNuclearBus bus = gt.getBus();
+                                if (bus.mUsedForCooling) {
+                                    ItemStack stack = bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT];
+                                    double level = 0.0;
+                                    if (stack != null && isItemCoolant(stack) && stack.getMaxDamage() > 0) {
+                                        level = (double) (stack.getMaxDamage() - stack.getItemDamage())
+                                            / stack.getMaxDamage();
+                                    }
+                                    level = Math.max(0.0, Math.min(1.0, level));
+                                    if (level < minCoolant) minCoolant = level;
+                                    if (level > maxCoolant) maxCoolant = level;
+                                    sumCoolant += level;
+                                    coolantCount++;
+                                }
+                            }
+                        }
+                    }
+                }
+                if (coolantCount == 0) return 0;
+                double targetLevel = switch (mode) {
+                    case MTEHatchNuclearControl.MODE_COOLANT_LEVEL_MIN -> minCoolant;
+                    case MTEHatchNuclearControl.MODE_COOLANT_LEVEL_MAX -> maxCoolant;
+                    case MTEHatchNuclearControl.MODE_COOLANT_LEVEL_AVG -> sumCoolant / coolantCount;
+                    default -> 0.0;
+                };
+                return (byte) Math.round(targetLevel * 15.0);
+            }
+
+            default:
+                return 0;
+        }
     }
 
     public boolean isItemBetavoltaic(ItemStack stack) {

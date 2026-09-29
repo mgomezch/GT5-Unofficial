@@ -58,6 +58,7 @@ public class MTEHatchNuclearHatch extends MTEHatch {
     public String mLastProducedFluidName = "";
     public int mReactorPipeTier = -1;
     public boolean mWasDry = false;
+    public boolean mUsedForCooling = false;
 
     public int getReactorPipeTier() {
         return mReactorPipeTier;
@@ -259,6 +260,7 @@ public class MTEHatchNuclearHatch extends MTEHatch {
         aNBT.setDouble("mHeatEU", mHeatEU);
         aNBT.setInteger("mReactorPipeTier", mReactorPipeTier);
         aNBT.setBoolean("mWasDry", mWasDry);
+        aNBT.setBoolean("mUsedForCooling", mUsedForCooling);
         if (mInputFluid != null) aNBT.setTag("mInputFluid", mInputFluid.writeToNBT(new NBTTagCompound()));
         if (mOutputFluid != null) aNBT.setTag("mOutputFluid", mOutputFluid.writeToNBT(new NBTTagCompound()));
         if (mByproductFluid != null) aNBT.setTag("mByproductFluid", mByproductFluid.writeToNBT(new NBTTagCompound()));
@@ -275,6 +277,9 @@ public class MTEHatchNuclearHatch extends MTEHatch {
         }
         if (aNBT.hasKey("mWasDry")) {
             mWasDry = aNBT.getBoolean("mWasDry");
+        }
+        if (aNBT.hasKey("mUsedForCooling")) {
+            mUsedForCooling = aNBT.getBoolean("mUsedForCooling");
         }
         if (aNBT.hasKey("mInputFluid")) {
             mInputFluid = FluidStack.loadFluidStackFromNBT(aNBT.getCompoundTag("mInputFluid"));

@@ -1091,4 +1091,98 @@ public class NuclearSimulationEngineTest {
         org.mockito.Mockito.verify(mockBase, org.mockito.Mockito.times(2))
             .getITankContainerAtSide(net.minecraftforge.common.util.ForgeDirection.SOUTH);
     }
+
+    @Test
+    void testNuclearControlHatchModesAndRedstoneOutput() {
+        MTEHatchNuclearControl controlHatch = new MTEHatchNuclearControl("test.control", 4, new String[0], null);
+        assertEquals(0, controlHatch.getMode());
+        assertEquals("Temperature (Min)", MTEHatchNuclearControl.getModeName(0));
+
+        // Test cycle
+        controlHatch.setMode(1);
+        assertEquals(1, controlHatch.getMode());
+        assertEquals("Temperature (Max)", MTEHatchNuclearControl.getModeName(1));
+
+        controlHatch.setMode(12); // Wrap
+        assertEquals(0, controlHatch.getMode());
+
+        controlHatch.setMode(-1); // Negative wrap
+        assertEquals(11, controlHatch.getMode());
+        assertEquals("Coolant Level (Avg)", MTEHatchNuclearControl.getModeName(11));
+
+        // Test NBT persistence
+        net.minecraft.nbt.NBTTagCompound nbt = new net.minecraft.nbt.NBTTagCompound();
+        controlHatch.setMode(4);
+        controlHatch.setOutputStrengthDirect((byte) 10);
+        controlHatch.saveNBTData(nbt);
+
+        MTEHatchNuclearControl loaded = new MTEHatchNuclearControl("test.loaded", 4, new String[0], null);
+        loaded.loadNBTData(nbt);
+        assertEquals(4, loaded.getMode());
+        assertEquals(10, loaded.getOutputStrength());
+
+        // Test redstone emission on facing side only
+        gregtech.api.interfaces.tileentity.IGregTechTileEntity mockBase = org.mockito.Mockito
+            .mock(gregtech.api.interfaces.tileentity.IGregTechTileEntity.class);
+        org.mockito.Mockito.when(mockBase.getFrontFacing())
+            .thenReturn(net.minecraftforge.common.util.ForgeDirection.EAST);
+        controlHatch.setBaseMetaTileEntity(mockBase);
+
+        controlHatch.setOutputRedstone((byte) 12);
+        assertEquals(12, controlHatch.getOutputStrength());
+
+        // Facing side must receive 12, other sides must receive 0
+        org.mockito.Mockito.verify(mockBase)
+            .setOutputRedstoneSignal(net.minecraftforge.common.util.ForgeDirection.EAST, (byte) 12);
+        org.mockito.Mockito.verify(mockBase)
+            .setOutputRedstoneSignal(net.minecraftforge.common.util.ForgeDirection.WEST, (byte) 0);
+        org.mockito.Mockito.verify(mockBase)
+            .setOutputRedstoneSignal(net.minecraftforge.common.util.ForgeDirection.NORTH, (byte) 0);
+        org.mockito.Mockito.verify(mockBase)
+            .setOutputRedstoneSignal(net.minecraftforge.common.util.ForgeDirection.SOUTH, (byte) 0);
+    }
+
+    @Test
+    void testNuclearReactorControlHatchSignalCalculations() {
+        MTENuclearReactor reactor = new MTENuclearReactor("test.reactor");
+        reactor.gridSize = 3;
+        reactor.mGrid = new INuclearTile[3][3];
+        reactor.mPipeTier = NuclearSimulationEngine.PIPE_TIER_ELECTRUM; // Max temp = 1000 °C
+
+        // Put tiles with known temperatures: 200 °C, 500 °C, 800 °C
+        MockNuclearTile t1 = new MockNuclearTile(200.0, 0.05);
+        MockNuclearTile t2 = new MockNuclearTile(500.0, 0.05);
+        MockNuclearTile t3 = new MockNuclearTile(800.0, 0.05);
+        reactor.mGrid[0][0] = t1;
+        reactor.mGrid[0][1] = t2;
+        reactor.mGrid[0][2] = t3;
+
+        // Temperature modes (Max operating temp = 1000 °C)
+        // Min = 200 -> 200/1000 * 15 = 3
+        assertEquals((byte) 3, reactor.calculateSignalForMode(MTEHatchNuclearControl.MODE_TEMP_MIN));
+        // Max = 800 -> 800/1000 * 15 = 12
+        assertEquals((byte) 12, reactor.calculateSignalForMode(MTEHatchNuclearControl.MODE_TEMP_MAX));
+        // Avg = 500 -> 500/1000 * 15 = 7.5 -> 8
+        assertEquals((byte) 8, reactor.calculateSignalForMode(MTEHatchNuclearControl.MODE_TEMP_AVG));
+
+        // When no fuel/component/coolant present, durabilities and coolant levels return 0
+        assertEquals((byte) 0, reactor.calculateSignalForMode(MTEHatchNuclearControl.MODE_FUEL_DURABILITY_MIN));
+        assertEquals((byte) 0, reactor.calculateSignalForMode(MTEHatchNuclearControl.MODE_COMPONENT_DURABILITY_MIN));
+        assertEquals((byte) 0, reactor.calculateSignalForMode(MTEHatchNuclearControl.MODE_COOLANT_LEVEL_MIN));
+    }
+
+    @Test
+    void testNuclearReactorCasingRequirementHalved() {
+        MTENuclearReactor reactor = new MTENuclearReactor("test.reactor.casing");
+        java.util.List<gregtech.api.structure.error.StructureError> errors = new java.util.ArrayList<>();
+
+        // If casings < 22, errors should be reported
+        reactor.verifyCasingMin(errors, 21, 22);
+        assertFalse(errors.isEmpty(), "Fewer than 22 casings must fail structure check");
+
+        // If casings >= 22, passes
+        errors.clear();
+        reactor.verifyCasingMin(errors, 22, 22);
+        assertTrue(errors.isEmpty(), "22 casings (50% of 44) must pass structure check");
+    }
 }

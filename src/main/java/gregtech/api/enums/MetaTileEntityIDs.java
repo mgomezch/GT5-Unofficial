@@ -2093,6 +2093,7 @@ public enum MetaTileEntityIDs {
     NUCLEAR_HATCH_ZPM(32107),
     NUCLEAR_HATCH_UV(32108),
     NUCLEAR_HATCH_UHV(32109),
+    NUCLEAR_CONTROL_HATCH(32110),
     NUCLEAR_REACTOR(32115);
 
     public final int ID;

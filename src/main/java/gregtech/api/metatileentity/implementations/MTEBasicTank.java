@@ -83,7 +83,11 @@ public abstract class MTEBasicTank extends MTETieredMachineBlock implements IAdd
 
     @Override
     public void loadNBTData(NBTTagCompound aNBT) {
-        mFluid = FluidStack.loadFluidStackFromNBT(aNBT.getCompoundTag("mFluid"));
+        if (aNBT.hasKey("mFluid")) {
+            mFluid = FluidStack.loadFluidStackFromNBT(aNBT.getCompoundTag("mFluid"));
+        } else {
+            mFluid = null;
+        }
     }
 
     public abstract boolean doesFillContainers();

@@ -46,6 +46,7 @@ public class MTEHatchNuclearBus extends MTEHatch {
     public int mLastThermalAbsorbed = 0;
     public int mLastNeutronsGenerated = 0;
     public long mDirectEUProduced = 0;
+    public boolean mUsedForCooling = false;
 
     public MTEHatchNuclearBus(int aID, String aName, String aNameRegional, int aTier) {
         super(
@@ -128,6 +129,7 @@ public class MTEHatchNuclearBus extends MTEHatch {
         super.saveNBTData(aNBT);
         aNBT.setDouble("mTemperature", mTemperature);
         aNBT.setDouble("mHeatEU", mHeatEU);
+        aNBT.setBoolean("mUsedForCooling", mUsedForCooling);
     }
 
     @Override
@@ -136,6 +138,9 @@ public class MTEHatchNuclearBus extends MTEHatch {
         mTemperature = aNBT.getDouble("mTemperature");
         if (mTemperature < 20.0) mTemperature = 20.0;
         mHeatEU = aNBT.getDouble("mHeatEU");
+        if (aNBT.hasKey("mUsedForCooling")) {
+            mUsedForCooling = aNBT.getBoolean("mUsedForCooling");
+        }
     }
 
     public void markTileDirty() {
