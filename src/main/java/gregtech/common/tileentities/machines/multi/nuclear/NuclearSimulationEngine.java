@@ -7,7 +7,7 @@ public class NuclearSimulationEngine {
     public static final double EU_FOR_FAST_NEUTRON = 8.0;
     public static final double EU_PER_DEGREE = 64.0;
     public static final double BASE_HEAT_CONDUCTION = 0.01;
-    public static final double DEFAULT_AMBIENT_TEMP = 24.0;
+    public static final double DEFAULT_AMBIENT_TEMP = 20.0;
     public static double ambientTemp = DEFAULT_AMBIENT_TEMP;
     public static double AMBIENT_TEMP = DEFAULT_AMBIENT_TEMP;
     public static final double DEFAULT_TEMP_THRESHOLD_LOW = 800.0;
@@ -238,8 +238,12 @@ public class NuclearSimulationEngine {
     }
 
     public static double getCoolingOperatingThreshold(String fluidName) {
+        return getCoolingOperatingThreshold(fluidName, ambientTemp);
+    }
+
+    public static double getCoolingOperatingThreshold(String fluidName, double ambient) {
         if (fluidName == null || fluidName.contains("coolant")) {
-            return ambientTemp;
+            return ambient;
         }
         if (fluidName.contains("highpressure")) {
             return hpWaterBoilingPoint;
@@ -280,16 +284,27 @@ public class NuclearSimulationEngine {
     }
 
     /**
-     * Executes one reactor simulation tick over the 2D grid with full (100%) maintenance efficiency.
+     * Executes one reactor simulation tick over the 2D grid with full (100%) maintenance efficiency and default ambient
+     * temperature.
      */
     public static SimulationResult simulate(INuclearTile[][] grid, int sizeX, int sizeY) {
-        return simulate(grid, sizeX, sizeY, 1.0);
+        return simulate(grid, sizeX, sizeY, 1.0, ambientTemp);
     }
 
     /**
-     * Executes one reactor simulation tick over the 2D grid with specified maintenance efficiency factor [0.0, 1.0].
+     * Executes one reactor simulation tick over the 2D grid with specified maintenance efficiency factor [0.0, 1.0] and
+     * default ambient temperature.
      */
     public static SimulationResult simulate(INuclearTile[][] grid, int sizeX, int sizeY, double maintenanceEfficiency) {
+        return simulate(grid, sizeX, sizeY, maintenanceEfficiency, ambientTemp);
+    }
+
+    /**
+     * Executes one reactor simulation tick over the 2D grid with specified maintenance efficiency and biome ambient
+     * temperature.
+     */
+    public static SimulationResult simulate(INuclearTile[][] grid, int sizeX, int sizeY, double maintenanceEfficiency,
+        double ambient) {
         SimulationResult result = new SimulationResult();
         if (grid == null || sizeX <= 0 || sizeY <= 0) return result;
 
@@ -484,25 +499,19 @@ public class NuclearSimulationEngine {
                         int nx = x + dX[k];
                         int ny = y + dY[k];
 
-                        if (nx >= 0 && nx < sizeX && ny >= 0 && ny < sizeY) {
+                        if (nx >= 0 && nx < sizeX && ny >= 0 && ny < sizeY && grid[nx][ny] != null) {
                             INuclearTile tileB = grid[nx][ny];
-                            if (tileB != null) {
-                                double tempB = tileB.getTemperature();
-                                double coeffB = Math.max(BASE_HEAT_CONDUCTION, tileB.getHeatTransferCoeff());
-                                double transferCoeff = 0.5 * (coeffA + coeffB) / SUBSTEPS;
-                                if (tempA > tempB) {
-                                    double flow = (tempA - tempB) * transferCoeff;
-                                    deltaTemp[x][y] -= flow;
-                                    deltaTemp[nx][ny] += flow;
-                                }
-                            } else {
-                                // Radiation to casing / null cell wall
-                                double loss = (tempA - AMBIENT_TEMP) * (0.5 * coeffA / SUBSTEPS);
-                                deltaTemp[x][y] -= loss;
+                            double tempB = tileB.getTemperature();
+                            double coeffB = Math.max(BASE_HEAT_CONDUCTION, tileB.getHeatTransferCoeff());
+                            double transferCoeff = 0.5 * (coeffA + coeffB) / SUBSTEPS;
+                            if (tempA > tempB) {
+                                double flow = (tempA - tempB) * transferCoeff;
+                                deltaTemp[x][y] -= flow;
+                                deltaTemp[nx][ny] += flow;
                             }
                         } else {
-                            // Core edge boundary heat loss to outer wall
-                            double loss = (tempA - AMBIENT_TEMP) * (coeffA / (SUBSTEPS * 2.0));
+                            // Heat loss to empty space / outer walls at ambient temperature
+                            double loss = (tempA - ambient) * (coeffA / (2.0 * SUBSTEPS));
                             deltaTemp[x][y] -= loss;
                         }
                     }
@@ -513,7 +522,7 @@ public class NuclearSimulationEngine {
                 for (int y = 0; y < sizeY; y++) {
                     INuclearTile tile = grid[x][y];
                     if (tile != null) {
-                        tile.setTemperature(Math.max(AMBIENT_TEMP, tile.getTemperature() + deltaTemp[x][y]));
+                        tile.setTemperature(Math.max(ambient, tile.getTemperature() + deltaTemp[x][y]));
                     }
                 }
             }
@@ -544,7 +553,8 @@ public class NuclearSimulationEngine {
         }
 
         // --- PASS 7: END-OF-TICK TELEMETRY & METRICS ---
-        result.maxTemperature = AMBIENT_TEMP;
+        result.maxTemperature = ambient;
+        result.averageTemperature = ambient;
         sumTemp = 0;
         sumFuelReactivity = 0;
         fuelTileCount = 0;

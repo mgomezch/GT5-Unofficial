@@ -43,6 +43,11 @@ public class MTEHatchNuclearControlRodGui extends MTEHatchBaseGui<MTEHatchNuclea
         syncManager.syncValue(
             "thermalAbsorbed",
             new IntSyncValue(() -> machine.mLastThermalAbsorbed, val -> machine.mLastThermalAbsorbed = val));
+        syncManager.syncValue(
+            "scram",
+            new com.cleanroommc.modularui.value.sync.BooleanSyncValue(
+                () -> machine.mScram,
+                val -> machine.mScram = val));
     }
 
     @Override
@@ -67,12 +72,15 @@ public class MTEHatchNuclearControlRodGui extends MTEHatchBaseGui<MTEHatchNuclea
                 .asWidget()
                 .widgetTheme(GTWidgetThemes.DISPLAY_TEXT_WHITE));
 
-        textColumn.child(
-            IKey.dynamic(
-                () -> EnumChatFormatting.GREEN + String
-                    .format("Insert: %d%% (RS: %d)", machine.getInsertionPercent(), machine.getRedstoneSignal()))
-                .asWidget()
-                .widgetTheme(GTWidgetThemes.DISPLAY_TEXT_WHITE));
+        textColumn.child(IKey.dynamic(() -> {
+            if (machine.mScram) {
+                return EnumChatFormatting.RED + "Insert: 100% (SCRAMMED)";
+            }
+            return EnumChatFormatting.GREEN
+                + String.format("Insert: %d%% (RS: %d)", machine.getInsertionPercent(), machine.getRedstoneSignal());
+        })
+            .asWidget()
+            .widgetTheme(GTWidgetThemes.DISPLAY_TEXT_WHITE));
 
         textColumn.child(IKey.dynamic(() -> {
             ItemStack rod = machine.mInventory[MTEHatchNuclearControlRod.SLOT_ROD];

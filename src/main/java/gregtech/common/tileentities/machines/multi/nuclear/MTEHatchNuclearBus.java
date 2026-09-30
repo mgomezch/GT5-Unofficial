@@ -34,8 +34,20 @@ public class MTEHatchNuclearBus extends MTEHatch {
     public static final int SLOT_OUTPUT_1 = 1;
     public static final int SLOT_OUTPUT_2 = 2;
 
-    public double mTemperature = 20.0;
+    public double mTemperature = NuclearSimulationEngine.DEFAULT_AMBIENT_TEMP;
     public double mHeatEU = 0.0;
+
+    public double getAmbientTemperature() {
+        if (getBaseMetaTileEntity() != null && getBaseMetaTileEntity().getWorld() != null) {
+            return MTENuclearReactor.calculateAmbientTemperature(
+                getBaseMetaTileEntity().getWorld(),
+                getBaseMetaTileEntity().getXCoord(),
+                getBaseMetaTileEntity().getYCoord(),
+                getBaseMetaTileEntity().getZCoord());
+        }
+        return NuclearSimulationEngine.DEFAULT_AMBIENT_TEMP;
+    }
+
     public int mFastFlux = 0;
     public int mThermalFlux = 0;
     public int mFastAbsorbed = 0;
@@ -135,8 +147,11 @@ public class MTEHatchNuclearBus extends MTEHatch {
     @Override
     public void loadNBTData(NBTTagCompound aNBT) {
         super.loadNBTData(aNBT);
-        mTemperature = aNBT.getDouble("mTemperature");
-        if (mTemperature < 20.0) mTemperature = 20.0;
+        if (aNBT.hasKey("mTemperature")) {
+            mTemperature = aNBT.getDouble("mTemperature");
+        } else {
+            mTemperature = getAmbientTemperature();
+        }
         mHeatEU = aNBT.getDouble("mHeatEU");
         if (aNBT.hasKey("mUsedForCooling")) {
             mUsedForCooling = aNBT.getBoolean("mUsedForCooling");

@@ -2,6 +2,12 @@ package gregtech.common.tileentities.machines.multi.nuclear;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.world.World;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -1428,5 +1434,158 @@ public class NuclearSimulationEngineTest {
 
         assertNotNull(bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT], "Fuel in bus must be preserved when cold");
         assertNotNull(hatch.mInputFluid, "Coolant in hatch must be preserved when cold");
+    }
+
+    private static void setWorldProvider(World world, net.minecraft.world.WorldProvider provider) {
+        try {
+            java.lang.reflect.Field f = World.class.getField("provider");
+            f.setAccessible(true);
+            f.set(world, provider);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    void testBiomeAmbientTemperatureCalculations() {
+        // Fallback with null world
+        assertEquals(
+            NuclearSimulationEngine.DEFAULT_AMBIENT_TEMP,
+            MTENuclearReactor.calculateAmbientTemperature(null, 0, 0, 0),
+            1e-6);
+
+        // Nether / Hell world mock
+        World mockNether = org.mockito.Mockito.mock(World.class);
+        net.minecraft.world.WorldProvider netherProvider = org.mockito.Mockito
+            .mock(net.minecraft.world.WorldProvider.class);
+        netherProvider.isHellWorld = true;
+        setWorldProvider(mockNether, netherProvider);
+        assertEquals(120.0, MTENuclearReactor.calculateAmbientTemperature(mockNether, 0, 64, 0), 1e-6);
+
+        // Overworld biomes mock
+        World mockOverworld = org.mockito.Mockito.mock(World.class);
+        net.minecraft.world.WorldProvider overworldProvider = org.mockito.Mockito
+            .mock(net.minecraft.world.WorldProvider.class);
+        overworldProvider.isHellWorld = false;
+        setWorldProvider(mockOverworld, overworldProvider);
+
+        net.minecraft.world.biome.BiomeGenBase mockBiome = org.mockito.Mockito
+            .mock(net.minecraft.world.biome.BiomeGenBase.class);
+        org.mockito.Mockito.when(mockOverworld.getBiomeGenForCoords(0, 0))
+            .thenReturn(mockBiome);
+
+        // Plains (0.80) -> (0.80 - 0.15) * 30.77 = ~20.0°C
+        org.mockito.Mockito.when(mockBiome.getFloatTemperature(0, 64, 0))
+            .thenReturn(0.80f);
+        double plainsTemp = MTENuclearReactor.calculateAmbientTemperature(mockOverworld, 0, 64, 0);
+        assertEquals(20.0, plainsTemp, 0.05);
+
+        // Freezing snow biome (0.15) -> 0.0°C
+        org.mockito.Mockito.when(mockBiome.getFloatTemperature(0, 64, 0))
+            .thenReturn(0.15f);
+        double snowTemp = MTENuclearReactor.calculateAmbientTemperature(mockOverworld, 0, 64, 0);
+        assertEquals(0.0, snowTemp, 0.05);
+
+        // Sub-zero cold biome (0.05) -> -3.07°C
+        org.mockito.Mockito.when(mockBiome.getFloatTemperature(0, 64, 0))
+            .thenReturn(0.05f);
+        double coldTemp = MTENuclearReactor.calculateAmbientTemperature(mockOverworld, 0, 64, 0);
+        assertEquals(-3.077, coldTemp, 0.05);
+    }
+
+    @Test
+    void testThermalShockSetsMaxMaintenanceWithoutStoppingMachine() {
+        MTENuclearReactor reactor = new MTENuclearReactor("nuclear.reactor.test");
+        reactor.mMachine = true;
+        reactor.fixAllIssues();
+        assertEquals(1.0, reactor.getMaintenanceEfficiency(), 1e-6);
+
+        MTEHatchNuclearHatch hatch = new MTEHatchNuclearHatch("test.hatch", 4, 16000, new String[0], null);
+        net.minecraftforge.fluids.FluidStack coolantIn = org.mockito.Mockito
+            .mock(net.minecraftforge.fluids.FluidStack.class);
+        hatch.mInputFluid = coolantIn;
+
+        gregtech.api.interfaces.tileentity.IGregTechTileEntity te = org.mockito.Mockito
+            .mock(gregtech.api.interfaces.tileentity.IGregTechTileEntity.class);
+        org.mockito.Mockito.when(te.isServerSide())
+            .thenReturn(true);
+        org.mockito.Mockito.when(te.getWorld())
+            .thenReturn(org.mockito.Mockito.mock(World.class));
+        reactor.setBaseMetaTileEntity(te);
+
+        // Trigger thermal shock
+        reactor.triggerThermalShock(hatch, "Test thermal shock");
+
+        // Machine entity must remain active (never disabled/stopped)
+        assertTrue(reactor.mMachine, "Thermal shock must NOT disable or stop the reactor machine entity!");
+
+        // Coolant in hatch must be voided
+        assertNull(hatch.mInputFluid, "Coolant in hatch must be voided upon thermal shock");
+
+        // Maintenance issues must be set to max (all false, 0% efficiency)
+        assertFalse(reactor.mWrench);
+        assertFalse(reactor.mScrewdriver);
+        assertFalse(reactor.mSoftMallet);
+        assertFalse(reactor.mHardHammer);
+        assertFalse(reactor.mSolderingTool);
+        assertFalse(reactor.mCrowbar);
+        assertEquals(0.0, reactor.getMaintenanceEfficiency(), 1e-6, "Efficiency must be 0% after thermal shock");
+    }
+
+    @Test
+    void testEmergencyScramInsertsAllControlRods() {
+        MTENuclearReactor reactor = new MTENuclearReactor("nuclear.reactor.test");
+        MTEHatchNuclearControlRod rod = new MTEHatchNuclearControlRod("test.rod", 4, new String[0], null);
+
+        gregtech.api.interfaces.tileentity.IGregTechTileEntity teRod = org.mockito.Mockito
+            .mock(gregtech.api.interfaces.tileentity.IGregTechTileEntity.class);
+        org.mockito.Mockito.when(teRod.getMetaTileEntity())
+            .thenReturn(rod);
+        org.mockito.Mockito.when(teRod.getStrongestRedstone())
+            .thenReturn((byte) 0);
+        rod.setBaseMetaTileEntity(teRod);
+
+        reactor.mNuclearTiles.add(teRod);
+
+        // Default state: 0 RS signal -> 0% insertion
+        assertFalse(rod.mScram);
+        assertEquals(0.0, rod.getInsertionRatio(), 1e-6);
+
+        // Engage SCRAM
+        reactor.setScram(true);
+        assertTrue(reactor.mScram);
+        assertTrue(rod.mScram);
+        assertEquals(
+            1.0,
+            rod.getInsertionRatio(),
+            1e-6,
+            "SCRAM must force 100% control rod insertion regardless of redstone!");
+
+        // Disengage SCRAM
+        reactor.setScram(false);
+        assertFalse(reactor.mScram);
+        assertFalse(rod.mScram);
+        assertEquals(0.0, rod.getInsertionRatio(), 1e-6, "Disengaging SCRAM must restore normal redstone control");
+    }
+
+    @Test
+    void testWailaTooltipHasNoRecipeProgress() {
+        MTENuclearReactor reactor = new MTENuclearReactor("nuclear.reactor.test");
+        NBTTagCompound tag = new NBTTagCompound();
+        reactor.getWailaNBTData(null, null, tag, null, 0, 0, 0);
+
+        assertEquals(0, tag.getInteger("progress"), "Reactor must report 0 recipe progress");
+        assertEquals(0, tag.getInteger("maxProgress"), "Reactor must report 0 max recipe progress");
+
+        List<String> tip = new ArrayList<>();
+        mcp.mobius.waila.api.IWailaDataAccessor mockAccessor = org.mockito.Mockito
+            .mock(mcp.mobius.waila.api.IWailaDataAccessor.class);
+        org.mockito.Mockito.when(mockAccessor.getNBTData())
+            .thenReturn(tag);
+
+        reactor.getWailaBody(null, tip, mockAccessor, null);
+        for (String line : tip) {
+            assertFalse(line.contains("Progress:"), "WAILA tooltip must NOT contain recipe progress string!");
+        }
     }
 }

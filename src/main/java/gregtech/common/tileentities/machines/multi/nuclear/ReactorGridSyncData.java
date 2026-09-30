@@ -29,6 +29,8 @@ public class ReactorGridSyncData {
     public int escapedNeutrons = 0;
     public int outputCoolantRate = 0;
     public String outputCoolantName = "";
+    public boolean scram = false;
+    public float ambientTemp = 20.0f;
     public List<ReactorGridCellData> cells = new ArrayList<>();
 
     public static class ReactorGridCellData {
@@ -84,6 +86,8 @@ public class ReactorGridSyncData {
         buf.writeVarIntToBuffer(data.escapedNeutrons);
         buf.writeVarIntToBuffer(data.outputCoolantRate);
         ByteBufUtils.writeUTF8String(buf, data.outputCoolantName != null ? data.outputCoolantName : "");
+        buf.writeBoolean(data.scram);
+        buf.writeFloat(data.ambientTemp);
 
         buf.writeVarIntToBuffer(data.cells.size());
         for (ReactorGridCellData cell : data.cells) {
@@ -128,6 +132,8 @@ public class ReactorGridSyncData {
         data.escapedNeutrons = buf.readVarIntFromBuffer();
         data.outputCoolantRate = buf.readVarIntFromBuffer();
         data.outputCoolantName = ByteBufUtils.readUTF8String(buf);
+        data.scram = buf.readBoolean();
+        data.ambientTemp = buf.readFloat();
 
         int cellCount = buf.readVarIntFromBuffer();
         for (int i = 0; i < cellCount; i++) {
@@ -168,6 +174,8 @@ public class ReactorGridSyncData {
         ReactorGridSyncData that = (ReactorGridSyncData) o;
         if (gridSize != that.gridSize || pipeTier != that.pipeTier || directPowerEUt != that.directPowerEUt)
             return false;
+        if (scram != that.scram) return false;
+        if (Math.abs(ambientTemp - that.ambientTemp) > 0.5f) return false;
         if (Math.abs(coreTemp - that.coreTemp) > 0.5f) return false;
         if (Math.abs(avgTemp - that.avgTemp) > 0.5f) return false;
         if (Math.abs(efficiency - that.efficiency) > 0.005) return false;

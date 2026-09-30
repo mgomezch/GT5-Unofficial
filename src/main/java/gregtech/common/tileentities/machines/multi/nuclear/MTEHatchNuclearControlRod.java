@@ -147,6 +147,24 @@ public class MTEHatchNuclearControlRod extends MTEHatch {
         return getRodType(stack) != ControlRodType.NONE;
     }
 
+    public boolean mScram = false;
+
+    public void setScram(boolean scram) {
+        this.mScram = scram;
+        markTileDirty();
+    }
+
+    public double getAmbientTemperature() {
+        if (getBaseMetaTileEntity() != null && getBaseMetaTileEntity().getWorld() != null) {
+            return MTENuclearReactor.calculateAmbientTemperature(
+                getBaseMetaTileEntity().getWorld(),
+                getBaseMetaTileEntity().getXCoord(),
+                getBaseMetaTileEntity().getYCoord(),
+                getBaseMetaTileEntity().getZCoord());
+        }
+        return NuclearSimulationEngine.DEFAULT_AMBIENT_TEMP;
+    }
+
     public byte getRedstoneSignal() {
         IGregTechTileEntity base = getBaseMetaTileEntity();
         if (base == null) return 0;
@@ -154,6 +172,7 @@ public class MTEHatchNuclearControlRod extends MTEHatch {
     }
 
     public double getInsertionRatio() {
+        if (mScram) return 1.0;
         byte rs = getRedstoneSignal();
         return Math.max(0.0, Math.min(1.0, (double) rs / 15.0));
     }
@@ -230,14 +249,19 @@ public class MTEHatchNuclearControlRod extends MTEHatch {
         super.saveNBTData(aNBT);
         aNBT.setDouble("mTemperature", mTemperature);
         aNBT.setDouble("mHeatEU", mHeatEU);
+        aNBT.setBoolean("mScram", mScram);
     }
 
     @Override
     public void loadNBTData(NBTTagCompound aNBT) {
         super.loadNBTData(aNBT);
-        mTemperature = aNBT.getDouble("mTemperature");
-        if (mTemperature < 20.0) mTemperature = 20.0;
+        if (aNBT.hasKey("mTemperature")) {
+            mTemperature = aNBT.getDouble("mTemperature");
+        } else {
+            mTemperature = getAmbientTemperature();
+        }
         mHeatEU = aNBT.getDouble("mHeatEU");
+        mScram = aNBT.getBoolean("mScram");
     }
 
     public void markTileDirty() {

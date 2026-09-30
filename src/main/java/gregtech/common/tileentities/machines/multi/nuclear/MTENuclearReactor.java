@@ -1,5 +1,6 @@
 package gregtech.common.tileentities.machines.multi.nuclear;
 
+import static com.gtnewhorizon.gtnhlib.util.numberformatting.NumberFormatUtil.formatNumber;
 import static com.gtnewhorizon.structurelib.structure.StructureUtility.ofChain;
 import static com.gtnewhorizon.structurelib.structure.StructureUtility.transpose;
 import static gregtech.api.casing.Casings.NuclearCasing;
@@ -55,6 +56,7 @@ import com.gtnewhorizons.modularui.common.widget.Scrollable;
 import com.gtnewhorizons.modularui.common.widget.SlotWidget;
 import com.gtnewhorizons.modularui.common.widget.TextWidget;
 
+import codechicken.lib.gui.GuiDraw;
 import gregtech.GTMod;
 import gregtech.api.GregTechAPI;
 import gregtech.api.enums.ItemList;
@@ -117,8 +119,10 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     }
 
     // Telemetry
-    public double mCoreTemp = 20.0;
-    public double mAvgTemp = 20.0;
+    public double mCachedAmbientTemp = NuclearSimulationEngine.DEFAULT_AMBIENT_TEMP;
+    public double mCoreTemp = NuclearSimulationEngine.DEFAULT_AMBIENT_TEMP;
+    public double mAvgTemp = NuclearSimulationEngine.DEFAULT_AMBIENT_TEMP;
+    public boolean mScram = false;
     public int mNeutronsProduced = 0;
     public int mFastAbsorbed = 0;
     public int mThermalAbsorbed = 0;
@@ -563,59 +567,60 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         }
     }
 
-    public void triggerDryCoolantShutdown(String reason) {
+    public void triggerThermalShock(MTEHatchNuclearHatch hatch, String reason) {
         IGregTechTileEntity base = getBaseMetaTileEntity();
         if (base == null || !base.isServerSide()) return;
 
-        GTLog.writeExplosionLog(this, "DRY COOLANT POWERFAIL: " + reason);
+        try {
+            GTLog.writeExplosionLog(this, "THERMAL SHOCK: " + reason);
+        } catch (Throwable ignored) {}
 
-        // Void all coolant in fluid hatches
-        for (IGregTechTileEntity te : mNuclearTiles) {
-            if (te != null && te.getMetaTileEntity() instanceof MTEHatchNuclearHatch hatch) {
-                hatch.mInputFluid = null;
-                hatch.mOutputFluid = null;
-                hatch.mByproductFluid = null;
-                hatch.mWasDry = true;
-                if (hatch.getBaseMetaTileEntity() != null) {
-                    hatch.getBaseMetaTileEntity()
-                        .markDirty();
-                }
-            } else if (te != null && te.getMetaTileEntity() instanceof MTEHatchNuclearBus bus) {
-                // Void all fuel in nuclear bus hatches, but PRESERVE other components like reflectors and betavoltaics!
-                if (isItemFuel(bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT])) {
-                    bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT] = null;
-                    if (bus.getBaseMetaTileEntity() != null) {
-                        bus.getBaseMetaTileEntity()
-                            .markDirty();
-                    }
-                }
+        // Void the coolant in the affected hatch (flashes into steam)
+        if (hatch != null) {
+            hatch.mInputFluid = null;
+            hatch.mOutputFluid = null;
+            hatch.mByproductFluid = null;
+            hatch.mWasDry = true;
+            if (hatch.getBaseMetaTileEntity() != null) {
+                hatch.getBaseMetaTileEntity()
+                    .markDirty();
             }
         }
 
-        // Shut down reactor with power loss & powerfail event
-        stopMachine(ShutDownReasonRegistry.POWER_LOSS);
-        if (GTMod.proxy.powerfailTracker != null) {
-            GTMod.proxy.powerfailTracker.createPowerfailEvent(base);
-        }
+        // Damage reactor internals: set maximum maintenance issues (drops efficiency to 0%)
+        mWrench = false;
+        mScrewdriver = false;
+        mSoftMallet = false;
+        mHardHammer = false;
+        mSolderingTool = false;
+        mCrowbar = false;
         super.mEfficiency = 0;
-        mReactivity = 0.0;
-        mWallNeutronAccumulator = 0;
-        mWallMaintenanceTimer = 0;
-        mOutputCoolantRate = 0;
-        mOutputCoolantName = "";
 
-        World world = base.getWorld();
-        int cX = base.getXCoord();
-        int cY = base.getYCoord();
-        int cZ = base.getZCoord();
-        GTUtility.sendSoundToPlayers(
-            world,
-            SoundResource.IC2_MACHINES_MACHINE_OVERLOAD,
-            0.8F,
-            0.5F,
-            cX + 0.5,
-            cY + 0.5,
-            cZ + 0.5);
+        // Issue powerfail notification to player (without stopping machine entity)
+        try {
+            if (GTMod.proxy != null && GTMod.proxy.powerfailTracker != null) {
+                GTMod.proxy.powerfailTracker.createPowerfailEvent(base);
+            }
+        } catch (Throwable ignored) {}
+
+        try {
+            World world = base.getWorld();
+            int cX = base.getXCoord();
+            int cY = base.getYCoord();
+            int cZ = base.getZCoord();
+            GTUtility.sendSoundToPlayers(
+                world,
+                SoundResource.IC2_MACHINES_MACHINE_OVERLOAD,
+                0.8F,
+                0.5F,
+                cX + 0.5,
+                cY + 0.5,
+                cZ + 0.5);
+        } catch (Throwable ignored) {}
+    }
+
+    public void triggerDryCoolantShutdown(String reason) {
+        triggerThermalShock(null, reason);
     }
 
     @Override
@@ -747,6 +752,15 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         }
 
         updateNuclearTilesPipeTier();
+
+        mCachedAmbientTemp = getAmbientTemperature();
+        if (mScram) {
+            for (IGregTechTileEntity te : mNuclearTiles) {
+                if (te != null && te.getMetaTileEntity() instanceof MTEHatchNuclearControlRod rod) {
+                    rod.setScram(true);
+                }
+            }
+        }
     }
 
     public void verifyCasingMin(List<StructureError> errors, int current, int required) {
@@ -769,6 +783,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             return CheckRecipeResultRegistry.NO_RECIPE;
         }
         mMaxProgresstime = 20;
+        mProgresstime = 0;
         super.mEfficiency = (int) Math.round(getMaintenanceEfficiency() * 10000);
         mEfficiencyIncrease = 0;
         return CheckRecipeResultRegistry.SUCCESSFUL;
@@ -876,8 +891,14 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                 addEnergyOutputMultipleDynamos(mDirectPowerEUt, true);
             }
 
+            if (aTick % 100 == 0) {
+                mCachedAmbientTemp = getAmbientTemperature();
+            }
+
             if (mGrid != null && (aTick % 20 == 0)) {
                 updateNuclearTilesPipeTier();
+
+                double ambient = getAmbientTemperature();
 
                 // 1. Check for high-pressure coolant in insufficient casing tier -> EXPLODE!
                 for (IGregTechTileEntity te : mNuclearTiles) {
@@ -908,17 +929,29 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                     }
                 }
 
-                // 2. Check dry hatch coolant injection (thermal shock) -> DRY COOLANT SHUTDOWN (no explosion)
+                // 2. Check coolant boiling against ambient or dry hatch injection (thermal shock)
                 for (IGregTechTileEntity te : mNuclearTiles) {
                     if (te != null && te.getMetaTileEntity() instanceof MTEHatchNuclearHatch hatch) {
                         if (hatch.mInputFluid != null && hatch.mInputFluid.amount > 0) {
                             String name = hatch.mInputFluid.getFluid()
                                 .getName()
                                 .toLowerCase();
+                            double boilingThreshold = NuclearSimulationEngine.getCoolantBoilingThreshold(name);
+                            if (ambient >= boilingThreshold) {
+                                triggerThermalShock(
+                                    hatch,
+                                    "Coolant evaporates immediately at ambient temperature (" + name
+                                        + ", ambient="
+                                        + ambient
+                                        + "C >= boiling threshold="
+                                        + boilingThreshold
+                                        + "C)");
+                                return;
+                            }
                             if (hatch.mWasDry) {
-                                double boilingThreshold = NuclearSimulationEngine.getCoolantBoilingThreshold(name);
                                 if (hatch.mTemperature > boilingThreshold) {
-                                    triggerDryCoolantShutdown(
+                                    triggerThermalShock(
+                                        hatch,
                                         "Coolant injected into dry superheated hatch above boiling threshold (" + name
                                             + ", temp="
                                             + hatch.mTemperature
@@ -936,31 +969,9 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                     }
                 }
 
-                // 3. Check loss-of-coolant: if active reactor has coolant hatches and all of them are dry
-                boolean hasFuel = false;
-                boolean hasCoolantHatches = false;
-                boolean allCoolantDry = true;
-                for (IGregTechTileEntity te : mNuclearTiles) {
-                    if (te != null) {
-                        if (te.getMetaTileEntity() instanceof MTEHatchNuclearBus bus
-                            && isItemFuel(bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT])) {
-                            hasFuel = true;
-                        } else if (te.getMetaTileEntity() instanceof MTEHatchNuclearHatch hatch) {
-                            hasCoolantHatches = true;
-                            if (hatch.mInputFluid != null && hatch.mInputFluid.amount > 0) {
-                                allCoolantDry = false;
-                            }
-                        }
-                    }
-                }
-                if (hasFuel && hasCoolantHatches && allCoolantDry) {
-                    triggerDryCoolantShutdown("Loss of Coolant: All coolant hatches depleted on active reactor");
-                    return;
-                }
-
                 double maintEff = getMaintenanceEfficiency();
                 NuclearSimulationEngine.SimulationResult res = NuclearSimulationEngine
-                    .simulate(mGrid, gridSize, gridSize, maintEff);
+                    .simulate(mGrid, gridSize, gridSize, maintEff, ambient);
                 mCoreTemp = res.maxTemperature;
                 mAvgTemp = res.averageTemperature;
                 mNeutronsProduced = res.totalNeutronsGenerated;
@@ -1065,6 +1076,7 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
     public void saveNBTData(NBTTagCompound aNBT) {
         super.saveNBTData(aNBT);
         aNBT.setBoolean("mWorldSaved", true);
+        aNBT.setBoolean("mScram", mScram);
         aNBT.setDouble("mCoreTemp", mCoreTemp);
         aNBT.setDouble("mAvgTemp", mAvgTemp);
         aNBT.setInteger("gridSize", gridSize);
@@ -1089,8 +1101,14 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             mSolderingTool = false;
             mCrowbar = false;
         }
-        mCoreTemp = aNBT.getDouble("mCoreTemp");
-        mAvgTemp = aNBT.getDouble("mAvgTemp");
+        mScram = aNBT.getBoolean("mScram");
+        if (aNBT.hasKey("mCoreTemp")) {
+            mCoreTemp = aNBT.getDouble("mCoreTemp");
+            mAvgTemp = aNBT.getDouble("mAvgTemp");
+        } else {
+            mCoreTemp = getAmbientTemperature();
+            mAvgTemp = getAmbientTemperature();
+        }
         gridSize = aNBT.getInteger("gridSize");
         coreDimension = aNBT.getInteger("coreDimension");
         mPipeTier = aNBT.getInteger("mPipeTier");
@@ -1124,6 +1142,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             this.mEscapedNeutrons = data.escapedNeutrons;
             this.mOutputCoolantRate = data.outputCoolantRate;
             this.mOutputCoolantName = data.outputCoolantName;
+            this.mScram = data.scram;
+            this.mCachedAmbientTemp = data.ambientTemp;
         }
     }
 
@@ -1142,6 +1162,8 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         data.escapedNeutrons = this.mEscapedNeutrons;
         data.outputCoolantRate = this.mOutputCoolantRate;
         data.outputCoolantName = this.mOutputCoolantName;
+        data.scram = this.mScram;
+        data.ambientTemp = (float) getAmbientTemperature();
 
         if (mGrid != null && gridSize > 0) {
             for (int x = 0; x < gridSize; x++) {
@@ -1248,6 +1270,74 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         return false;
     }
 
+    public void setScram(boolean scram) {
+        this.mScram = scram;
+        for (IGregTechTileEntity te : mNuclearTiles) {
+            if (te != null && te.getMetaTileEntity() instanceof MTEHatchNuclearControlRod rod) {
+                rod.setScram(scram);
+            }
+        }
+        IGregTechTileEntity base = getBaseMetaTileEntity();
+        if (base != null && base.getWorld() != null) {
+            World world = base.getWorld();
+            int cX = base.getXCoord();
+            int cY = base.getYCoord();
+            int cZ = base.getZCoord();
+            GTUtility.sendSoundToPlayers(
+                world,
+                scram ? SoundResource.IC2_MACHINES_MACHINE_OVERLOAD : SoundResource.IC2_MACHINES_INTERRUPT_ONE,
+                0.6F,
+                1.0F,
+                cX + 0.5,
+                cY + 0.5,
+                cZ + 0.5);
+            base.markDirty();
+        }
+    }
+
+    public ButtonWidget createScramButton(IWidgetBuilder<?> builder) {
+        ButtonWidget scramButton = new ButtonWidget() {
+
+            @Override
+            public void draw(float partialTicks) {
+                int x = 0;
+                int y = 0;
+                int w = getSize().width;
+                int h = getSize().height;
+                // Outer dark red/black border
+                GuiDraw.drawRect(x, y, w, h, 0xFF330000);
+                // Background red
+                boolean active = mScram;
+                int bgColor = isHovering() ? (active ? 0xFFFF3333 : 0xFFDD1111) : (active ? 0xFFCC0000 : 0xFFAA0000);
+                GuiDraw.drawRect(x + 1, y + 1, w - 2, h - 2, bgColor);
+                // Highlight line at top
+                GuiDraw.drawRect(x + 1, y + 1, w - 2, 1, 0x55FFFFFF);
+                // Text: SCRAM or SCRAMMED in bold white letters
+                String text = active ? (EnumChatFormatting.BOLD + "SCRAMMED") : (EnumChatFormatting.BOLD + "SCRAM");
+                int strW = GuiDraw.getStringWidth(text);
+                int strH = 8;
+                GuiDraw.drawString(text, (w - strW) / 2, (h - strH) / 2, 0xFFFFFFFF, true);
+            }
+        };
+        scramButton.setPos(8, 91)
+            .setSize(64, 16);
+        scramButton.setPlayClickSound(true);
+        scramButton.dynamicTooltip(() -> {
+            List<String> tt = new ArrayList<>();
+            tt.add(EnumChatFormatting.RED + "" + EnumChatFormatting.BOLD + "EMERGENCY SCRAM");
+            tt.add(EnumChatFormatting.GRAY + "Immediately inserts all control rods to 100%.");
+            if (mScram) {
+                tt.add(EnumChatFormatting.YELLOW + "Status: ACTIVE (Click to reset/disengage)");
+            } else {
+                tt.add(EnumChatFormatting.GREEN + "Status: Disengaged (Normal redstone control)");
+            }
+            return tt;
+        });
+        scramButton.setUpdateTooltipEveryTick(true);
+        scramButton.setOnClick((clickData, widget) -> { setScram(!mScram); });
+        return scramButton;
+    }
+
     public static final int REACTOR_GRID_WINDOW_ID = 20;
 
     public ButtonWidget createReactorGridButton(IWidgetBuilder<?> builder) {
@@ -1285,6 +1375,9 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
 
         // Add Reactor Hatches button on the right column
         builder.widget(createReactorGridButton(builder));
+
+        // Add big red SCRAM button
+        builder.widget(createScramButton(builder));
 
         // Register synced window for the Reactor Hatches view
         buildContext.addSyncedWindow(REACTOR_GRID_WINDOW_ID, this::createReactorGridWindow);
@@ -1431,19 +1524,29 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
 
     private final ReactorDummy mReactorDummy = new ReactorDummy(this);
 
-    public double getAmbientTemperature() {
-        if (getBaseMetaTileEntity() != null && getBaseMetaTileEntity().getWorld() != null) {
+    public static double calculateAmbientTemperature(World world, int x, int y, int z) {
+        if (world != null) {
             try {
-                int x = getBaseMetaTileEntity().getXCoord();
-                int y = getBaseMetaTileEntity().getYCoord();
-                int z = getBaseMetaTileEntity().getZCoord();
-                float bTemp = getBaseMetaTileEntity().getWorld()
-                    .getBiomeGenForCoords(x, z)
+                if (world.provider != null && (world.provider.isHellWorld || world.provider.dimensionId == -1)) {
+                    return 120.0;
+                }
+                float bTemp = world.getBiomeGenForCoords(x, z)
                     .getFloatTemperature(x, y, z);
-                return Math.max(0.0, bTemp * 30.0);
+                return Math.max(-20.0, (bTemp - 0.15) * 30.77);
             } catch (Exception ignored) {}
         }
-        return NuclearSimulationEngine.ambientTemp;
+        return NuclearSimulationEngine.DEFAULT_AMBIENT_TEMP;
+    }
+
+    public double getAmbientTemperature() {
+        if (getBaseMetaTileEntity() != null && getBaseMetaTileEntity().getWorld() != null) {
+            mCachedAmbientTemp = calculateAmbientTemperature(
+                getBaseMetaTileEntity().getWorld(),
+                getBaseMetaTileEntity().getXCoord(),
+                getBaseMetaTileEntity().getYCoord(),
+                getBaseMetaTileEntity().getZCoord());
+        }
+        return mCachedAmbientTemp;
     }
 
     public int getRandomNumber(int max) {
@@ -1770,16 +1873,17 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
         if (tile.isBus()) return tile.getBus().mTemperature;
         if (tile.isHatch()) return tile.getHatch().mTemperature;
         if (tile.isControlRod()) return tile.getControlRod().mTemperature;
-        return 20.0;
+        return getAmbientTemperature();
     }
 
     public void setTileTemperature(NuclearGridTile tile, double temp) {
+        double ambient = getAmbientTemperature();
         if (tile.isBus()) {
-            tile.getBus().mTemperature = Math.max(20.0, temp);
+            tile.getBus().mTemperature = Math.max(ambient, temp);
         } else if (tile.isHatch()) {
-            tile.getHatch().mTemperature = Math.max(getAmbientTemperature(), temp);
+            tile.getHatch().mTemperature = Math.max(ambient, temp);
         } else if (tile.isControlRod()) {
-            tile.getControlRod().mTemperature = Math.max(20.0, temp);
+            tile.getControlRod().mTemperature = Math.max(ambient, temp);
         }
     }
 
@@ -2126,9 +2230,10 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                 bus.mDirectEUProduced = 0;
                 int maxHeat = comp.getMaxHeat(mReactorDummy, stack, 0, 0);
                 int curHeat = comp.getCurrentHeat(mReactorDummy, stack, 0, 0);
-                if (maxHeat > 0 && bus.mTemperature > 50.0) {
+                double ambient = getAmbientTemperature();
+                if (maxHeat > 0 && bus.mTemperature > ambient) {
                     int maxTransferPerTick = Math.max(1, maxHeat / 100);
-                    double heatAvailable = (bus.mTemperature - 50.0) * NuclearSimulationEngine.EU_PER_DEGREE;
+                    double heatAvailable = (bus.mTemperature - ambient) * NuclearSimulationEngine.EU_PER_DEGREE;
                     double effFactor = Math.max(0.0, Math.min(1.0, efficiency));
                     int heatToTake = (int) Math
                         .round(Math.min(heatAvailable / 25.0, (double) maxTransferPerTick) * effFactor);
@@ -2159,8 +2264,10 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
             bus.mDirectEUProduced = 0;
             String name = stack.getUnlocalizedName()
                 .toLowerCase();
-            if (name.contains("coolant") && bus.mTemperature > 50.0) {
-                double heatToAbsorb = Math.min(bus.mTemperature - 50.0, 100.0) * NuclearSimulationEngine.EU_PER_DEGREE;
+            double ambient = getAmbientTemperature();
+            if (name.contains("coolant") && bus.mTemperature > ambient) {
+                double heatToAbsorb = Math.min(bus.mTemperature - ambient, 100.0)
+                    * NuclearSimulationEngine.EU_PER_DEGREE;
                 if (heatToAbsorb > 0) {
                     bus.mTemperature -= (heatToAbsorb / NuclearSimulationEngine.EU_PER_DEGREE);
                     int cellDamage = Math.max(1, (int) (heatToAbsorb / 50.0));
@@ -2523,6 +2630,42 @@ public class MTENuclearReactor extends MTEEnhancedMultiBlockBase<MTENuclearReact
                 EnumChatFormatting.GRAY
                     + String.format("Grid Cells: %d Fuel, %d Coolant / %d Total", fuelCount, coolantCount, totalCells));
         }
+    }
+
+    @Override
+    public void getWailaBody(ItemStack itemStack, List<String> currentTip, IWailaDataAccessor accessor,
+        IWailaConfigHandler config) {
+        final NBTTagCompound tag = accessor.getNBTData();
+        String efficiency = EnumChatFormatting.RESET + StatCollector
+            .translateToLocalFormatted("GT5U.waila.multiblock.status.efficiency", tag.getFloat("efficiency"));
+        if (tag.getBoolean("hasProblems")) {
+            currentTip.add(
+                EnumChatFormatting.RED + StatCollector.translateToLocal("GT5U.waila.multiblock.status.has_problem")
+                    + efficiency);
+        } else if (!tag.getBoolean("incompleteStructure")) {
+            currentTip.add(
+                EnumChatFormatting.GREEN + StatCollector.translateToLocal("GT5U.waila.multiblock.status.running_fine")
+                    + efficiency);
+        }
+        try {
+            if (gregtech.GTMod.proxy != null && gregtech.GTMod.proxy.wailaAverageNS && tag.hasKey("averageNS")) {
+                int tAverageTime = tag.getInteger("averageNS");
+                currentTip.add(
+                    StatCollector.translateToLocalFormatted(
+                        "GT5U.waila.multiblock.status.cpu_load",
+                        formatNumber((long) tAverageTime)));
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    @Override
+    public void getWailaNBTData(EntityPlayerMP player, TileEntity tile, NBTTagCompound tag, World world, int x, int y,
+        int z) {
+        try {
+            super.getWailaNBTData(player, tile, tag, world, x, y, z);
+        } catch (Throwable ignored) {}
+        tag.setInteger("progress", 0);
+        tag.setInteger("maxProgress", 0);
     }
 
     @Override
