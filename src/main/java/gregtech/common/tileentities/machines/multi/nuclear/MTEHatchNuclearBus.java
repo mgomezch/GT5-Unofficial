@@ -4,9 +4,18 @@ import static gregtech.api.enums.Textures.BlockIcons.ITEM_IN_SIGN;
 import static gregtech.api.enums.Textures.BlockIcons.OVERLAY_PIPE_COLORS;
 import static gregtech.api.enums.Textures.BlockIcons.OVERLAY_PIPE_IN;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+import net.minecraft.init.Items;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.common.util.ForgeDirection;
+import net.minecraftforge.fluids.FluidStack;
 
 import com.gtnewhorizons.modularui.api.math.Color;
 import com.gtnewhorizons.modularui.api.screen.ModularWindow;
@@ -15,24 +24,24 @@ import com.gtnewhorizons.modularui.common.widget.DrawableWidget;
 import com.gtnewhorizons.modularui.common.widget.SlotWidget;
 import com.gtnewhorizons.modularui.common.widget.TextWidget;
 
+import gregtech.api.enums.Materials;
 import gregtech.api.gui.modularui.GTUITextures;
 import gregtech.api.interfaces.ITexture;
 import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.api.metatileentity.MetaTileEntity;
 import gregtech.api.metatileentity.implementations.MTEHatch;
+import gregtech.api.recipe.RecipeMaps;
 import gregtech.api.render.TextureFactory;
-import gregtech.api.util.GTUtility;
+import gregtech.api.util.GTRecipe;
 
 /**
  * Dumb item container hatch for the modular nuclear reactor.
- * Holds 1 input slot (slot 0) and 2 output slots (slots 1 & 2).
+ * Holds 1 input slot (slot 0).
  * All nuclear physics, depletion, and energy generation logic is processed by MTENuclearReactor.
  */
 public class MTEHatchNuclearBus extends MTEHatch {
 
     public static final int SLOT_INPUT = 0;
-    public static final int SLOT_OUTPUT_1 = 1;
-    public static final int SLOT_OUTPUT_2 = 2;
 
     public double mTemperature = NuclearSimulationEngine.DEFAULT_AMBIENT_TEMP;
     public double mHeatEU = 0.0;
@@ -59,6 +68,7 @@ public class MTEHatchNuclearBus extends MTEHatch {
     public int mLastNeutronsGenerated = 0;
     public long mDirectEUProduced = 0;
     public boolean mUsedForCooling = false;
+    public long mLastCheeseTick = -1;
 
     public MTEHatchNuclearBus(int aID, String aName, String aNameRegional, int aTier) {
         super(
@@ -66,19 +76,24 @@ public class MTEHatchNuclearBus extends MTEHatch {
             aName,
             aNameRegional,
             aTier,
-            3,
-            new String[] { "Nuclear Core Bus for Items", "Holds Fuel Rods, Reflectors, Coolant Cells, or Control Rods",
-                "Supports BOTH Input and Output from the same block!", "Slot 0: Active Core Component (Input)",
-                "Slots 1 & 2: Depleted / Extracted Items (Output)" });
+            1,
+            new String[] { "Nuclear core bus for items",
+                "Holds fuel rods, reflectors, coolant cells, control rods, or insulators",
+                "Input-only core component bus", "Outputs eject to reactor output buses and hatches" });
     }
 
     public MTEHatchNuclearBus(String aName, int aTier, String[] aDescription, ITexture[][][] aTextures) {
-        super(aName, aTier, 3, aDescription, aTextures);
+        super(aName, aTier, 1, aDescription, aTextures);
     }
 
     @Override
     public MetaTileEntity newMetaEntity(IGregTechTileEntity aTileEntity) {
         return new MTEHatchNuclearBus(mName, mTier, mDescriptionArray, mTextures);
+    }
+
+    @Override
+    public int getCapacity() {
+        return 0;
     }
 
     @Override
@@ -102,22 +117,27 @@ public class MTEHatchNuclearBus extends MTEHatch {
     }
 
     @Override
+    public int getInventoryStackLimit() {
+        return 1;
+    }
+
+    @Override
     public boolean isValidSlot(int aIndex) {
-        return aIndex >= 0 && aIndex <= 2;
+        return aIndex == SLOT_INPUT;
     }
 
     @Override
     public boolean allowPutStack(IGregTechTileEntity aBaseMetaTileEntity, int aIndex, ForgeDirection aSide,
         ItemStack aStack) {
-        // Automation can ONLY insert fresh components into slot 0
-        return aIndex == SLOT_INPUT;
+        // Automation can ONLY insert fresh components into slot 0, and only if empty (stack size 1)
+        return aIndex == SLOT_INPUT && mInventory[SLOT_INPUT] == null;
     }
 
     @Override
     public boolean allowPullStack(IGregTechTileEntity aBaseMetaTileEntity, int aIndex, ForgeDirection aSide,
         ItemStack aStack) {
-        // Automation can extract products from output slots 1 & 2
-        return aIndex == SLOT_OUTPUT_1 || aIndex == SLOT_OUTPUT_2;
+        // Input-only bus: automation cannot pull components out
+        return false;
     }
 
     @Override
@@ -164,25 +184,142 @@ public class MTEHatchNuclearBus extends MTEHatch {
         }
     }
 
-    public boolean ejectToOutput(ItemStack stack) {
-        if (stack == null) return true;
-        if (mInventory[SLOT_OUTPUT_1] == null) {
-            mInventory[SLOT_OUTPUT_1] = stack;
+    public static boolean isMoltenCheese(FluidStack fluid) {
+        if (fluid == null || fluid.getFluid() == null) return false;
+        if (Materials.Cheese != null && (fluid.getFluid() == Materials.Cheese.mStandardMoltenFluid
+            || Materials.FLUID_MAP.get(fluid.getFluid()) == Materials.Cheese)) {
             return true;
-        } else if (GTUtility.areStacksEqual(mInventory[SLOT_OUTPUT_1], stack)
-            && mInventory[SLOT_OUTPUT_1].stackSize + stack.stackSize <= mInventory[SLOT_OUTPUT_1].getMaxStackSize()) {
-                mInventory[SLOT_OUTPUT_1].stackSize += stack.stackSize;
-                return true;
-            } else if (mInventory[SLOT_OUTPUT_2] == null) {
-                mInventory[SLOT_OUTPUT_2] = stack;
-                return true;
-            } else if (GTUtility.areStacksEqual(mInventory[SLOT_OUTPUT_2], stack)
-                && mInventory[SLOT_OUTPUT_2].stackSize + stack.stackSize
-                    <= mInventory[SLOT_OUTPUT_2].getMaxStackSize()) {
-                        mInventory[SLOT_OUTPUT_2].stackSize += stack.stackSize;
-                        return true;
+        }
+        String name = fluid.getFluid()
+            .getName()
+            .toLowerCase();
+        return name.contains("cheese");
+    }
+
+    /**
+     * Cached list of fluid extraction recipes that output molten cheese, queried by output (like NEI).
+     */
+    private static final List<GTRecipe> CHEESE_EXTRACTION_RECIPES = new CopyOnWriteArrayList<>();
+    private static volatile boolean sCheeseRecipesLoaded = false;
+
+    /**
+     * Cache mapping individual item inputs to their matched cheese extraction recipe (or empty).
+     */
+    private static final Map<RecipeCacheKey, Optional<GTRecipe>> CHEESE_RECIPE_CACHE = new ConcurrentHashMap<>();
+
+    /**
+     * Queries and caches all fluid extraction recipes by output to isolate molten cheese recipes.
+     */
+    public static void loadCheeseRecipes() {
+        if (sCheeseRecipesLoaded) return;
+        synchronized (CHEESE_EXTRACTION_RECIPES) {
+            if (sCheeseRecipesLoaded) return;
+            try {
+                if (RecipeMaps.fluidExtractionRecipes != null) {
+                    for (GTRecipe recipe : RecipeMaps.fluidExtractionRecipes.getAllRecipes()) {
+                        if (recipe.mFluidOutputs != null) {
+                            for (FluidStack out : recipe.mFluidOutputs) {
+                                if (out != null && isMoltenCheese(out)) {
+                                    CHEESE_EXTRACTION_RECIPES.add(recipe);
+                                    break;
+                                }
+                            }
+                        }
                     }
-        return false;
+                }
+            } catch (Throwable ignored) {}
+            sCheeseRecipesLoaded = true;
+        }
+    }
+
+    /**
+     * Clears all cached cheese recipes and input lookup results, primarily for unit testing.
+     */
+    public static void clearCheeseRecipeCache() {
+        synchronized (CHEESE_EXTRACTION_RECIPES) {
+            CHEESE_EXTRACTION_RECIPES.clear();
+            CHEESE_RECIPE_CACHE.clear();
+            sCheeseRecipesLoaded = false;
+        }
+    }
+
+    /**
+     * Adds a cheese extraction recipe to the cached cheese recipes list, for registration or testing.
+     */
+    public static void registerCheeseRecipe(GTRecipe recipe) {
+        if (recipe == null) return;
+        loadCheeseRecipes();
+        CHEESE_EXTRACTION_RECIPES.add(recipe);
+        CHEESE_RECIPE_CACHE.clear();
+    }
+
+    /**
+     * Immutable cache key for input items matching fluid extraction recipes.
+     */
+    public static final class RecipeCacheKey {
+
+        private final Item item;
+        private final int damage;
+        private final NBTTagCompound nbt;
+
+        public RecipeCacheKey(ItemStack stack) {
+            Item it = null;
+            try {
+                it = stack.getItem();
+            } catch (Exception ignored) {}
+            this.item = it;
+
+            int dmg = 0;
+            if (Items.feather != null) {
+                dmg = Items.feather.getDamage(stack);
+            } else {
+                try {
+                    dmg = stack.getItemDamage();
+                } catch (Exception ignored) {}
+            }
+            this.damage = dmg;
+            this.nbt = stack.getTagCompound();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            RecipeCacheKey that = (RecipeCacheKey) o;
+            if (damage != that.damage || item != that.item) return false;
+            return (nbt == null && that.nbt == null) || (nbt != null && nbt.equals(that.nbt));
+        }
+
+        @Override
+        public int hashCode() {
+            int result = item != null ? item.hashCode() : 0;
+            result = 31 * result + damage;
+            result = 31 * result + (nbt != null ? nbt.hashCode() : 0);
+            return result;
+        }
+    }
+
+    public GTRecipe findCheeseExtractionRecipe(ItemStack stack) {
+        if (stack == null) return null;
+        if (!sCheeseRecipesLoaded) {
+            loadCheeseRecipes();
+        }
+
+        RecipeCacheKey key = new RecipeCacheKey(stack);
+        Optional<GTRecipe> cached = CHEESE_RECIPE_CACHE.get(key);
+        if (cached != null) {
+            return cached.orElse(null);
+        }
+
+        for (GTRecipe recipe : CHEESE_EXTRACTION_RECIPES) {
+            if (recipe.isRecipeInputEqual(false, true, null, stack)) {
+                CHEESE_RECIPE_CACHE.put(key, Optional.of(recipe));
+                return recipe;
+            }
+        }
+
+        CHEESE_RECIPE_CACHE.put(key, Optional.empty());
+        return null;
     }
 
     @Override
@@ -209,9 +346,9 @@ public class MTEHatchNuclearBus extends MTEHatch {
         builder.widget(
             new DrawableWidget().setDrawable(GTUITextures.PICTURE_SCREEN_BLACK)
                 .setPos(7, 16)
-                .setSize(96, 56))
+                .setSize(120, 56))
             .widget(
-                new TextWidget("Nuclear Core Bus").setDefaultColor(Color.rgb(0, 255, 128))
+                new TextWidget("Nuclear core bus").setDefaultColor(Color.rgb(0, 255, 128))
                     .setPos(10, 20))
             .widget(
                 new TextWidget().setStringSupplier(() -> String.format("Temp: %.1f °C", mTemperature))
@@ -227,21 +364,10 @@ public class MTEHatchNuclearBus extends MTEHatch {
                     .setPos(10, 53))
             .widget(
                 new TextWidget("In").setDefaultColor(0xFFFFFFFF)
-                    .setPos(115, 16))
+                    .setPos(134, 16))
             .widget(
                 new SlotWidget(inventoryHandler, SLOT_INPUT)
                     .setBackground(getGUITextureSet().getItemSlot(), GTUITextures.OVERLAY_SLOT_IN)
-                    .setPos(112, 28))
-            .widget(
-                new TextWidget("Out").setDefaultColor(0xFFFFFFFF)
-                    .setPos(145, 16))
-            .widget(
-                new SlotWidget(inventoryHandler, SLOT_OUTPUT_1).setAccess(true, false)
-                    .setBackground(getGUITextureSet().getItemSlot(), GTUITextures.OVERLAY_SLOT_OUT)
-                    .setPos(142, 28))
-            .widget(
-                new SlotWidget(inventoryHandler, SLOT_OUTPUT_2).setAccess(true, false)
-                    .setBackground(getGUITextureSet().getItemSlot(), GTUITextures.OVERLAY_SLOT_OUT)
-                    .setPos(142, 48));
+                    .setPos(131, 28));
     }
 }

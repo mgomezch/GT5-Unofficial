@@ -45,16 +45,16 @@ public class MTEHatchNuclearBusGui extends MTEHatchBaseGui<MTEHatchNuclearBus> {
     protected ParentWidget<?> createContentSection(ModularPanel panel, PanelSyncManager syncManager) {
         Flow mainRow = Flow.row()
             .coverChildren()
-            .childPadding(4);
+            .childPadding(6);
 
-        // Status and Telemetry Screen (width 96, height 54)
-        ParentWidget<?> statsScreen = CommonWidgets.createFluidScreen(96, 54);
+        // Status and Telemetry Screen (width 118, height 54)
+        ParentWidget<?> statsScreen = CommonWidgets.createFluidScreen(118, 54);
         Flow textColumn = Flow.column()
             .childPadding(1)
             .crossAxisAlignment(Alignment.CrossAxis.START);
 
         textColumn.child(
-            IKey.dynamic(() -> EnumChatFormatting.GREEN + "NUCLEAR CORE BUS")
+            IKey.dynamic(() -> EnumChatFormatting.GREEN + "Nuclear core bus")
                 .asWidget()
                 .widgetTheme(GTWidgetThemes.DISPLAY_TEXT_WHITE));
 
@@ -73,11 +73,19 @@ public class MTEHatchNuclearBusGui extends MTEHatchBaseGui<MTEHatchNuclearBus> {
                 .asWidget()
                 .widgetTheme(GTWidgetThemes.DISPLAY_TEXT_WHITE));
 
-        textColumn.child(
-            IKey.dynamic(
-                () -> EnumChatFormatting.GRAY + String.format("Neutrons: %d/t", machine.mLastNeutronsGenerated))
-                .asWidget()
-                .widgetTheme(GTWidgetThemes.DISPLAY_TEXT_WHITE));
+        textColumn.child(IKey.dynamic(() -> {
+            net.minecraft.item.ItemStack stack = machine.mInventory[MTEHatchNuclearBus.SLOT_INPUT];
+            double damp = gregtech.common.tileentities.machines.multi.nuclear.MTENuclearReactor
+                .getInsulationDampening(stack);
+            if (damp >= 1.0) {
+                return EnumChatFormatting.DARK_PURPLE + "Insulation: 100% (universal)";
+            } else if (damp > 0.0) {
+                return EnumChatFormatting.LIGHT_PURPLE + String.format("Insulation: %.0f%%", damp * 100.0);
+            }
+            return EnumChatFormatting.GRAY + String.format("Neutrons: %d/t", machine.mLastNeutronsGenerated);
+        })
+            .asWidget()
+            .widgetTheme(GTWidgetThemes.DISPLAY_TEXT_WHITE));
 
         statsScreen.child(textColumn);
         mainRow.child(statsScreen);
@@ -99,33 +107,6 @@ public class MTEHatchNuclearBusGui extends MTEHatchBaseGui<MTEHatchNuclearBus> {
                 .backgroundOverlay(GTGuiTextures.OVERLAY_SLOT_IN_STANDARD));
 
         mainRow.child(inputCol);
-
-        // Output Slots Column (Slots 1 & 2 - depleted / byproduct items)
-        Flow outputCol = Flow.column()
-            .coverChildren()
-            .childPadding(1)
-            .crossAxisAlignment(Alignment.CrossAxis.CENTER);
-
-        outputCol.child(
-            IKey.dynamic(() -> EnumChatFormatting.WHITE + "Out")
-                .asWidget()
-                .widgetTheme(GTWidgetThemes.DISPLAY_TEXT_WHITE));
-
-        outputCol.child(
-            new ItemSlot()
-                .slot(
-                    new ModularSlot(machine.inventoryHandler, MTEHatchNuclearBus.SLOT_OUTPUT_1).singletonSlotGroup()
-                        .accessibility(false, true))
-                .backgroundOverlay(GTGuiTextures.OVERLAY_SLOT_OUT_STANDARD));
-
-        outputCol.child(
-            new ItemSlot()
-                .slot(
-                    new ModularSlot(machine.inventoryHandler, MTEHatchNuclearBus.SLOT_OUTPUT_2).singletonSlotGroup()
-                        .accessibility(false, true))
-                .backgroundOverlay(GTGuiTextures.OVERLAY_SLOT_OUT_STANDARD));
-
-        mainRow.child(outputCol);
 
         return super.createContentSection(panel, syncManager).child(mainRow);
     }

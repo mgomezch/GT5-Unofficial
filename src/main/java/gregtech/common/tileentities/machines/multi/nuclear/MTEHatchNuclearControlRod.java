@@ -83,9 +83,9 @@ public class MTEHatchNuclearControlRod extends MTEHatch {
             aNameRegional,
             aTier,
             1,
-            new String[] { "Nuclear Core Control Rod Hatch",
-                "Holds Long Rods of Silver, Boron, Cadmium, Indium, or Hafnium",
-                "Controlled by external Redstone signal (0..15)",
+            new String[] { "Nuclear core control rod hatch",
+                "Holds long rods of Silver, Boron, Cadmium, Indium, or Hafnium",
+                "Controlled by external redstone signal (0..15)",
                 "0 signal = 0% insertion (retracted, zero absorption)",
                 "15 signal = 100% insertion (full absorption)" });
     }
@@ -311,7 +311,7 @@ public class MTEHatchNuclearControlRod extends MTEHatch {
                 .setPos(7, 16)
                 .setSize(96, 56))
             .widget(
-                new TextWidget("Control Rod Hatch").setDefaultColor(Color.rgb(180, 100, 255))
+                new TextWidget("Control rod hatch").setDefaultColor(Color.rgb(180, 100, 255))
                     .setPos(10, 20))
             .widget(
                 new TextWidget().setStringSupplier(() -> String.format("Temp: %.1f °C", mTemperature))

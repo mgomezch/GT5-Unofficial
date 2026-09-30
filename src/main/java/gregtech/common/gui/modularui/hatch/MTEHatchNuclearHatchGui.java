@@ -47,10 +47,10 @@ public class MTEHatchNuclearHatchGui extends MTEHatchBaseGui<MTEHatchNuclearHatc
     protected ParentWidget<?> createContentSection(ModularPanel panel, PanelSyncManager syncManager) {
         Flow mainRow = Flow.row()
             .coverChildren()
-            .childPadding(2);
+            .childPadding(4);
 
-        // 1. Stats and Telemetry Screen (width 50, height 54)
-        ParentWidget<?> statsScreen = CommonWidgets.createFluidScreen(50, 54);
+        // 1. Stats and Telemetry Screen (width 104, height 54)
+        ParentWidget<?> statsScreen = CommonWidgets.createFluidScreen(104, 54);
         Flow textColumn = Flow.column()
             .childPadding(1)
             .crossAxisAlignment(Alignment.CrossAxis.START);
@@ -74,27 +74,33 @@ public class MTEHatchNuclearHatchGui extends MTEHatchBaseGui<MTEHatchNuclearHatc
             .widgetTheme(GTWidgetThemes.DISPLAY_TEXT_WHITE));
 
         textColumn.child(
-            IKey.dynamic(() -> EnumChatFormatting.AQUA + String.format("F: %d", machine.mLastFastFlux))
-                .asWidget()
-                .widgetTheme(GTWidgetThemes.DISPLAY_TEXT_WHITE));
-
-        textColumn.child(
-            IKey.dynamic(() -> EnumChatFormatting.BLUE + String.format("T: %d", machine.mLastThermalFlux))
+            IKey.dynamic(
+                () -> EnumChatFormatting.AQUA
+                    + String.format("F: %d  T: %d", machine.mLastFastFlux, machine.mLastThermalFlux))
                 .asWidget()
                 .widgetTheme(GTWidgetThemes.DISPLAY_TEXT_WHITE));
 
         textColumn.child(
             IKey.dynamic(
                 () -> EnumChatFormatting.GRAY
-                    + String.format("A: %d", machine.mLastFastAbsorbed + machine.mLastThermalAbsorbed))
+                    + String.format("Absorbed: %d n/t", machine.mLastFastAbsorbed + machine.mLastThermalAbsorbed))
                 .asWidget()
                 .widgetTheme(GTWidgetThemes.DISPLAY_TEXT_WHITE));
+
+        textColumn.child(IKey.dynamic(() -> {
+            if (machine.mLastProducedAmount > 0) {
+                return EnumChatFormatting.GREEN + String.format("Out: %d L/t", machine.mLastProducedAmount);
+            }
+            return EnumChatFormatting.DARK_GRAY + "Out: idle";
+        })
+            .asWidget()
+            .widgetTheme(GTWidgetThemes.DISPLAY_TEXT_WHITE));
 
         statsScreen.child(textColumn);
         mainRow.child(statsScreen);
 
-        // 2. Input Tank Screen (width 35, height 54)
-        ParentWidget<?> inputScreen = CommonWidgets.createFluidScreen(35, 54);
+        // 2. Input Tank Screen (width 50, height 54)
+        ParentWidget<?> inputScreen = CommonWidgets.createFluidScreen(50, 54);
         Flow inTextCol = Flow.column()
             .childPadding(1)
             .crossAxisAlignment(Alignment.CrossAxis.START);
@@ -116,55 +122,6 @@ public class MTEHatchNuclearHatchGui extends MTEHatchBaseGui<MTEHatchNuclearHatc
                 .rightRel(0)
                 .background(GTGuiTextures.SLOT_FLUID_TANK));
         mainRow.child(inputScreen);
-
-        // 3. Output Tank Screen (width 35, height 54)
-        ParentWidget<?> outputScreen = CommonWidgets.createFluidScreen(35, 54);
-        Flow outTextCol = Flow.column()
-            .childPadding(1)
-            .crossAxisAlignment(Alignment.CrossAxis.START);
-
-        outTextCol.child(
-            IKey.dynamic(() -> EnumChatFormatting.GRAY + "Out")
-                .asWidget()
-                .widgetTheme(GTWidgetThemes.DISPLAY_TEXT_WHITE));
-
-        outTextCol.child(
-            IKey.dynamic(() -> (machine.mOutputFluid != null ? formatNumber(machine.mOutputFluid.amount) : "0") + "L")
-                .asWidget()
-                .widgetTheme(GTWidgetThemes.DISPLAY_TEXT_WHITE));
-
-        outputScreen.child(outTextCol);
-        outputScreen.child(
-            new FluidSlot().syncHandler(new FluidSlotSyncHandler(machine.getOutputTank()).canFillSlot(false))
-                .bottomRel(0)
-                .rightRel(0)
-                .background(GTGuiTextures.SLOT_FLUID_TANK));
-        mainRow.child(outputScreen);
-
-        // 4. Byproduct Tank Screen (width 35, height 54)
-        ParentWidget<?> byproductScreen = CommonWidgets.createFluidScreen(35, 54);
-        Flow bypTextCol = Flow.column()
-            .childPadding(1)
-            .crossAxisAlignment(Alignment.CrossAxis.START);
-
-        bypTextCol.child(
-            IKey.dynamic(() -> EnumChatFormatting.GRAY + "Bypr")
-                .asWidget()
-                .widgetTheme(GTWidgetThemes.DISPLAY_TEXT_WHITE));
-
-        bypTextCol.child(
-            IKey.dynamic(
-                () -> (machine.mByproductFluid != null ? formatNumber(machine.mByproductFluid.amount) : "0") + "L")
-                .asWidget()
-                .widgetTheme(GTWidgetThemes.DISPLAY_TEXT_WHITE));
-
-        byproductScreen.child(bypTextCol);
-        byproductScreen.child(
-            new FluidSlot().syncHandler(new FluidSlotSyncHandler(machine.getByproductTank()).canFillSlot(false))
-                .bottomRel(0)
-                .rightRel(0)
-                .background(GTGuiTextures.SLOT_FLUID_TANK));
-        mainRow.child(byproductScreen);
 
         return super.createContentSection(panel, syncManager).child(mainRow);
     }

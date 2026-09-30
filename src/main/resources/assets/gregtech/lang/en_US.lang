@@ -436,7 +436,7 @@ gt.blockmachines.hatch.void_bus.tier.00.name=Void Bus
 gt.blockmachines.hatch.water.intake.tier.00.name=Reservoir Hatch
 gt.blockmachines.hatch.wireless.transmitter.energized.tier.12.name=Energized Wireless Dynamo Hatch
 gt.blockmachines.hatch.nuclear.bus.name=Nuclear Bus
-gt.blockmachines.hatch.nuclear.bus.tooltip=Nuclear Core Bus for Items\nHolds Fuel Rods, Reflectors, Coolant Cells, or Control Rods\nSupports BOTH Input and Output from the same block!\nSlot 0: Active Core Component (Input)\nSlots 1 & 2: Depleted / Extracted Items (Output)
+gt.blockmachines.hatch.nuclear.bus.tooltip=Nuclear core bus for items\nHolds fuel rods, reflectors, coolant cells, or control rods\nSupports both input and output from the same block!\nSlot 0: active core component (input)\nSlots 1 & 2: depleted / extracted items (output)
 gt.blockmachines.hatch.nuclear.fluid.tier.01.name=Nuclear Hatch (LV)
 gt.blockmachines.hatch.nuclear.fluid.tier.02.name=Nuclear Hatch (MV)
 gt.blockmachines.hatch.nuclear.fluid.tier.03.name=Nuclear Hatch (HV)
@@ -2914,9 +2914,9 @@ channels.gregtech.master.modules=Number of Modules
 channels.gregtech.master.rings=Number of Rings
 channels.gregtech.master.nuclear_hatch=Nuclear Hatch Tier
 
-GT5U.gui.text.structure_error.missing_nuclear_hatch=Missing Nuclear Hatch or Bus in core grid
-GT5U.gui.text.structure_error.inconsistent_nuclear_hatch_tier=All Nuclear Hatches must be of the same tier
-GT5U.gui.text.structure_error.invalid_pipe_tier=Invalid Item Pipe Casing tier (requires Electrum or higher)
+GT5U.gui.text.structure_error.missing_nuclear_hatch=Missing nuclear hatch or bus in core grid
+GT5U.gui.text.structure_error.inconsistent_nuclear_hatch_tier=All nuclear hatches must be of the same tier
+GT5U.gui.text.structure_error.invalid_pipe_tier=Invalid item pipe casing tier (requires Electrum or higher)
 
 GT5U.gui.select.current=§8Current:
 GT5U.gui.button.liquid_filling=Liquid Filling
@@ -10328,4 +10328,4 @@ GT5U.nei.solar_factory.tier_required=Multi Tier required: %s
 # Item tooltips
 GT5U.tooltip.switch_metadata.sneak_right_click=Sneak right-click to switch mode
 
-GT5U.gui.button.reactor_hatches=Open Reactor Core Hatches View
+GT5U.gui.button.reactor_hatches=Open reactor core hatches view

@@ -66,4 +66,13 @@ public interface INuclearTile {
      * Called at the end of the simulation cycle to update durability, cooling, and transmutation.
      */
     void nuclearTick(double efficiency);
+
+    /**
+     * Fraction of incoming heat transfer dampened/blocked by insulation [0.0, 1.0].
+     * 0.0 means uninsulated (normal heat transfer).
+     * 1.0 means complete insulation (no incoming heat transfer).
+     */
+    default double getInsulationDampening() {
+        return 0.0;
+    }
 }

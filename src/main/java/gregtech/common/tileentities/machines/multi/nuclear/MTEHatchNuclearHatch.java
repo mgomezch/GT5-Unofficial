@@ -7,10 +7,8 @@ import static gregtech.api.enums.Textures.BlockIcons.OVERLAY_PIPE_IN;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.common.util.ForgeDirection;
 import net.minecraftforge.fluids.Fluid;
-import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fluids.FluidTankInfo;
-import net.minecraftforge.fluids.IFluidHandler;
 
 import com.cleanroommc.modularui.utils.fluid.FluidStackTank;
 import com.gtnewhorizons.modularui.api.math.Color;
@@ -30,19 +28,13 @@ import gregtech.api.render.TextureFactory;
 
 /**
  * Dumb fluid container hatch for the modular nuclear reactor.
- * Holds input coolant/fuel and output steam/byproducts.
+ * Holds input coolant or liquid nuclear fuel.
  * All nuclear physics, boiling, and transmutation logic is processed by MTENuclearReactor.
  */
 public class MTEHatchNuclearHatch extends MTEHatch {
 
     public FluidStack mInputFluid;
-    public FluidStack mOutputFluid;
-    public FluidStack mByproductFluid;
     public final int mCapacity;
-
-    private transient IFluidHandler mCachedTargetTank = null;
-    private transient boolean mTargetCacheValid = false;
-    private transient ForgeDirection mCachedFacing = ForgeDirection.UNKNOWN;
 
     public double mTemperature = NuclearSimulationEngine.DEFAULT_AMBIENT_TEMP;
     public double mHeatEU = 0.0;
@@ -54,6 +46,7 @@ public class MTEHatchNuclearHatch extends MTEHatch {
     public int mLastThermalFlux = 0;
     public int mLastFastAbsorbed = 0;
     public int mLastThermalAbsorbed = 0;
+    public int mLastNeutronsGenerated = 0;
     public int mLastProducedAmount = 0;
     public String mLastProducedFluidName = "";
     public int mReactorPipeTier = -1;
@@ -79,12 +72,12 @@ public class MTEHatchNuclearHatch extends MTEHatch {
             aNameRegional,
             aTier,
             0,
-            new String[] { "Tiered Nuclear Fluid Hatch (" + GTValues.VN[aTier] + ")",
-                "Holds Input Coolant, Output Steam/Hot Coolant, and Output Byproducts (3 tanks)",
-                "Supports BOTH Fluid Input and Fluid Output from the same block!",
-                "Auto-outputs fluids in front facing every tick", "Capacity: " + (8000 * (1 << aTier)) + " L per tank",
-                "Coolant boiling and transmutation under neutron flux", "Item Pipe Casing determines allowed coolants",
-                "Inserting water into a dry running reactor will cause an EXPLOSION!" });
+            new String[] { "Tiered nuclear fluid hatch (" + GTValues.VN[aTier] + ")",
+                "Holds input coolant or liquid nuclear fuel", "Input-only core fluid hatch",
+                "All outputs (steam, hot coolant, byproducts, spent fuel) eject to reactor output hatches",
+                "Capacity: " + (8000 * (1 << aTier)) + " L", "Coolant boiling and transmutation under neutron flux",
+                "Item pipe casing determines allowed coolants",
+                "Inserting water into a dry running reactor will cause an explosion!" });
         this.mCapacity = 8000 * (1 << aTier);
     }
 
@@ -126,10 +119,10 @@ public class MTEHatchNuclearHatch extends MTEHatch {
 
     @Override
     public boolean canTankBeEmptied() {
-        return true;
+        return false;
     }
 
-    // --- Dual Fluid Input/Output from Single Block ---
+    // --- Input-Only Fluid Hatch ---
 
     @Override
     public int fill(ForgeDirection side, FluidStack resource, boolean doFill) {
@@ -164,51 +157,11 @@ public class MTEHatchNuclearHatch extends MTEHatch {
 
     @Override
     public FluidStack drain(ForgeDirection side, int maxDrain, boolean doDrain) {
-        if (maxDrain <= 0) return null;
-        if (mOutputFluid != null && mOutputFluid.amount > 0) {
-            int toDrain = Math.min(maxDrain, mOutputFluid.amount);
-            FluidStack drained = new FluidStack(mOutputFluid.getFluid(), toDrain);
-            if (doDrain) {
-                mOutputFluid.amount -= toDrain;
-                if (mOutputFluid.amount <= 0) mOutputFluid = null;
-                markTileDirty();
-            }
-            return drained;
-        } else if (mByproductFluid != null && mByproductFluid.amount > 0) {
-            int toDrain = Math.min(maxDrain, mByproductFluid.amount);
-            FluidStack drained = new FluidStack(mByproductFluid.getFluid(), toDrain);
-            if (doDrain) {
-                mByproductFluid.amount -= toDrain;
-                if (mByproductFluid.amount <= 0) mByproductFluid = null;
-                markTileDirty();
-            }
-            return drained;
-        }
         return null;
     }
 
     @Override
     public FluidStack drain(ForgeDirection side, FluidStack resource, boolean doDrain) {
-        if (resource == null) return null;
-        if (mOutputFluid != null && mOutputFluid.isFluidEqual(resource)) {
-            int toDrain = Math.min(resource.amount, mOutputFluid.amount);
-            FluidStack drained = new FluidStack(mOutputFluid.getFluid(), toDrain);
-            if (doDrain) {
-                mOutputFluid.amount -= toDrain;
-                if (mOutputFluid.amount <= 0) mOutputFluid = null;
-                markTileDirty();
-            }
-            return drained;
-        } else if (mByproductFluid != null && mByproductFluid.isFluidEqual(resource)) {
-            int toDrain = Math.min(resource.amount, mByproductFluid.amount);
-            FluidStack drained = new FluidStack(mByproductFluid.getFluid(), toDrain);
-            if (doDrain) {
-                mByproductFluid.amount -= toDrain;
-                if (mByproductFluid.amount <= 0) mByproductFluid = null;
-                markTileDirty();
-            }
-            return drained;
-        }
         return null;
     }
 
@@ -226,15 +179,12 @@ public class MTEHatchNuclearHatch extends MTEHatch {
 
     @Override
     public boolean canDrain(ForgeDirection side, Fluid fluid) {
-        if (fluid == null) return false;
-        return (mOutputFluid != null && mOutputFluid.getFluid() == fluid && mOutputFluid.amount > 0)
-            || (mByproductFluid != null && mByproductFluid.getFluid() == fluid && mByproductFluid.amount > 0);
+        return false;
     }
 
     @Override
     public FluidTankInfo[] getTankInfo(ForgeDirection side) {
-        return new FluidTankInfo[] { new FluidTankInfo(mInputFluid, mCapacity),
-            new FluidTankInfo(mOutputFluid, mCapacity), new FluidTankInfo(mByproductFluid, mCapacity) };
+        return new FluidTankInfo[] { new FluidTankInfo(mInputFluid, mCapacity) };
     }
 
     @Override
@@ -262,19 +212,31 @@ public class MTEHatchNuclearHatch extends MTEHatch {
         aNBT.setBoolean("mWasDry", mWasDry);
         aNBT.setBoolean("mUsedForCooling", mUsedForCooling);
         if (mInputFluid != null) aNBT.setTag("mInputFluid", mInputFluid.writeToNBT(new NBTTagCompound()));
-        if (mOutputFluid != null) aNBT.setTag("mOutputFluid", mOutputFluid.writeToNBT(new NBTTagCompound()));
-        if (mByproductFluid != null) aNBT.setTag("mByproductFluid", mByproductFluid.writeToNBT(new NBTTagCompound()));
+    }
+
+    public boolean hasWaterCoolant() {
+        if (mInputFluid != null && mInputFluid.getFluid() != null) {
+            String name = mInputFluid.getFluid()
+                .getName()
+                .toLowerCase();
+            return name.contains("water") && !name.contains("steam");
+        }
+        return false;
     }
 
     public double getAmbientTemperature() {
+        double ambient = NuclearSimulationEngine.DEFAULT_AMBIENT_TEMP;
         if (getBaseMetaTileEntity() != null && getBaseMetaTileEntity().getWorld() != null) {
-            return MTENuclearReactor.calculateAmbientTemperature(
+            ambient = MTENuclearReactor.calculateAmbientTemperature(
                 getBaseMetaTileEntity().getWorld(),
                 getBaseMetaTileEntity().getXCoord(),
                 getBaseMetaTileEntity().getYCoord(),
                 getBaseMetaTileEntity().getZCoord());
         }
-        return NuclearSimulationEngine.DEFAULT_AMBIENT_TEMP;
+        if (hasWaterCoolant()) {
+            return Math.max(0.0, ambient);
+        }
+        return ambient;
     }
 
     @Override
@@ -298,112 +260,11 @@ public class MTEHatchNuclearHatch extends MTEHatch {
         if (aNBT.hasKey("mInputFluid")) {
             mInputFluid = FluidStack.loadFluidStackFromNBT(aNBT.getCompoundTag("mInputFluid"));
         }
-        if (aNBT.hasKey("mOutputFluid")) {
-            mOutputFluid = FluidStack.loadFluidStackFromNBT(aNBT.getCompoundTag("mOutputFluid"));
-        }
-        if (aNBT.hasKey("mByproductFluid")) {
-            mByproductFluid = FluidStack.loadFluidStackFromNBT(aNBT.getCompoundTag("mByproductFluid"));
-        }
     }
 
     public void markTileDirty() {
         if (getBaseMetaTileEntity() != null) {
             getBaseMetaTileEntity().markDirty();
-        }
-    }
-
-    public void addOutputFluid(String fluidName, int amount) {
-        if (amount <= 0) return;
-        Fluid fluid = FluidRegistry.getFluid(fluidName);
-        if (fluid == null && fluidName.startsWith("fluid.")) {
-            fluid = FluidRegistry.getFluid(fluidName.substring(6));
-        }
-        if (fluid == null && !fluidName.startsWith("fluid.")) {
-            fluid = FluidRegistry.getFluid("fluid." + fluidName);
-        }
-        if (fluid == null) fluid = FluidRegistry.getFluid("steam");
-        if (fluid == null) return;
-
-        if (mOutputFluid == null) {
-            mOutputFluid = new FluidStack(fluid, Math.min(amount, mCapacity));
-        } else if (mOutputFluid.getFluid() == fluid) {
-            mOutputFluid.amount = Math.min(mCapacity, mOutputFluid.amount + amount);
-        }
-    }
-
-    public void addByproductFluid(String fluidName, int amount) {
-        if (amount <= 0) return;
-        Fluid fluid = FluidRegistry.getFluid(fluidName);
-        if (fluid == null && fluidName.startsWith("fluid.")) {
-            fluid = FluidRegistry.getFluid(fluidName.substring(6));
-        }
-        if (fluid == null && !fluidName.startsWith("fluid.")) {
-            fluid = FluidRegistry.getFluid("fluid." + fluidName);
-        }
-        if (fluid == null) return;
-
-        if (mByproductFluid == null) {
-            mByproductFluid = new FluidStack(fluid, Math.min(amount, mCapacity));
-        } else if (mByproductFluid.getFluid() == fluid) {
-            mByproductFluid.amount = Math.min(mCapacity, mByproductFluid.amount + amount);
-        }
-    }
-
-    public com.cleanroommc.modularui.utils.fluid.FluidStackTank getByproductTank() {
-        return new FluidStackTank(() -> mByproductFluid, f -> {
-            mByproductFluid = f;
-            markTileDirty();
-        }, () -> mCapacity);
-    }
-
-    @Override
-    public void onFacingChange() {
-        super.onFacingChange();
-        mTargetCacheValid = false;
-        mCachedTargetTank = null;
-    }
-
-    @Override
-    public void onAdjacentBlockChange(int aX, int aY, int aZ) {
-        super.onAdjacentBlockChange(aX, aY, aZ);
-        mTargetCacheValid = false;
-        mCachedTargetTank = null;
-    }
-
-    @Override
-    public void onPostTick(IGregTechTileEntity aBaseMetaTileEntity, long aTick) {
-        super.onPostTick(aBaseMetaTileEntity, aTick);
-        if (!aBaseMetaTileEntity.isServerSide()) return;
-
-        if (mOutputFluid == null && mByproductFluid == null) return;
-
-        ForgeDirection front = aBaseMetaTileEntity.getFrontFacing();
-        if (!mTargetCacheValid || front != mCachedFacing) {
-            mCachedFacing = front;
-            mCachedTargetTank = aBaseMetaTileEntity.getITankContainerAtSide(front);
-            mTargetCacheValid = true;
-        } else if (mCachedTargetTank instanceof net.minecraft.tileentity.TileEntity te && te.isInvalid()) {
-            mCachedTargetTank = aBaseMetaTileEntity.getITankContainerAtSide(front);
-        }
-
-        if (mCachedTargetTank != null) {
-            ForgeDirection fillSide = front.getOpposite();
-            if (mOutputFluid != null && mOutputFluid.amount > 0) {
-                int filled = mCachedTargetTank.fill(fillSide, mOutputFluid, true);
-                if (filled > 0) {
-                    mOutputFluid.amount -= filled;
-                    if (mOutputFluid.amount <= 0) mOutputFluid = null;
-                    markTileDirty();
-                }
-            }
-            if (mByproductFluid != null && mByproductFluid.amount > 0) {
-                int filled = mCachedTargetTank.fill(fillSide, mByproductFluid, true);
-                if (filled > 0) {
-                    mByproductFluid.amount -= filled;
-                    if (mByproductFluid.amount <= 0) mByproductFluid = null;
-                    markTileDirty();
-                }
-            }
         }
     }
 
@@ -422,13 +283,6 @@ public class MTEHatchNuclearHatch extends MTEHatch {
     public com.cleanroommc.modularui.utils.fluid.FluidStackTank getInputTank() {
         return new FluidStackTank(() -> mInputFluid, f -> {
             mInputFluid = f;
-            markTileDirty();
-        }, () -> mCapacity);
-    }
-
-    public com.cleanroommc.modularui.utils.fluid.FluidStackTank getOutputTank() {
-        return new FluidStackTank(() -> mOutputFluid, f -> {
-            mOutputFluid = f;
             markTileDirty();
         }, () -> mCapacity);
     }
@@ -458,9 +312,9 @@ public class MTEHatchNuclearHatch extends MTEHatch {
         builder.widget(
             new DrawableWidget().setDrawable(GTUITextures.PICTURE_SCREEN_BLACK)
                 .setPos(7, 16)
-                .setSize(50, 56))
+                .setSize(96, 56))
             .widget(
-                new TextWidget("STATS").setDefaultColor(Color.rgb(0, 255, 200))
+                new TextWidget("Stats").setDefaultColor(Color.rgb(0, 255, 200))
                     .setPos(10, 20))
             .widget(new TextWidget().setStringSupplier(() -> {
                 if (mInputFluid != null && mReactorPipeTier >= 0
@@ -485,41 +339,15 @@ public class MTEHatchNuclearHatch extends MTEHatch {
             // Coolant In Tank
             .widget(
                 new DrawableWidget().setDrawable(GTUITextures.PICTURE_SCREEN_BLACK)
-                    .setPos(60, 16)
-                    .setSize(34, 56))
+                    .setPos(107, 16)
+                    .setSize(48, 56))
             .widget(
                 new TextWidget("In").setDefaultColor(0xFFFFFFFF)
-                    .setPos(62, 19))
+                    .setPos(109, 19))
             .widget(
                 new TextWidget().setStringSupplier(() -> (mInputFluid != null ? mInputFluid.amount : 0) + "L")
                     .setDefaultColor(Color.rgb(180, 180, 180))
-                    .setPos(62, 30))
-            .widget(new FluidSlotWidget(getInputTank()).setPos(68, 42))
-            // Hot Out Tank
-            .widget(
-                new DrawableWidget().setDrawable(GTUITextures.PICTURE_SCREEN_BLACK)
-                    .setPos(97, 16)
-                    .setSize(34, 56))
-            .widget(
-                new TextWidget("Out").setDefaultColor(0xFFFFFFFF)
-                    .setPos(99, 19))
-            .widget(
-                new TextWidget().setStringSupplier(() -> (mOutputFluid != null ? mOutputFluid.amount : 0) + "L")
-                    .setDefaultColor(Color.rgb(180, 180, 180))
-                    .setPos(99, 30))
-            .widget(new FluidSlotWidget(getOutputTank()).setPos(105, 42))
-            // Byproduct Out Tank
-            .widget(
-                new DrawableWidget().setDrawable(GTUITextures.PICTURE_SCREEN_BLACK)
-                    .setPos(134, 16)
-                    .setSize(34, 56))
-            .widget(
-                new TextWidget("Bypr").setDefaultColor(0xFFFFFFFF)
-                    .setPos(136, 19))
-            .widget(
-                new TextWidget().setStringSupplier(() -> (mByproductFluid != null ? mByproductFluid.amount : 0) + "L")
-                    .setDefaultColor(Color.rgb(180, 180, 180))
-                    .setPos(136, 30))
-            .widget(new FluidSlotWidget(getByproductTank()).setPos(142, 42));
+                    .setPos(109, 30))
+            .widget(new FluidSlotWidget(getInputTank()).setPos(121, 42));
     }
 }

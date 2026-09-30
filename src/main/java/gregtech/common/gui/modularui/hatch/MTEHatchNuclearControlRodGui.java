@@ -63,7 +63,7 @@ public class MTEHatchNuclearControlRodGui extends MTEHatchBaseGui<MTEHatchNuclea
             .crossAxisAlignment(Alignment.CrossAxis.START);
 
         textColumn.child(
-            IKey.dynamic(() -> EnumChatFormatting.LIGHT_PURPLE + "CONTROL ROD HATCH")
+            IKey.dynamic(() -> EnumChatFormatting.LIGHT_PURPLE + "Control rod hatch")
                 .asWidget()
                 .widgetTheme(GTWidgetThemes.DISPLAY_TEXT_WHITE));
 

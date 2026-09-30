@@ -53,7 +53,7 @@ public class MTEHatchNuclearControl extends MTEHatch {
             aNameRegional,
             aTier,
             0,
-            new String[] { "Emits Redstone Signals based on Nuclear Reactor conditions",
+            new String[] { "Emits redstone signals based on nuclear reactor conditions",
                 "Right-click with screwdriver or use GUI to change mode",
                 "Outputs redstone signal strictly from its front face" });
     }
@@ -69,18 +69,18 @@ public class MTEHatchNuclearControl extends MTEHatch {
 
     public static String getModeName(int mode) {
         return switch (mode) {
-            case MODE_TEMP_MIN -> "Temperature (Min)";
-            case MODE_TEMP_MAX -> "Temperature (Max)";
-            case MODE_TEMP_AVG -> "Temperature (Avg)";
-            case MODE_FUEL_DURABILITY_MIN -> "Fuel Durability (Min)";
-            case MODE_FUEL_DURABILITY_MAX -> "Fuel Durability (Max)";
-            case MODE_FUEL_DURABILITY_AVG -> "Fuel Durability (Avg)";
-            case MODE_COMPONENT_DURABILITY_MIN -> "Component Durability (Min)";
-            case MODE_COMPONENT_DURABILITY_MAX -> "Component Durability (Max)";
-            case MODE_COMPONENT_DURABILITY_AVG -> "Component Durability (Avg)";
-            case MODE_COOLANT_LEVEL_MIN -> "Coolant Level (Min)";
-            case MODE_COOLANT_LEVEL_MAX -> "Coolant Level (Max)";
-            case MODE_COOLANT_LEVEL_AVG -> "Coolant Level (Avg)";
+            case MODE_TEMP_MIN -> "Temperature (min)";
+            case MODE_TEMP_MAX -> "Temperature (max)";
+            case MODE_TEMP_AVG -> "Temperature (avg)";
+            case MODE_FUEL_DURABILITY_MIN -> "Fuel durability (min)";
+            case MODE_FUEL_DURABILITY_MAX -> "Fuel durability (max)";
+            case MODE_FUEL_DURABILITY_AVG -> "Fuel durability (avg)";
+            case MODE_COMPONENT_DURABILITY_MIN -> "Component durability (min)";
+            case MODE_COMPONENT_DURABILITY_MAX -> "Component durability (max)";
+            case MODE_COMPONENT_DURABILITY_AVG -> "Component durability (avg)";
+            case MODE_COOLANT_LEVEL_MIN -> "Coolant level (min)";
+            case MODE_COOLANT_LEVEL_MAX -> "Coolant level (max)";
+            case MODE_COOLANT_LEVEL_AVG -> "Coolant level (avg)";
             default -> "Unknown";
         };
     }
@@ -180,7 +180,7 @@ public class MTEHatchNuclearControl extends MTEHatch {
     public void onScrewdriverRightClick(ForgeDirection side, EntityPlayer aPlayer, float aX, float aY, float aZ,
         ItemStack aTool) {
         setMode((mMode + 1) % MODE_COUNT);
-        GTUtility.sendChatToPlayer(aPlayer, "Control Hatch: " + getModeName(mMode));
+        GTUtility.sendChatToPlayer(aPlayer, "Control hatch: " + getModeName(mMode));
     }
 
     @Override
@@ -201,20 +201,20 @@ public class MTEHatchNuclearControl extends MTEHatch {
                 .setPos(7, 16)
                 .setSize(162, 56))
             .widget(
-                new TextWidget("Nuclear Control Hatch").setDefaultColor(Color.rgb(0, 255, 128))
+                new TextWidget("Nuclear control hatch").setDefaultColor(Color.rgb(0, 255, 128))
                     .setPos(12, 20))
             .widget(
                 new TextWidget().setStringSupplier(() -> "Mode: " + getModeName(mMode))
                     .setDefaultColor(Color.rgb(100, 200, 255))
                     .setPos(12, 33))
             .widget(
-                new TextWidget().setStringSupplier(() -> String.format("Output Signal: %d / 15", mOutputStrength))
+                new TextWidget().setStringSupplier(() -> String.format("Output signal: %d / 15", mOutputStrength))
                     .setDefaultColor(Color.rgb(255, 80, 80))
                     .setPos(12, 46))
             .widget(
                 new ButtonWidget().setOnClick((clickData, widget) -> setMode(mMode - 1))
                     .setBackground(() -> new IDrawable[] { GTUITextures.BUTTON_STANDARD })
-                    .addTooltip("Previous Mode")
+                    .addTooltip("Previous mode")
                     .setPos(12, 57)
                     .setSize(14, 12))
             .widget(
@@ -224,7 +224,7 @@ public class MTEHatchNuclearControl extends MTEHatch {
             .widget(
                 new ButtonWidget().setOnClick((clickData, widget) -> setMode(mMode + 1))
                     .setBackground(() -> new IDrawable[] { GTUITextures.BUTTON_STANDARD })
-                    .addTooltip("Next Mode")
+                    .addTooltip("Next mode")
                     .setPos(151, 57)
                     .setSize(14, 12))
             .widget(

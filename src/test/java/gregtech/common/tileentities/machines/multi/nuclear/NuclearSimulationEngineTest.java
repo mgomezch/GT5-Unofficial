@@ -5,12 +5,15 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.ArrayList;
 import java.util.List;
 
+import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.world.World;
+import net.minecraftforge.common.util.ForgeDirection;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import gregtech.api.interfaces.tileentity.IGregTechTileEntity;
 import gregtech.common.tileentities.machines.multi.nuclear.standalone.SimTile;
 import gregtech.common.tileentities.machines.multi.nuclear.standalone.StandaloneNuclearGrid;
 
@@ -31,6 +34,7 @@ public class NuclearSimulationEngineTest {
         double scatterProb = 0.5;
         double moderationProb = 0.8;
         double heatCoeff = 0.05;
+        double insulationDampening = 0.0;
 
         int fluxReceived = 0;
         int fastAbsorbed = 0;
@@ -111,6 +115,11 @@ public class NuclearSimulationEngineTest {
 
         @Override
         public void nuclearTick(double efficiency) {}
+
+        @Override
+        public double getInsulationDampening() {
+            return insulationDampening;
+        }
     }
 
     @Test
@@ -714,7 +723,7 @@ public class NuclearSimulationEngineTest {
     }
 
     @Test
-    void testWallReflectionAndAbsorption() {
+    void testNeutronFluxEscapesThroughWallsAndNullCells() {
         MockNuclearTile[][] grid = new MockNuclearTile[3][3];
         grid[1][1] = new MockNuclearTile(true, 100); // Fuel in center
         grid[0][1] = new MockNuclearTile(false, 0); // Non-fuel neighbor
@@ -723,63 +732,117 @@ public class NuclearSimulationEngineTest {
         grid[1][2] = new MockNuclearTile(false, 0);
         // Corners remain null (cut corner null cells)
 
-        // 1. 100% reflection
-        NuclearSimulationEngine.wallReflectionChance = 1.0;
-        NuclearSimulationEngine.SimulationResult resReflect = NuclearSimulationEngine.simulate(grid, 3, 3);
-        assertTrue(resReflect.wallNeutronsReflected > 0, "Neutrons hitting walls/null cells must be reflected");
-        assertEquals(0, resReflect.wallNeutronsAbsorbed, "No neutrons should be absorbed when 100% reflection");
-
-        // 2. 0% reflection (100% absorption)
-        NuclearSimulationEngine.wallReflectionChance = 0.0;
-        NuclearSimulationEngine.wallAbsorbHeatPerNeutron = 15.0;
-        NuclearSimulationEngine.SimulationResult resAbsorb = NuclearSimulationEngine.simulate(grid, 3, 3);
-        assertTrue(resAbsorb.wallNeutronsAbsorbed > 0, "Neutrons hitting walls/null cells must be absorbed");
-        assertEquals(0, resAbsorb.wallNeutronsReflected, "No neutrons should be reflected when 0% reflection");
-        assertEquals(
-            resAbsorb.wallNeutronsAbsorbed * 15.0,
-            resAbsorb.wallHeatPool,
-            1e-4,
-            "Wall heat pool must equal absorbed * heatPerNeutron");
+        NuclearSimulationEngine.SimulationResult res = NuclearSimulationEngine.simulate(grid, 3, 3);
+        assertTrue(res.neutronsEscaped > 0, "Neutrons hitting outer boundary / null cells must escape");
+        assertEquals(0, res.wallNeutronsReflected, "Outer casing walls must not reflect neutrons");
+        assertEquals(0, res.wallNeutronsAbsorbed, "Outer casing walls must not absorb neutrons into heat pool");
+        assertEquals(0.0, res.wallHeatPool, 1e-6, "Wall heat pool must remain 0");
     }
 
     @Test
-    void testWallHeatPoolEqualDistribution() {
+    void testPerimeterHeatLossAndInsulationDampening() {
+        // Grid 3x3: center [1][1] is completely surrounded by 4 neighbors (north, south, east, west)
+        // Center has no boundary / null neighbor.
+        // Neighbors have outer boundaries, so they lose heat to ambient.
         MockNuclearTile[][] grid = new MockNuclearTile[3][3];
-        MockNuclearTile center = new MockNuclearTile(true, 100);
-        MockNuclearTile n1 = new MockNuclearTile(false, 0);
-        MockNuclearTile n2 = new MockNuclearTile(false, 0);
-        center.heatCoeff = 0.0;
-        n1.heatCoeff = 0.0;
-        n1.absorbProb = 0.0;
-        n1.scatterProb = 0.0;
-        n2.heatCoeff = 0.0;
-        n2.absorbProb = 0.0;
-        n2.scatterProb = 0.0;
+        MockNuclearTile center = new MockNuclearTile(500.0, 0.1);
+        MockNuclearTile nNorth = new MockNuclearTile(500.0, 0.1);
+        MockNuclearTile nSouth = new MockNuclearTile(500.0, 0.1);
+        MockNuclearTile nEast = new MockNuclearTile(500.0, 0.1);
+        MockNuclearTile nWest = new MockNuclearTile(500.0, 0.1);
+
         grid[1][1] = center;
-        grid[0][1] = n1;
-        grid[2][1] = n2;
-        // Remaining 6 cells are null
+        grid[1][0] = nNorth;
+        grid[1][2] = nSouth;
+        grid[0][1] = nWest;
+        grid[2][1] = nEast;
 
-        NuclearSimulationEngine.wallReflectionChance = 0.0; // All wall neutrons absorbed
-        NuclearSimulationEngine.wallAbsorbHeatPerNeutron = 12.0;
+        NuclearSimulationEngine.simulate(grid, 3, 3);
 
-        double n1HeatBefore = n1.heatEU;
-        double n2HeatBefore = n2.heatEU;
-        NuclearSimulationEngine.SimulationResult res = NuclearSimulationEngine.simulate(grid, 3, 3);
+        // Center only borders 4 tiles; it has no direct boundaries with empty space/ambient.
+        // Neighbors border ambient directly, so their temperature drops significantly faster than the center.
+        assertTrue(
+            center.getTemperature() > nNorth.getTemperature(),
+            "Inner cell should retain more heat than perimeter cells exposed to ambient");
+        assertTrue(nNorth.getTemperature() < 500.0, "Perimeter cell must lose heat to ambient");
 
-        assertTrue(res.wallHeatPool > 0);
-        // Active tile count is 3 (center, n1, n2). Heat pool divided by 3 added to each.
-        double expectedShare = res.wallHeatPool / 3.0;
+        // When the inner cell has 100% insulation, no conductive flow to cooled neighbors occurs either
+        MockNuclearTile insulatedCenter = new MockNuclearTile(500.0, 0.1);
+        insulatedCenter.insulationDampening = 1.0;
+        grid[1][1] = insulatedCenter;
+        grid[1][0] = new MockNuclearTile(500.0, 0.1);
+        grid[1][2] = new MockNuclearTile(500.0, 0.1);
+        grid[0][1] = new MockNuclearTile(500.0, 0.1);
+        grid[2][1] = new MockNuclearTile(500.0, 0.1);
+        NuclearSimulationEngine.simulate(grid, 3, 3);
         assertEquals(
-            expectedShare,
-            n1.heatEU - n1HeatBefore,
+            500.0,
+            insulatedCenter.getTemperature(),
             1e-4,
-            "Non-null cell n1 must receive equal share of wall heat pool");
-        assertEquals(
-            expectedShare,
-            n2.heatEU - n2HeatBefore,
-            1e-4,
-            "Non-null cell n2 must receive equal share of wall heat pool");
+            "100% insulated inner cell has 0 boundary loss and 0 conduction");
+
+        // Now test insulation dampening (20%, 40%, 60%, 100%)
+        MockNuclearTile basePerimeter = new MockNuclearTile(500.0, 0.1);
+        MockNuclearTile insulated20 = new MockNuclearTile(500.0, 0.1);
+        insulated20.insulationDampening = 0.20;
+        MockNuclearTile insulated40 = new MockNuclearTile(500.0, 0.1);
+        insulated40.insulationDampening = 0.40;
+        MockNuclearTile insulated60 = new MockNuclearTile(500.0, 0.1);
+        insulated60.insulationDampening = 0.60;
+        MockNuclearTile insulated100 = new MockNuclearTile(500.0, 0.1);
+        insulated100.insulationDampening = 1.00;
+
+        MockNuclearTile[][] soloGrid = new MockNuclearTile[1][1];
+
+        soloGrid[0][0] = basePerimeter;
+        NuclearSimulationEngine.simulate(soloGrid, 1, 1);
+        double lossBase = 500.0 - basePerimeter.getTemperature();
+
+        soloGrid[0][0] = insulated20;
+        NuclearSimulationEngine.simulate(soloGrid, 1, 1);
+        double loss20 = 500.0 - insulated20.getTemperature();
+
+        soloGrid[0][0] = insulated40;
+        NuclearSimulationEngine.simulate(soloGrid, 1, 1);
+        double loss40 = 500.0 - insulated40.getTemperature();
+
+        soloGrid[0][0] = insulated60;
+        NuclearSimulationEngine.simulate(soloGrid, 1, 1);
+        double loss60 = 500.0 - insulated60.getTemperature();
+
+        soloGrid[0][0] = insulated100;
+        NuclearSimulationEngine.simulate(soloGrid, 1, 1);
+        double loss100 = 500.0 - insulated100.getTemperature();
+
+        assertEquals(0.0, loss100, 1e-6, "100% insulation should completely prevent ambient heat loss");
+        assertTrue(loss60 < loss40, "60% insulation should lose less heat than 40%");
+        assertTrue(loss40 < loss20, "40% insulation should lose less heat than 20%");
+        assertTrue(loss20 < lossBase, "20% insulation should lose less heat than uninsulated");
+    }
+
+    @Test
+    void testNaquariteUniversalInsulatorFoilNeutronBlocking() {
+        MockNuclearTile[][] grid = new MockNuclearTile[3][1];
+        MockNuclearTile fuel = new MockNuclearTile(true, 100);
+        fuel.heatCoeff = 0.0;
+        MockNuclearTile naquarite = new MockNuclearTile(false, 0);
+        naquarite.absorbProb = 1.0;
+        naquarite.scatterProb = 0.0;
+        naquarite.insulationDampening = 1.0;
+        naquarite.heatCoeff = 0.0;
+
+        MockNuclearTile behind = new MockNuclearTile(false, 0);
+        behind.heatCoeff = 0.0;
+
+        grid[0][0] = fuel;
+        grid[1][0] = naquarite;
+        grid[2][0] = behind;
+
+        NuclearSimulationEngine.simulate(grid, 3, 1);
+
+        assertEquals(0, behind.fluxReceived, "Behind tile should receive no flux because Naquarite blocks 100%");
+        assertEquals(0.0, naquarite.heatEU, 1e-6, "Naquarite absorbs radiation without generating heat");
+        assertTrue(naquarite.fastAbsorbed > 0 || naquarite.thermalAbsorbed > 0, "Naquarite absorbed neutrons");
     }
 
     @Test
@@ -994,27 +1057,22 @@ public class NuclearSimulationEngineTest {
     }
 
     @Test
-    void testNuclearHatchThreeTanksAndAutoOutput() {
+    void testNuclearHatchInputOnlyContract() {
         // Construct hatch via the secondary constructor (no METATILEENTITIES registration required)
         MTEHatchNuclearHatch hatch = new MTEHatchNuclearHatch("test.nuclear.hatch", 1, 16000, new String[0], null);
 
-        // 1. Verify getTankInfo returns 3 tanks with capacity 16000
+        // 1. Verify getTankInfo returns 1 input tank with capacity 16000
         net.minecraftforge.fluids.FluidTankInfo[] info = hatch
             .getTankInfo(net.minecraftforge.common.util.ForgeDirection.UP);
         assertNotNull(info);
-        assertEquals(3, info.length, "Nuclear hatch must report exactly 3 tanks to WAILA and external callers");
+        assertEquals(1, info.length, "Nuclear hatch must report exactly 1 tank (input only)");
         assertEquals(16000, info[0].capacity);
-        assertEquals(16000, info[1].capacity);
-        assertEquals(16000, info[2].capacity);
         assertNull(info[0].fluid);
-        assertNull(info[1].fluid);
-        assertNull(info[2].fluid);
 
-        // 2. Set mock fluids into tanks
+        // 2. Set mock fluid into input tank
         net.minecraftforge.fluids.Fluid dummyCoolant = org.mockito.Mockito.mock(net.minecraftforge.fluids.Fluid.class);
-        net.minecraftforge.fluids.Fluid dummySteam = org.mockito.Mockito.mock(net.minecraftforge.fluids.Fluid.class);
-        net.minecraftforge.fluids.Fluid dummyByproduct = org.mockito.Mockito
-            .mock(net.minecraftforge.fluids.Fluid.class);
+        org.mockito.Mockito.when(dummyCoolant.getName())
+            .thenReturn("ic2coolant");
 
         net.minecraftforge.fluids.FluidStack stackCoolant = org.mockito.Mockito
             .mock(net.minecraftforge.fluids.FluidStack.class);
@@ -1022,102 +1080,36 @@ public class NuclearSimulationEngineTest {
         org.mockito.Mockito.when(stackCoolant.getFluid())
             .thenReturn(dummyCoolant);
 
-        net.minecraftforge.fluids.FluidStack stackSteam = org.mockito.Mockito
-            .mock(net.minecraftforge.fluids.FluidStack.class);
-        stackSteam.amount = 3000;
-        org.mockito.Mockito.when(stackSteam.getFluid())
-            .thenReturn(dummySteam);
-
-        net.minecraftforge.fluids.FluidStack stackByproduct = org.mockito.Mockito
-            .mock(net.minecraftforge.fluids.FluidStack.class);
-        stackByproduct.amount = 2000;
-        org.mockito.Mockito.when(stackByproduct.getFluid())
-            .thenReturn(dummyByproduct);
-
         hatch.mInputFluid = stackCoolant;
-        hatch.mOutputFluid = stackSteam;
-        hatch.mByproductFluid = stackByproduct;
 
         info = hatch.getTankInfo(net.minecraftforge.common.util.ForgeDirection.UP);
         assertEquals(5000, info[0].fluid.amount);
-        assertEquals(3000, info[1].fluid.amount);
-        assertEquals(2000, info[2].fluid.amount);
 
-        // 3. Verify drain behavior
-        // Cannot drain input fluid
+        // 3. Verify drain and empty behavior: hatch is input-only
         assertFalse(hatch.canDrain(net.minecraftforge.common.util.ForgeDirection.UP, dummyCoolant));
-        // Can drain output and byproduct fluids
-        assertTrue(hatch.canDrain(net.minecraftforge.common.util.ForgeDirection.UP, dummySteam));
-        assertTrue(hatch.canDrain(net.minecraftforge.common.util.ForgeDirection.UP, dummyByproduct));
-
-        // 4. Test auto-output onPostTick
-        // Create mock IFluidHandler and IGregTechTileEntity
-        net.minecraftforge.fluids.IFluidHandler mockTarget = org.mockito.Mockito
-            .mock(net.minecraftforge.fluids.IFluidHandler.class);
-        gregtech.api.interfaces.tileentity.IGregTechTileEntity mockBase = org.mockito.Mockito
-            .mock(gregtech.api.interfaces.tileentity.IGregTechTileEntity.class);
-
-        org.mockito.Mockito.when(mockBase.isServerSide())
-            .thenReturn(true);
-        org.mockito.Mockito.when(mockBase.getFrontFacing())
-            .thenReturn(net.minecraftforge.common.util.ForgeDirection.SOUTH);
-        org.mockito.Mockito.when(mockBase.getITankContainerAtSide(net.minecraftforge.common.util.ForgeDirection.SOUTH))
-            .thenReturn(mockTarget);
-
-        // Mock filling behavior: accepts up to 3000 steam and 2000 byproduct
-        org.mockito.Mockito.when(mockTarget.fill(net.minecraftforge.common.util.ForgeDirection.NORTH, stackSteam, true))
-            .thenReturn(3000);
-        org.mockito.Mockito
-            .when(mockTarget.fill(net.minecraftforge.common.util.ForgeDirection.NORTH, stackByproduct, true))
-            .thenReturn(2000);
-
-        hatch.onPostTick(mockBase, 1L);
-
-        assertNull(hatch.mOutputFluid, "Output fluid should have been pushed completely");
-        assertNull(hatch.mByproductFluid, "Byproduct fluid should have been pushed completely");
-
-        // Verify target cache: second tick without invalidation does NOT re-query getITankContainerAtSide
-        net.minecraftforge.fluids.FluidStack stackSteam2 = org.mockito.Mockito
-            .mock(net.minecraftforge.fluids.FluidStack.class);
-        stackSteam2.amount = 500;
-        hatch.mOutputFluid = stackSteam2;
-        org.mockito.Mockito
-            .when(mockTarget.fill(net.minecraftforge.common.util.ForgeDirection.NORTH, stackSteam2, true))
-            .thenReturn(500);
-        hatch.onPostTick(mockBase, 2L);
-        // getITankContainerAtSide should only have been called once!
-        org.mockito.Mockito.verify(mockBase, org.mockito.Mockito.times(1))
-            .getITankContainerAtSide(net.minecraftforge.common.util.ForgeDirection.SOUTH);
-
-        // Invalidate on adjacent block change
-        hatch.onAdjacentBlockChange(0, 0, 0);
-        net.minecraftforge.fluids.FluidStack stackSteam3 = org.mockito.Mockito
-            .mock(net.minecraftforge.fluids.FluidStack.class);
-        stackSteam3.amount = 500;
-        hatch.mOutputFluid = stackSteam3;
-        hatch.onPostTick(mockBase, 3L);
-        // Now it should have re-queried (total 2 calls)
-        org.mockito.Mockito.verify(mockBase, org.mockito.Mockito.times(2))
-            .getITankContainerAtSide(net.minecraftforge.common.util.ForgeDirection.SOUTH);
+        assertNull(hatch.drain(net.minecraftforge.common.util.ForgeDirection.UP, 1000, true));
+        assertNull(hatch.drain(net.minecraftforge.common.util.ForgeDirection.UP, stackCoolant, true));
+        assertFalse(hatch.canTankBeEmptied());
+        assertTrue(hatch.canTankBeFilled());
     }
 
     @Test
     void testNuclearControlHatchModesAndRedstoneOutput() {
         MTEHatchNuclearControl controlHatch = new MTEHatchNuclearControl("test.control", 4, new String[0], null);
         assertEquals(0, controlHatch.getMode());
-        assertEquals("Temperature (Min)", MTEHatchNuclearControl.getModeName(0));
+        assertEquals("Temperature (min)", MTEHatchNuclearControl.getModeName(0));
 
         // Test cycle
         controlHatch.setMode(1);
         assertEquals(1, controlHatch.getMode());
-        assertEquals("Temperature (Max)", MTEHatchNuclearControl.getModeName(1));
+        assertEquals("Temperature (max)", MTEHatchNuclearControl.getModeName(1));
 
         controlHatch.setMode(12); // Wrap
         assertEquals(0, controlHatch.getMode());
 
         controlHatch.setMode(-1); // Negative wrap
         assertEquals(11, controlHatch.getMode());
-        assertEquals("Coolant Level (Avg)", MTEHatchNuclearControl.getModeName(11));
+        assertEquals("Coolant level (avg)", MTEHatchNuclearControl.getModeName(11));
 
         // Test NBT persistence
         net.minecraft.nbt.NBTTagCompound nbt = new net.minecraft.nbt.NBTTagCompound();
@@ -1454,43 +1446,30 @@ public class NuclearSimulationEngineTest {
             MTENuclearReactor.calculateAmbientTemperature(null, 0, 0, 0),
             1e-6);
 
-        // Nether / Hell world mock
-        World mockNether = org.mockito.Mockito.mock(World.class);
-        net.minecraft.world.WorldProvider netherProvider = org.mockito.Mockito
-            .mock(net.minecraft.world.WorldProvider.class);
-        netherProvider.isHellWorld = true;
-        setWorldProvider(mockNether, netherProvider);
-        assertEquals(120.0, MTENuclearReactor.calculateAmbientTemperature(mockNether, 0, 64, 0), 1e-6);
-
-        // Overworld biomes mock
-        World mockOverworld = org.mockito.Mockito.mock(World.class);
-        net.minecraft.world.WorldProvider overworldProvider = org.mockito.Mockito
-            .mock(net.minecraft.world.WorldProvider.class);
-        overworldProvider.isHellWorld = false;
-        setWorldProvider(mockOverworld, overworldProvider);
-
+        // Biome mock
+        World mockWorld = org.mockito.Mockito.mock(World.class);
         net.minecraft.world.biome.BiomeGenBase mockBiome = org.mockito.Mockito
             .mock(net.minecraft.world.biome.BiomeGenBase.class);
-        org.mockito.Mockito.when(mockOverworld.getBiomeGenForCoords(0, 0))
+        org.mockito.Mockito.when(mockWorld.getBiomeGenForCoords(0, 0))
             .thenReturn(mockBiome);
 
-        // Plains (0.80) -> (0.80 - 0.15) * 30.77 = ~20.0°C
+        // Plains (0.80) -> (80.0 - 32.0) / 1.8 = ~26.67°C
         org.mockito.Mockito.when(mockBiome.getFloatTemperature(0, 64, 0))
             .thenReturn(0.80f);
-        double plainsTemp = MTENuclearReactor.calculateAmbientTemperature(mockOverworld, 0, 64, 0);
-        assertEquals(20.0, plainsTemp, 0.05);
+        double plainsTemp = MTENuclearReactor.calculateAmbientTemperature(mockWorld, 0, 64, 0);
+        assertEquals(26.67, plainsTemp, 0.05);
 
-        // Freezing snow biome (0.15) -> 0.0°C
+        // Freezing snow biome (0.00) -> (0.0 - 32.0) / 1.8 = ~-17.78°C
         org.mockito.Mockito.when(mockBiome.getFloatTemperature(0, 64, 0))
-            .thenReturn(0.15f);
-        double snowTemp = MTENuclearReactor.calculateAmbientTemperature(mockOverworld, 0, 64, 0);
-        assertEquals(0.0, snowTemp, 0.05);
+            .thenReturn(0.0f);
+        double snowTemp = MTENuclearReactor.calculateAmbientTemperature(mockWorld, 0, 64, 0);
+        assertEquals(-17.78, snowTemp, 0.05);
 
-        // Sub-zero cold biome (0.05) -> -3.07°C
+        // Nether / Hell biome (2.00) -> (200.0 - 32.0) / 1.8 = ~93.33°C
         org.mockito.Mockito.when(mockBiome.getFloatTemperature(0, 64, 0))
-            .thenReturn(0.05f);
-        double coldTemp = MTENuclearReactor.calculateAmbientTemperature(mockOverworld, 0, 64, 0);
-        assertEquals(-3.077, coldTemp, 0.05);
+            .thenReturn(2.0f);
+        double netherTemp = MTENuclearReactor.calculateAmbientTemperature(mockWorld, 0, 64, 0);
+        assertEquals(93.33, netherTemp, 0.05);
     }
 
     @Test
@@ -1587,5 +1566,346 @@ public class NuclearSimulationEngineTest {
         for (String line : tip) {
             assertFalse(line.contains("Progress:"), "WAILA tooltip must NOT contain recipe progress string!");
         }
+    }
+
+    @Test
+    void testNuclearBusFluidTankAndCheeseExtractionEasterEgg() {
+        net.minecraftforge.fluids.Fluid cheeseFluid = org.mockito.Mockito.mock(net.minecraftforge.fluids.Fluid.class);
+        org.mockito.Mockito.when(cheeseFluid.getName())
+            .thenReturn("molten.cheese");
+
+        net.minecraftforge.fluids.FluidStack cheeseOut = mockFluidStack(cheeseFluid, 144);
+
+        net.minecraft.item.Item dummyItem = org.mockito.Mockito.mock(net.minecraft.item.Item.class);
+        ItemStack cheeseStack = new ItemStack(dummyItem, 1, 0);
+
+        gregtech.api.util.GTRecipe cheeseRecipe = org.mockito.Mockito.mock(gregtech.api.util.GTRecipe.class);
+        cheeseRecipe.mFluidOutputs = new net.minecraftforge.fluids.FluidStack[] { cheeseOut };
+        cheeseRecipe.mOutputs = new ItemStack[0];
+        cheeseRecipe.mInputs = new ItemStack[] { cheeseStack };
+        cheeseRecipe.mDuration = 128;
+        cheeseRecipe.mEUt = 4;
+
+        MTEHatchNuclearBus bus = new MTEHatchNuclearBus("test.nuclear.bus", 4, new String[0], null) {
+
+            @Override
+            public gregtech.api.util.GTRecipe findCheeseExtractionRecipe(ItemStack stack) {
+                if (stack != null) {
+                    return cheeseRecipe;
+                }
+                return null;
+            }
+        };
+
+        // 1. Tank and Stack Limit Properties (Input-only bus)
+        assertEquals(0, bus.getCapacity(), "Nuclear bus internal tank capacity must be 0");
+        assertEquals(1, bus.getInventoryStackLimit(), "Nuclear bus inventory stack limit must be 1");
+        assertFalse(bus.canTankBeFilled(), "Nuclear bus fluid tank cannot be filled");
+        assertFalse(bus.canTankBeEmptied(), "Nuclear bus fluid tank cannot be drained");
+        assertFalse(bus.doesFillContainers(), "Nuclear bus cannot fill containers");
+        assertFalse(bus.doesEmptyContainers(), "Nuclear bus does not empty containers");
+        assertTrue(bus.allowPutStack(null, MTEHatchNuclearBus.SLOT_INPUT, ForgeDirection.UNKNOWN, cheeseStack));
+        assertFalse(bus.allowPullStack(null, MTEHatchNuclearBus.SLOT_INPUT, ForgeDirection.UNKNOWN, cheeseStack));
+
+        // 2. Below 65°C: No extraction
+        List<net.minecraftforge.fluids.FluidStack> fluidOutputs = new ArrayList<>();
+        List<ItemStack> itemOutputs = new ArrayList<>();
+        MTENuclearReactor reactor = new MTENuclearReactor("test.reactor") {
+
+            @Override
+            public void addOutputPartial(net.minecraftforge.fluids.FluidStack stack) {
+                if (stack != null) fluidOutputs.add(stack);
+            }
+
+            @Override
+            public void addOutputPartial(ItemStack stack) {
+                if (stack != null) itemOutputs.add(stack);
+            }
+        };
+        bus.mTemperature = 50.0;
+        bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT] = cheeseStack.copy();
+        assertFalse(
+            bus.allowPutStack(null, MTEHatchNuclearBus.SLOT_INPUT, ForgeDirection.UNKNOWN, cheeseStack),
+            "Cannot insert when full");
+        assertFalse(reactor.processCheeseExtraction(bus), "Cheese must not extract at or below 65°C");
+        assertEquals(50.0, bus.mTemperature, 1e-4);
+        assertNotNull(bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT]);
+
+        // 3. Above 65°C: Extraction occurs!
+        // Total EU = 128 * 4 = 512 EU.
+        // Heat absorbed = 512 EU.
+        // Temp drop = 512 / 64 = 8.0 °C.
+        // Expected temperature = 80.0 - 8.0 = 72.0 °C.
+        bus.mTemperature = 80.0;
+        assertTrue(reactor.processCheeseExtraction(bus), "Cheese must extract when above 65°C");
+        assertEquals(72.0, bus.mTemperature, 1e-4, "Temperature must drop by exactly recipe totalEU / 64.0");
+        assertNull(bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT], "Single item input must be consumed");
+
+        // 4. Second extraction with single item
+        bus.mTemperature = 80.0;
+        bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT] = cheeseStack.copy();
+        assertTrue(reactor.processCheeseExtraction(bus));
+        assertEquals(72.0, bus.mTemperature, 1e-4);
+        assertNull(bus.mInventory[MTEHatchNuclearBus.SLOT_INPUT], "Second item consumed");
+    }
+
+    private static net.minecraftforge.fluids.FluidStack mockFluidStack(net.minecraftforge.fluids.Fluid fluid,
+        int amount) {
+        net.minecraftforge.fluids.FluidStack stack = org.mockito.Mockito
+            .mock(net.minecraftforge.fluids.FluidStack.class);
+        stack.amount = amount;
+        org.mockito.Mockito.when(stack.getFluid())
+            .thenReturn(fluid);
+        org.mockito.Mockito.when(stack.copy())
+            .thenAnswer(inv -> mockFluidStack(fluid, stack.amount));
+        org.mockito.Mockito
+            .when(stack.isFluidEqual(org.mockito.Mockito.any(net.minecraftforge.fluids.FluidStack.class)))
+            .thenAnswer(inv -> {
+                net.minecraftforge.fluids.FluidStack other = inv.getArgument(0);
+                return other != null && other.getFluid() == fluid;
+            });
+        return stack;
+    }
+
+    @Test
+    void testCheeseRecipeCache() {
+        MTEHatchNuclearBus.clearCheeseRecipeCache();
+
+        net.minecraft.item.Item dummyItem = new net.minecraft.item.Item().setUnlocalizedName("cheese.dummy");
+        ItemStack stackA = new ItemStack(dummyItem, 1, 0);
+        ItemStack stackB = new ItemStack(dummyItem, 1, 1);
+
+        MTEHatchNuclearBus bus = new MTEHatchNuclearBus("test.nuclear.bus", 4, new String[0], null);
+
+        // Initially no cheese recipes are registered
+        assertNull(bus.findCheeseExtractionRecipe(null));
+        assertNull(bus.findCheeseExtractionRecipe(stackA));
+        // Second call should hit the negative cache
+        assertNull(bus.findCheeseExtractionRecipe(stackA));
+
+        // Register a mocked cheese recipe
+        gregtech.api.util.GTRecipe mockCheeseRecipe = org.mockito.Mockito.mock(gregtech.api.util.GTRecipe.class);
+        org.mockito.Mockito
+            .when(
+                mockCheeseRecipe.isRecipeInputEqual(
+                    org.mockito.Mockito.eq(false),
+                    org.mockito.Mockito.eq(true),
+                    org.mockito.Mockito.isNull(),
+                    org.mockito.Mockito.eq(stackA)))
+            .thenReturn(true);
+
+        MTEHatchNuclearBus.registerCheeseRecipe(mockCheeseRecipe);
+
+        // stackA matches the cheese recipe
+        assertSame(mockCheeseRecipe, bus.findCheeseExtractionRecipe(stackA));
+        // Repeated call hits memoized cache
+        assertSame(mockCheeseRecipe, bus.findCheeseExtractionRecipe(stackA));
+
+        // stackB does not match and is negatively cached
+        assertNull(bus.findCheeseExtractionRecipe(stackB));
+        assertNull(bus.findCheeseExtractionRecipe(stackB));
+
+        // Key equality and hashCode check
+        MTEHatchNuclearBus.RecipeCacheKey key1 = new MTEHatchNuclearBus.RecipeCacheKey(stackA);
+        MTEHatchNuclearBus.RecipeCacheKey key2 = new MTEHatchNuclearBus.RecipeCacheKey(new ItemStack(dummyItem, 64, 0));
+        MTEHatchNuclearBus.RecipeCacheKey key3 = new MTEHatchNuclearBus.RecipeCacheKey(stackB);
+
+        assertEquals(key1, key2, "Cache keys with same item and damage must be equal regardless of stack size");
+        assertEquals(key1.hashCode(), key2.hashCode(), "Cache keys hash codes must match for equal keys");
+        assertNotEquals(key1, key3, "Cache keys with different damage must not be equal");
+
+        MTEHatchNuclearBus.clearCheeseRecipeCache();
+    }
+
+    @Test
+    void testStructureExtendedFacingToGridCoordinates() {
+        for (net.minecraftforge.common.util.ForgeDirection facing : new net.minecraftforge.common.util.ForgeDirection[] {
+            net.minecraftforge.common.util.ForgeDirection.NORTH, net.minecraftforge.common.util.ForgeDirection.SOUTH,
+            net.minecraftforge.common.util.ForgeDirection.EAST, net.minecraftforge.common.util.ForgeDirection.WEST }) {
+            for (com.gtnewhorizon.structurelib.alignment.enumerable.Rotation rot : com.gtnewhorizon.structurelib.alignment.enumerable.Rotation
+                .values()) {
+                com.gtnewhorizon.structurelib.alignment.enumerable.ExtendedFacing ext = com.gtnewhorizon.structurelib.alignment.enumerable.ExtendedFacing
+                    .of(facing, rot, com.gtnewhorizon.structurelib.alignment.enumerable.Flip.NONE);
+                int gridSize = 5;
+                int hOffset = gridSize / 2;
+                boolean isUpsideDown = rot == com.gtnewhorizon.structurelib.alignment.enumerable.Rotation.UPSIDE_DOWN;
+
+                for (int r = 0; r < gridSize; r++) {
+                    for (int col = 0; col < gridSize; col++) {
+                        // In structure definition: col 0 is leftmost in structure, col N-1 is rightmost
+                        // r 0 is front row (closest to controller), r N-1 is back row
+                        int a = isUpsideDown ? -(col - hOffset) : (col - hOffset);
+                        int b = -3;
+                        int c = r;
+
+                        int[] worldOffset = new int[3];
+                        ext.getWorldOffset(new int[] { a, b, c }, worldOffset);
+
+                        int[] out = new int[3];
+                        ext.getOffsetABC(worldOffset, out);
+
+                        int localA = isUpsideDown ? -out[0] : out[0];
+                        int gx = localA + hOffset;
+                        int gy = out[2];
+
+                        assertEquals(col, gx, "Mismatch gx for facing " + facing + " rot " + rot);
+                        assertEquals(r, gy, "Mismatch gy for facing " + facing + " rot " + rot);
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void testNuclearReactorAlignmentLimits() {
+        MTENuclearReactor reactor = new MTENuclearReactor("test_reactor");
+        com.gtnewhorizon.structurelib.alignment.IAlignmentLimits limits = reactor.getInitialAlignmentLimits();
+
+        // Horizontal facings with all 4 rotations without flip must be valid
+        for (net.minecraftforge.common.util.ForgeDirection facing : new net.minecraftforge.common.util.ForgeDirection[] {
+            net.minecraftforge.common.util.ForgeDirection.NORTH, net.minecraftforge.common.util.ForgeDirection.SOUTH,
+            net.minecraftforge.common.util.ForgeDirection.EAST, net.minecraftforge.common.util.ForgeDirection.WEST }) {
+            assertTrue(
+                limits.isNewExtendedFacingValid(
+                    facing,
+                    com.gtnewhorizon.structurelib.alignment.enumerable.Rotation.NORMAL,
+                    com.gtnewhorizon.structurelib.alignment.enumerable.Flip.NONE));
+            assertTrue(
+                limits.isNewExtendedFacingValid(
+                    facing,
+                    com.gtnewhorizon.structurelib.alignment.enumerable.Rotation.CLOCKWISE,
+                    com.gtnewhorizon.structurelib.alignment.enumerable.Flip.NONE));
+            assertTrue(
+                limits.isNewExtendedFacingValid(
+                    facing,
+                    com.gtnewhorizon.structurelib.alignment.enumerable.Rotation.UPSIDE_DOWN,
+                    com.gtnewhorizon.structurelib.alignment.enumerable.Flip.NONE));
+            assertTrue(
+                limits.isNewExtendedFacingValid(
+                    facing,
+                    com.gtnewhorizon.structurelib.alignment.enumerable.Rotation.COUNTER_CLOCKWISE,
+                    com.gtnewhorizon.structurelib.alignment.enumerable.Flip.NONE));
+
+            // Any flip (horizontal, vertical, both) must be REJECTED
+            assertFalse(
+                limits.isNewExtendedFacingValid(
+                    facing,
+                    com.gtnewhorizon.structurelib.alignment.enumerable.Rotation.NORMAL,
+                    com.gtnewhorizon.structurelib.alignment.enumerable.Flip.HORIZONTAL));
+            assertFalse(
+                limits.isNewExtendedFacingValid(
+                    facing,
+                    com.gtnewhorizon.structurelib.alignment.enumerable.Rotation.NORMAL,
+                    com.gtnewhorizon.structurelib.alignment.enumerable.Flip.VERTICAL));
+            assertFalse(
+                limits.isNewExtendedFacingValid(
+                    facing,
+                    com.gtnewhorizon.structurelib.alignment.enumerable.Rotation.NORMAL,
+                    com.gtnewhorizon.structurelib.alignment.enumerable.Flip.BOTH));
+        }
+
+        // Vertical facings (UP, DOWN) must be REJECTED
+        assertFalse(
+            limits.isNewExtendedFacingValid(
+                net.minecraftforge.common.util.ForgeDirection.UP,
+                com.gtnewhorizon.structurelib.alignment.enumerable.Rotation.NORMAL,
+                com.gtnewhorizon.structurelib.alignment.enumerable.Flip.NONE));
+        assertFalse(
+            limits.isNewExtendedFacingValid(
+                net.minecraftforge.common.util.ForgeDirection.DOWN,
+                com.gtnewhorizon.structurelib.alignment.enumerable.Rotation.NORMAL,
+                com.gtnewhorizon.structurelib.alignment.enumerable.Flip.NONE));
+    }
+
+    @Test
+    void testTheCoreAndLiquidFuelSimTile() {
+        // Test The Core (NQ32)
+        SimTile core = new SimTile(SimTile.TileType.FUEL_CORE);
+        assertTrue(core.isFuel());
+        assertFalse(core.isHatch());
+        assertEquals(512, core.generateNeutrons(1.0));
+        assertEquals(320000, core.getMaxDurability());
+
+        // Test Liquid Uranium Fuel Hatch
+        SimTile liquidU = new SimTile(SimTile.TileType.HATCH_LIQUID_FUEL_URANIUM);
+        assertTrue(liquidU.isFuel());
+        assertTrue(liquidU.isHatch());
+        assertTrue(liquidU.isLiquidFuelHatch());
+        assertFalse(liquidU.isCoolantHatch());
+        assertEquals(8, liquidU.generateNeutrons(1.0));
+        assertEquals(NuclearSimulationEngine.DEFAULT_HATCH_CAPACITY, liquidU.getInputFluidAmount());
+        assertEquals(0, liquidU.getOutputFluidAmount());
+
+        // Test Liquid Thorium and Plutonium Hatches
+        SimTile liquidTh = new SimTile(SimTile.TileType.HATCH_LIQUID_FUEL_THORIUM);
+        assertEquals(4, liquidTh.generateNeutrons(1.0));
+        SimTile liquidPu = new SimTile(SimTile.TileType.HATCH_LIQUID_FUEL_PLUTONIUM);
+        assertEquals(16, liquidPu.generateNeutrons(1.0));
+
+        // Test liquid fuel burnup into spent byproduct
+        liquidU.onNeutronAbsorbed(NeutronType.THERMAL, 50);
+        liquidU.nuclearTick(1.0);
+        assertTrue(
+            liquidU.getInputFluidAmount() < NuclearSimulationEngine.DEFAULT_HATCH_CAPACITY,
+            "Liquid fuel input should be consumed");
+        assertTrue(liquidU.getOutputFluidAmount() > 0, "Spent fuel byproduct should be produced");
+        assertEquals(
+            NuclearSimulationEngine.DEFAULT_HATCH_CAPACITY,
+            liquidU.getInputFluidAmount() + liquidU.getOutputFluidAmount());
+    }
+
+    @Test
+    void testLiquidFuelPipingTiers() {
+        assertEquals(
+            NuclearSimulationEngine.PIPE_TIER_ELECTRUM,
+            NuclearSimulationEngine.getRequiredFluidTier("thoriumbasedliquidfuel"));
+        assertEquals(
+            NuclearSimulationEngine.PIPE_TIER_PLATINUM,
+            NuclearSimulationEngine.getRequiredFluidTier("uraniumbasedliquidfuel"));
+        assertEquals(
+            NuclearSimulationEngine.PIPE_TIER_OSMIUM,
+            NuclearSimulationEngine.getRequiredFluidTier("plutoniumbasedliquidfuel"));
+        assertEquals(
+            NuclearSimulationEngine.PIPE_TIER_OSMIUM,
+            NuclearSimulationEngine.getRequiredFluidTier("uraniumhexafluoride"));
+        // Arbitrary unhandled fluids return 999
+        assertEquals(999, NuclearSimulationEngine.getRequiredFluidTier("some_random_fluid"));
+        // Naquadah liquid fuel must be blocked to preserve Large Naquadah Reactor exclusivity
+        assertEquals(999, NuclearSimulationEngine.getRequiredFluidTier("liquid_naquadah_fuel"));
+        assertEquals(999, NuclearSimulationEngine.getRequiredFluidTier("naquadahbasedliquidfuel"));
+    }
+
+    @Test
+    void testReactorCasingAcceptsOutputBusAndHatch() {
+        MTENuclearReactor reactor = new MTENuclearReactor("test.reactor.outputs") {
+
+            @Override
+            public ItemStack getMachineCraftingIcon() {
+                return null;
+            }
+        };
+        reactor.clearHatches();
+        assertTrue(reactor.mOutputBusses.isEmpty());
+        assertTrue(reactor.mOutputHatches.isEmpty());
+
+        // 1. Mock output bus
+        IGregTechTileEntity mockBusTe = org.mockito.Mockito.mock(IGregTechTileEntity.class);
+        gregtech.api.metatileentity.implementations.MTEHatchOutputBus mockBus = org.mockito.Mockito
+            .mock(gregtech.api.metatileentity.implementations.MTEHatchOutputBus.class);
+        org.mockito.Mockito.when(mockBusTe.getMetaTileEntity())
+            .thenReturn(mockBus);
+
+        assertTrue(reactor.addOutputToMachineList(mockBusTe, MTENuclearReactor.CASING_INDEX));
+        assertEquals(1, reactor.mOutputBusses.size());
+
+        // 2. Mock output hatch
+        IGregTechTileEntity mockHatchTe = org.mockito.Mockito.mock(IGregTechTileEntity.class);
+        gregtech.api.metatileentity.implementations.MTEHatchOutput mockHatch = org.mockito.Mockito
+            .mock(gregtech.api.metatileentity.implementations.MTEHatchOutput.class);
+        org.mockito.Mockito.when(mockHatchTe.getMetaTileEntity())
+            .thenReturn(mockHatch);
+
+        assertTrue(reactor.addOutputToMachineList(mockHatchTe, MTENuclearReactor.CASING_INDEX));
+        assertEquals(1, reactor.mOutputHatches.size());
     }
 }

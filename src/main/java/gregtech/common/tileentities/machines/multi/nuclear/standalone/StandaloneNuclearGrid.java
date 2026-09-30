@@ -279,7 +279,7 @@ public class StandaloneNuclearGrid {
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
                 SimTile tile = grid[x][y];
-                if (tile.isHatch()) {
+                if (tile.isCoolantHatch() && tile.isAutoRefill()) {
                     int space = tile.getInputFluidCapacity() - tile.getInputFluidAmount();
                     if (space > 0) {
                         int feed = Math.min(space, NuclearSimulationEngine.coolantFeedRate);

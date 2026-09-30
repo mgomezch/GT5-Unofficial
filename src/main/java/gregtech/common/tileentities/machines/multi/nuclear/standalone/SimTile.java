@@ -25,6 +25,10 @@ public class SimTile implements INuclearTile {
         FUEL_THORIUM_DUAL("Thorium Dual", "T2"),
         FUEL_THORIUM_QUAD("Thorium Quad", "T4"),
         FUEL_NAQUADAH("Naquadah Rod", "NQ"),
+        FUEL_CORE("The Core", "NQ32"),
+        HATCH_LIQUID_FUEL_URANIUM("Liquid Uranium Fuel Hatch", "LFU"),
+        HATCH_LIQUID_FUEL_THORIUM("Liquid Thorium Fuel Hatch", "LFT"),
+        HATCH_LIQUID_FUEL_PLUTONIUM("Liquid Plutonium Fuel Hatch", "LFP"),
         HATCH_DISTILLED_WATER("Distilled Water Hatch", "HD"),
         HATCH_HP_DISTILLED_WATER("HP Distilled Water Hatch", "HP"),
         HATCH_HEAVY_WATER("Heavy Water Hatch", "HW"),
@@ -38,6 +42,10 @@ public class SimTile implements INuclearTile {
         COOLANT_CELL_360K("360k Coolant Cell", "C3"),
         BETAVOLTAIC_HV("Betavoltaic Cell (HV)", "BH"),
         BETAVOLTAIC_EV("Betavoltaic Cell (EV)", "BV"),
+        INSULATOR_BASIC_THERMAL_CLOTH("Basic Thermal Cloth", "IT1"),
+        INSULATOR_T2_THERMAL_CLOTH("T2 Thermal Cloth", "IT2"),
+        INSULATOR_MICA_FOIL("Mica Insulator Foil", "IM"),
+        INSULATOR_NAQUARITE_FOIL("Naquarite Universal Insulator Foil", "INQ"),
         NULL_WALL("Reflective Wall", "NL");
 
         public final String displayName;
@@ -148,6 +156,29 @@ public class SimTile implements INuclearTile {
                 this.durability = 100000;
                 this.inputFluidAmount = 0;
             }
+            case FUEL_CORE -> {
+                this.maxDurability = 320000;
+                this.durability = 320000;
+                this.inputFluidAmount = 0;
+            }
+            case HATCH_LIQUID_FUEL_URANIUM -> {
+                this.inputFluidName = "uraniumbasedliquidfuel";
+                this.inputFluidCapacity = NuclearSimulationEngine.hatchCoolantCapacity;
+                this.inputFluidAmount = this.inputFluidCapacity;
+                this.outputFluidName = "depleteduraniumbasedliquidfuel";
+            }
+            case HATCH_LIQUID_FUEL_THORIUM -> {
+                this.inputFluidName = "thoriumbasedliquidfuel";
+                this.inputFluidCapacity = NuclearSimulationEngine.hatchCoolantCapacity;
+                this.inputFluidAmount = this.inputFluidCapacity;
+                this.outputFluidName = "depletedthoriumbasedliquidfuel";
+            }
+            case HATCH_LIQUID_FUEL_PLUTONIUM -> {
+                this.inputFluidName = "plutoniumbasedliquidfuel";
+                this.inputFluidCapacity = NuclearSimulationEngine.hatchCoolantCapacity;
+                this.inputFluidAmount = this.inputFluidCapacity;
+                this.outputFluidName = "depletedplutoniumbasedliquidfuel";
+            }
             case HATCH_DISTILLED_WATER -> {
                 this.inputFluidName = "distilledwater";
                 this.inputFluidCapacity = NuclearSimulationEngine.hatchCoolantCapacity;
@@ -227,9 +258,32 @@ public class SimTile implements INuclearTile {
             case COOLANT_CELL_10K, COOLANT_CELL_60K, COOLANT_CELL_360K -> 0.40;
             case REFLECTOR_BERYLLIUM, REFLECTOR_CARBON -> 0.15;
             case BETAVOLTAIC_HV, BETAVOLTAIC_EV -> 0.10;
-            case FUEL_URANIUM_SINGLE, FUEL_URANIUM_DUAL, FUEL_URANIUM_QUAD, FUEL_MOX_SINGLE, FUEL_MOX_DUAL, FUEL_MOX_QUAD, FUEL_THORIUM_SINGLE, FUEL_THORIUM_DUAL, FUEL_THORIUM_QUAD, FUEL_NAQUADAH -> 0.05;
+            case INSULATOR_BASIC_THERMAL_CLOTH, INSULATOR_T2_THERMAL_CLOTH, INSULATOR_MICA_FOIL, INSULATOR_NAQUARITE_FOIL -> 0.01;
+            case FUEL_URANIUM_SINGLE, FUEL_URANIUM_DUAL, FUEL_URANIUM_QUAD, FUEL_MOX_SINGLE, FUEL_MOX_DUAL, FUEL_MOX_QUAD, FUEL_THORIUM_SINGLE, FUEL_THORIUM_DUAL, FUEL_THORIUM_QUAD, FUEL_NAQUADAH, FUEL_CORE -> 0.05;
+            case HATCH_LIQUID_FUEL_URANIUM, HATCH_LIQUID_FUEL_THORIUM, HATCH_LIQUID_FUEL_PLUTONIUM -> 0.25;
             default -> 0.02;
         };
+    }
+
+    private double insulationDampening = 0.0;
+
+    @Override
+    public double getInsulationDampening() {
+        return switch (type) {
+            case INSULATOR_BASIC_THERMAL_CLOTH -> 0.20;
+            case INSULATOR_T2_THERMAL_CLOTH -> 0.40;
+            case INSULATOR_MICA_FOIL -> 0.60;
+            case INSULATOR_NAQUARITE_FOIL -> 1.00;
+            default -> insulationDampening;
+        };
+    }
+
+    public void setInsulationDampening(double dampening) {
+        this.insulationDampening = dampening;
+    }
+
+    public boolean isInsulator() {
+        return getInsulationDampening() > 0.0;
     }
 
     public boolean isBetavoltaic() {
@@ -240,14 +294,25 @@ public class SimTile implements INuclearTile {
     public boolean isFuel() {
         if (depleted) return false;
         return switch (type) {
-            case FUEL_URANIUM_SINGLE, FUEL_URANIUM_DUAL, FUEL_URANIUM_QUAD, FUEL_MOX_SINGLE, FUEL_MOX_DUAL, FUEL_MOX_QUAD, FUEL_THORIUM_SINGLE, FUEL_THORIUM_DUAL, FUEL_THORIUM_QUAD, FUEL_NAQUADAH -> true;
+            case FUEL_URANIUM_SINGLE, FUEL_URANIUM_DUAL, FUEL_URANIUM_QUAD, FUEL_MOX_SINGLE, FUEL_MOX_DUAL, FUEL_MOX_QUAD, FUEL_THORIUM_SINGLE, FUEL_THORIUM_DUAL, FUEL_THORIUM_QUAD, FUEL_NAQUADAH, FUEL_CORE, HATCH_LIQUID_FUEL_URANIUM, HATCH_LIQUID_FUEL_THORIUM, HATCH_LIQUID_FUEL_PLUTONIUM -> true;
             default -> false;
         };
     }
 
     public boolean isHatch() {
+        return isCoolantHatch() || isLiquidFuelHatch();
+    }
+
+    public boolean isCoolantHatch() {
         return switch (type) {
             case HATCH_DISTILLED_WATER, HATCH_HP_DISTILLED_WATER, HATCH_HEAVY_WATER, HATCH_HP_HEAVY_WATER, HATCH_IC2_COOLANT -> true;
+            default -> false;
+        };
+    }
+
+    public boolean isLiquidFuelHatch() {
+        return switch (type) {
+            case HATCH_LIQUID_FUEL_URANIUM, HATCH_LIQUID_FUEL_THORIUM, HATCH_LIQUID_FUEL_PLUTONIUM -> true;
             default -> false;
         };
     }
@@ -270,6 +335,10 @@ public class SimTile implements INuclearTile {
             case FUEL_THORIUM_DUAL -> 4;
             case FUEL_THORIUM_QUAD -> 8;
             case FUEL_NAQUADAH -> 16;
+            case FUEL_CORE -> 512;
+            case HATCH_LIQUID_FUEL_THORIUM -> 4;
+            case HATCH_LIQUID_FUEL_URANIUM -> 8;
+            case HATCH_LIQUID_FUEL_PLUTONIUM -> 16;
             default -> 0;
         };
 
@@ -281,16 +350,23 @@ public class SimTile implements INuclearTile {
 
     @Override
     public double getAbsorptionProbability(NeutronType nType) {
+        if (type == TileType.INSULATOR_NAQUARITE_FOIL) {
+            return 1.0;
+        }
         if (isBetavoltaic()) {
             return 1.0;
         }
         if (type == TileType.CONTROL_ROD) {
             return (nType == NeutronType.THERMAL) ? 0.95 : 0.85;
         }
+        if (isLiquidFuelHatch()) {
+            if (inputFluidAmount <= 0) return 0.01;
+            return (nType == NeutronType.THERMAL) ? 0.85 : 0.25;
+        }
         if (isFuel()) {
             return (nType == NeutronType.THERMAL) ? 0.80 : 0.25;
         }
-        if (isHatch()) {
+        if (isCoolantHatch()) {
             if (inputFluidAmount <= 0) return 0.01;
             return switch (type) {
                 case HATCH_HEAVY_WATER, HATCH_HP_HEAVY_WATER -> (nType == NeutronType.THERMAL) ? 0.01 : 0.005;
@@ -308,13 +384,20 @@ public class SimTile implements INuclearTile {
 
     @Override
     public double getScatteringProbability(NeutronType nType) {
+        if (type == TileType.INSULATOR_NAQUARITE_FOIL) {
+            return 0.0;
+        }
         if (isBetavoltaic()) {
             return 0.0;
         }
         if (type == TileType.REFLECTOR_BERYLLIUM || type == TileType.REFLECTOR_CARBON) {
             return 0.95;
         }
-        if (isHatch()) {
+        if (isLiquidFuelHatch()) {
+            if (inputFluidAmount <= 0) return 0.02;
+            return 0.15;
+        }
+        if (isCoolantHatch()) {
             if (inputFluidAmount <= 0) return 0.02;
             return switch (type) {
                 case HATCH_HEAVY_WATER, HATCH_HP_HEAVY_WATER -> 0.85;
@@ -335,7 +418,10 @@ public class SimTile implements INuclearTile {
         if (type == TileType.REFLECTOR_BERYLLIUM || type == TileType.REFLECTOR_CARBON) {
             return 0.65;
         }
-        if (isHatch()) {
+        if (isLiquidFuelHatch()) {
+            return 0.10;
+        }
+        if (isCoolantHatch()) {
             if (inputFluidAmount <= 0) return 0.05;
             return switch (type) {
                 case HATCH_HEAVY_WATER, HATCH_HP_HEAVY_WATER -> 0.90;
@@ -353,7 +439,7 @@ public class SimTile implements INuclearTile {
         else thermalAbsorbed += count;
 
         // Fast neutron capture transmutation
-        if (nType == NeutronType.FAST && isHatch() && inputFluidAmount > 0) {
+        if (nType == NeutronType.FAST && isCoolantHatch() && inputFluidAmount > 0) {
             if (type == TileType.HATCH_DISTILLED_WATER || type == TileType.HATCH_HP_DISTILLED_WATER) {
                 boolean isHP = (type == TileType.HATCH_HP_DISTILLED_WATER);
                 int chance = isHP ? Math.min(100, count * 10) : Math.min(100, count * 5);
@@ -389,7 +475,20 @@ public class SimTile implements INuclearTile {
         lastTickProduced = 0;
 
         // 1. Fuel burnup
-        if (isFuel() && !depleted) {
+        if (isLiquidFuelHatch()) {
+            if (inputFluidAmount > 0) {
+                int burn = fastAbsorbed * 1 + thermalAbsorbed * 2 + Math.max(1, lastNeutronsGenerated / 4);
+                int toConsume = Math.max(1, Math.min(inputFluidAmount, burn));
+                inputFluidAmount -= toConsume;
+                outputFluidAmount += toConsume;
+                if (inputFluidAmount <= 0) {
+                    inputFluidAmount = 0;
+                    depleted = true;
+                }
+            } else {
+                depleted = true;
+            }
+        } else if (isFuel() && !depleted) {
             double rawDamage = (fastAbsorbed * 1.0 + thermalAbsorbed * 2.0 + Math.max(1.0, lastNeutronsGenerated / 4.0))
                 * NuclearSimulationEngine.fuelBurnupMultiplier;
             durabilityLossAccumulator += rawDamage;
@@ -441,7 +540,7 @@ public class SimTile implements INuclearTile {
         }
 
         // 3. Fluid cooling & heat exchange
-        if (isHatch()) {
+        if (isCoolantHatch()) {
             double effFactor = Math.max(0.0, Math.min(1.0, efficiency));
             if (type == TileType.HATCH_IC2_COOLANT) {
                 double operatingThreshold = NuclearSimulationEngine.AMBIENT_TEMP;

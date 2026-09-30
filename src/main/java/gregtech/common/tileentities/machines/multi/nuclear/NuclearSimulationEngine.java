@@ -62,9 +62,9 @@ public class NuclearSimulationEngine {
     public static final double DEFAULT_FUEL_BURNUP_MULTIPLIER = 0.005;
     public static double fuelBurnupMultiplier = DEFAULT_FUEL_BURNUP_MULTIPLIER;
 
-    public static final double DEFAULT_WALL_REFLECTION_CHANCE = 0.50;
+    public static final double DEFAULT_WALL_REFLECTION_CHANCE = 0.0;
     public static double wallReflectionChance = DEFAULT_WALL_REFLECTION_CHANCE;
-    public static final double DEFAULT_WALL_ABSORB_HEAT_PER_NEUTRON = 12.0;
+    public static final double DEFAULT_WALL_ABSORB_HEAT_PER_NEUTRON = 0.0;
     public static double wallAbsorbHeatPerNeutron = DEFAULT_WALL_ABSORB_HEAT_PER_NEUTRON;
 
     public static void setAmbientTemperature(double temp) {
@@ -229,11 +229,25 @@ public class NuclearSimulationEngine {
         if (fluidName == null) return 999;
         String name = fluidName.toLowerCase();
         if (name.equals("water")) return 999; // Regular water is completely disallowed
+        if (name.contains("naquadah")) return 999; // Disallow Naquadah liquid fuels to avoid overlap with LNR
         if (name.contains("coolant") && !name.contains("hot")) return PIPE_TIER_ELECTRUM;
         if (name.contains("distilledwater") && !name.contains("highpressure")) return PIPE_TIER_PLATINUM;
         if (name.contains("highpressuredistilledwater")) return PIPE_TIER_OSMIUM;
         if (name.contains("heavywater") && !name.contains("highpressure")) return PIPE_TIER_QUANTIUM;
         if (name.contains("highpressureheavywater")) return PIPE_TIER_FLUXED_ELECTRUM;
+
+        // Nuclear liquid fuels
+        if (name.contains("thoriumbasedliquidfuel") || (name.contains("thorium") && name.contains("liquidfuel"))) {
+            return name.contains("excited") ? PIPE_TIER_FLUXED_ELECTRUM : PIPE_TIER_ELECTRUM;
+        }
+        if (name.contains("uraniumbasedliquidfuel") || (name.contains("uranium") && name.contains("liquidfuel"))) {
+            return name.contains("excited") ? PIPE_TIER_QUANTIUM : PIPE_TIER_PLATINUM;
+        }
+        if (name.contains("plutoniumbasedliquidfuel") || (name.contains("plutonium") && name.contains("liquidfuel"))) {
+            return name.contains("excited") ? PIPE_TIER_FLUXED_ELECTRUM : PIPE_TIER_OSMIUM;
+        }
+        if (name.contains("uraniumhexafluoride")) return PIPE_TIER_OSMIUM;
+
         return 999;
     }
 
@@ -378,35 +392,9 @@ public class NuclearSimulationEngine {
                         boolean isNullCell = !isOutOfBounds && (grid[posX][posY] == null);
 
                         if (isOutOfBounds || isNullCell) {
-                            // Boundary encounter with reactor casing wall or corner null cell
-                            double reflFlux = flux * wallReflectionChance;
-                            double absFlux = flux - reflFlux;
-
-                            int intRefl = (int) Math.round(reflFlux);
-                            int intAbs = (int) Math.round(absFlux);
-                            if (intRefl > 0) {
-                                result.wallNeutronsReflected += intRefl;
-                            }
-                            if (intAbs > 0) {
-                                result.wallNeutronsAbsorbed += intAbs;
-                                result.wallHeatPool += intAbs * wallAbsorbHeatPerNeutron;
-                            }
-
-                            if (reflFlux <= 0.001) {
-                                break;
-                            }
-
-                            // Reverse direction 180 degrees
-                            curDir = (curDir + 2) % 4;
-                            posX += dX[curDir];
-                            posY += dY[curDir];
-
-                            // Moderate fast neutrons slightly on wall bounce
-                            if (type == NeutronType.FAST) {
-                                type = NeutronType.THERMAL;
-                            }
-                            flux = reflFlux;
-                            continue;
+                            // Boundary encounter: neutron flux escapes through outer walls or empty space
+                            result.neutronsEscaped += (int) Math.round(flux);
+                            break;
                         }
 
                         INuclearTile hitTile = grid[posX][posY];
@@ -419,16 +407,19 @@ public class NuclearSimulationEngine {
                         if (absFlux > 0.0) {
                             int intAbs = (int) Math.round(absFlux);
                             hitTile.onNeutronAbsorbed(type, intAbs);
-                            if (type == NeutronType.FAST) {
-                                pendingHeat[posX][posY] += absFlux * EU_FOR_FAST_NEUTRON;
-                                result.fastNeutronsAbsorbed += intAbs;
-                            } else {
-                                result.thermalNeutronsAbsorbed += intAbs;
-                                if (hitTile.isFuel()) {
-                                    // Fission chain reaction heat bonus
-                                    pendingHeat[posX][posY] += absFlux * fissionHeatPerNeutron * 1.25;
+                            // Insulator foil with 100% dampening rejects radiation without heating up
+                            if (hitTile.getInsulationDampening() < 1.0) {
+                                if (type == NeutronType.FAST) {
+                                    pendingHeat[posX][posY] += absFlux * EU_FOR_FAST_NEUTRON;
+                                    result.fastNeutronsAbsorbed += intAbs;
                                 } else {
-                                    pendingHeat[posX][posY] += absFlux * (EU_FOR_FAST_NEUTRON * 0.5);
+                                    result.thermalNeutronsAbsorbed += intAbs;
+                                    if (hitTile.isFuel()) {
+                                        // Fission chain reaction heat bonus
+                                        pendingHeat[posX][posY] += absFlux * fissionHeatPerNeutron * 1.25;
+                                    } else {
+                                        pendingHeat[posX][posY] += absFlux * (EU_FOR_FAST_NEUTRON * 0.5);
+                                    }
                                 }
                             }
                         }
@@ -505,13 +496,18 @@ public class NuclearSimulationEngine {
                             double coeffB = Math.max(BASE_HEAT_CONDUCTION, tileB.getHeatTransferCoeff());
                             double transferCoeff = 0.5 * (coeffA + coeffB) / SUBSTEPS;
                             if (tempA > tempB) {
-                                double flow = (tempA - tempB) * transferCoeff;
+                                double dampening = Math
+                                    .max(tileA.getInsulationDampening(), tileB.getInsulationDampening());
+                                double flow = (tempA - tempB) * transferCoeff
+                                    * (1.0 - Math.min(1.0, Math.max(0.0, dampening)));
                                 deltaTemp[x][y] -= flow;
                                 deltaTemp[nx][ny] += flow;
                             }
                         } else {
                             // Heat loss to empty space / outer walls at ambient temperature
-                            double loss = (tempA - ambient) * (coeffA / (2.0 * SUBSTEPS));
+                            double dampening = tileA.getInsulationDampening();
+                            double loss = (tempA - ambient) * (coeffA / (2.0 * SUBSTEPS))
+                                * (1.0 - Math.min(1.0, Math.max(0.0, dampening)));
                             deltaTemp[x][y] -= loss;
                         }
                     }
