@@ -372,95 +372,142 @@ public class NuclearSimulationEngine {
         }
         result.averageReactivity = (fuelTileCount > 0) ? (sumFuelReactivity / fuelTileCount) : 0.0;
 
-        // --- PASS 2: 2-GROUP ISOTROPIC NEUTRON DIFFUSION STENCIL ---
-        // Fast and thermal neutron groups modeled across discrete isotropic relaxation substeps.
-        // Fast neutrons emitted from fission diffuse isotropically across the 9-point stencil,
-        // slowing down (moderating) into thermal neutrons in moderators and coolants.
-        // Thermal neutrons diffuse and induce chain reactions in fuel, or get absorbed by control rods.
+        // --- PASS 2: HYBRID NEUTRON MODEL (MI FAST RAYS + ISOTROPIC THERMAL STENCIL) ---
+        // Fast neutrons emit as discrete directional rays with random directions based on fuel type:
+        // single rods emit 1 ray, dual rods emit 2 rays, quad rods & fluid fuels emit 4 rays.
+        // Fast rays undergo Monte Carlo random-walk scattering and reflection, or get absorbed.
+        // When fast neutrons moderate in coolant/moderators, they convert into a thermal flux pool.
+        // Thermal neutrons then diffuse omnidirectionally using the 9-point isotropic stencil.
 
-        final int MAX_STEPS = Math.max(12, (sizeX + sizeY) * 2);
+        final int MAX_FAST_STEPS = (sizeX + sizeY) * 2;
+        final int MAX_THERMAL_STEPS = Math.max(12, (sizeX + sizeY) * 2);
 
-        double[][] activeFast = new double[sizeX][sizeY];
-        double[][] activeThermal = new double[sizeX][sizeY];
-
+        double[][] thermalPool = new double[sizeX][sizeY];
         double[][] tileFluxFast = new double[sizeX][sizeY];
         double[][] tileFluxThermal = new double[sizeX][sizeY];
-        double[][] tileAbsFast = new double[sizeX][sizeY];
         double[][] tileAbsThermal = new double[sizeX][sizeY];
-        double[][] tileScat = new double[sizeX][sizeY];
 
-        // Step 0: Radiate initial fast neutron emission outward from fuel pins to 8 neighbors
+        // Part A: Fast Neutron Emission & Monte Carlo Propagation
         for (int i = 0; i < sizeX; i++) {
             for (int j = 0; j < sizeY; j++) {
                 int N = emittedNeutrons[i][j];
                 if (N <= 0) continue;
 
-                for (int d = 0; d < 8; d++) {
-                    double flux = N * DIR_WEIGHTS[d];
-                    int posX = i + dX[d];
-                    int posY = j + dY[d];
+                INuclearTile fuelTile = grid[i][j];
+                int rayCount = (fuelTile != null) ? Math.max(1, fuelTile.getNeutronEmissionCount()) : 1;
+                int nPerRay = N / rayCount;
+                int rem = N % rayCount;
 
-                    boolean isOutOfBounds = (posX < 0 || posX >= sizeX || posY < 0 || posY >= sizeY);
-                    boolean isNullCell = !isOutOfBounds && (grid[posX][posY] == null);
+                for (int r = 0; r < rayCount; r++) {
+                    int rayNeutrons = nPerRay + (r < rem ? 1 : 0);
+                    if (rayNeutrons <= 0) continue;
 
-                    if (isOutOfBounds) {
-                        if (wallReflectionChance > 0) {
-                            double refl = flux * wallReflectionChance;
-                            activeFast[i][j] += refl;
-                            result.wallNeutronsReflected += (int) Math.round(refl);
-                            result.neutronsEscaped += (int) Math.round(flux * (1.0 - wallReflectionChance));
-                        } else {
-                            result.neutronsEscaped += (int) Math.round(flux);
+                    int dir = RAND.nextInt(4);
+                    int posX = i;
+                    int posY = j;
+                    int steps = 0;
+
+                    while (steps++ < MAX_FAST_STEPS) {
+                        posX += dX[dir];
+                        posY += dY[dir];
+
+                        boolean isOutOfBounds = (posX < 0 || posX >= sizeX || posY < 0 || posY >= sizeY);
+                        boolean isNullCell = !isOutOfBounds && (grid[posX][posY] == null);
+
+                        if (isOutOfBounds) {
+                            if (wallReflectionChance > 0 && RAND.nextDouble() < wallReflectionChance) {
+                                result.wallNeutronsReflected += rayNeutrons;
+                                dir = (dir + 2) % 4;
+                                posX += dX[dir];
+                                posY += dY[dir];
+                                continue;
+                            } else {
+                                result.neutronsEscaped += rayNeutrons;
+                                break;
+                            }
                         }
-                    } else if (isNullCell) {
-                        result.neutronsEscaped += (int) Math.round(flux);
-                    } else {
-                        activeFast[posX][posY] += flux;
+
+                        if (isNullCell) {
+                            result.neutronsEscaped += rayNeutrons;
+                            break;
+                        }
+
+                        INuclearTile hitTile = grid[posX][posY];
+                        hitTile.addNeutronFlux(NeutronType.FAST, rayNeutrons);
+                        tileFluxFast[posX][posY] += rayNeutrons;
+
+                        double pAbs = hitTile.getAbsorptionProbability(NeutronType.FAST);
+                        double pScatter = hitTile.getScatteringProbability(NeutronType.FAST);
+                        double pTotal = Math.min(1.0, pAbs + pScatter);
+
+                        if (RAND.nextDouble() < pTotal) {
+                            double pAbsRel = (pTotal > 0) ? (pAbs / pTotal) : 0.0;
+                            if (RAND.nextDouble() < pAbsRel) {
+                                hitTile.onNeutronAbsorbed(NeutronType.FAST, rayNeutrons);
+                                result.fastNeutronsAbsorbed += rayNeutrons;
+                                if (hitTile.getInsulationDampening() < 1.0) {
+                                    pendingHeat[posX][posY] += rayNeutrons * EU_FOR_FAST_NEUTRON;
+                                }
+                                break;
+                            } else {
+                                hitTile.onNeutronScattered(NeutronType.FAST, rayNeutrons);
+                                if (pScatter >= 0.90 && pAbs <= 0.05) {
+                                    dir = (dir + 2) % 4;
+                                } else {
+                                    dir = RAND.nextInt(4);
+                                }
+
+                                double pMod = hitTile.getModerationProbability();
+                                if (RAND.nextDouble() < pMod) {
+                                    if (hitTile.getInsulationDampening() < 1.0) {
+                                        pendingHeat[posX][posY] += rayNeutrons * EU_FOR_FAST_NEUTRON;
+                                    }
+                                    thermalPool[posX][posY] += rayNeutrons;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if (steps >= MAX_FAST_STEPS) {
+                        result.neutronsEscaped += rayNeutrons;
                     }
                 }
             }
         }
 
-        // Substep relaxation: diffuse, moderate, and absorb across the core
-        for (int step = 0; step < MAX_STEPS; step++) {
+        // Part B: Thermal Neutron 9-Point Isotropic Diffusion Stencil
+        double[][] activeThermal = thermalPool;
+
+        for (int step = 0; step < MAX_THERMAL_STEPS; step++) {
             double totalActive = 0.0;
             for (int x = 0; x < sizeX; x++) {
                 for (int y = 0; y < sizeY; y++) {
-                    totalActive += activeFast[x][y] + activeThermal[x][y];
+                    totalActive += activeThermal[x][y];
                 }
             }
             if (totalActive < 0.001) break;
 
-            double[][] nextFast = new double[sizeX][sizeY];
             double[][] nextThermal = new double[sizeX][sizeY];
 
             for (int x = 0; x < sizeX; x++) {
                 for (int y = 0; y < sizeY; y++) {
-                    double arrivingF = activeFast[x][y];
                     double arrivingT = activeThermal[x][y];
-                    if (arrivingF <= 0.0001 && arrivingT <= 0.0001) continue;
+                    if (arrivingT <= 0.0001) continue;
 
                     INuclearTile hitTile = grid[x][y];
                     if (hitTile == null) {
-                        result.neutronsEscaped += (int) Math.round(arrivingF + arrivingT);
+                        result.neutronsEscaped += (int) Math.round(arrivingT);
                         continue;
                     }
 
-                    tileFluxFast[x][y] += arrivingF;
                     tileFluxThermal[x][y] += arrivingT;
 
-                    double pAbsF = hitTile.getAbsorptionProbability(NeutronType.FAST);
                     double pAbsT = hitTile.getAbsorptionProbability(NeutronType.THERMAL);
-
-                    double absF = arrivingF * pAbsF;
                     double absT = arrivingT * pAbsT;
-                    tileAbsFast[x][y] += absF;
                     tileAbsThermal[x][y] += absT;
 
                     if (hitTile.getInsulationDampening() < 1.0) {
-                        if (absF > 0) {
-                            pendingHeat[x][y] += absF * EU_FOR_FAST_NEUTRON;
-                        }
                         if (absT > 0) {
                             if (hitTile.isFuel()) {
                                 pendingHeat[x][y] += absT * fissionHeatPerNeutron * 1.25;
@@ -470,28 +517,10 @@ public class NuclearSimulationEngine {
                         }
                     }
 
-                    double remF = Math.max(0.0, arrivingF - absF);
-                    double remT = Math.max(0.0, arrivingT - absT);
+                    double survT = Math.max(0.0, arrivingT - absT);
 
-                    double pScatterF = hitTile.getScatteringProbability(NeutronType.FAST);
-                    double pScatterT = hitTile.getScatteringProbability(NeutronType.THERMAL);
-                    double scatF = remF * pScatterF;
-                    double scatT = remT * pScatterT;
-                    tileScat[x][y] += (scatF + scatT);
-
-                    double pMod = hitTile.getModerationProbability();
-                    double modF = scatF * pMod;
-                    if (modF > 0 && hitTile.getInsulationDampening() < 1.0) {
-                        pendingHeat[x][y] += modF * EU_FOR_FAST_NEUTRON;
-                    }
-
-                    double survF = Math.max(0.0, remF - modF);
-                    double survT = remT + modF;
-
-                    // Distribute surviving flux to neighbors via 9-point isotropic stencil
                     for (int d = 0; d < 8; d++) {
                         double w = DIR_WEIGHTS[d];
-                        double outF = survF * w;
                         double outT = survT * w;
                         int nx = x + dX[d];
                         int ny = y + dY[d];
@@ -501,65 +530,48 @@ public class NuclearSimulationEngine {
 
                         if (isOutOfBounds) {
                             if (wallReflectionChance > 0) {
-                                double reflF = outF * wallReflectionChance;
                                 double reflT = outT * wallReflectionChance;
-                                nextFast[x][y] += reflF;
                                 nextThermal[x][y] += reflT;
-                                result.wallNeutronsReflected += (int) Math.round(reflF + reflT);
-                                result.neutronsEscaped += (int) Math
-                                    .round((outF + outT) * (1.0 - wallReflectionChance));
+                                result.wallNeutronsReflected += (int) Math.round(reflT);
+                                result.neutronsEscaped += (int) Math.round(outT * (1.0 - wallReflectionChance));
                             } else {
-                                result.neutronsEscaped += (int) Math.round(outF + outT);
+                                result.neutronsEscaped += (int) Math.round(outT);
                             }
                         } else if (isNullCell) {
-                            result.neutronsEscaped += (int) Math.round(outF + outT);
+                            result.neutronsEscaped += (int) Math.round(outT);
                         } else {
-                            nextFast[nx][ny] += outF;
                             nextThermal[nx][ny] += outT;
                         }
                     }
                 }
             }
 
-            activeFast = nextFast;
             activeThermal = nextThermal;
         }
 
-        // Account for any remaining residual flux
+        // Account for any remaining residual thermal flux
         for (int x = 0; x < sizeX; x++) {
             for (int y = 0; y < sizeY; y++) {
-                double residual = activeFast[x][y] + activeThermal[x][y];
+                double residual = activeThermal[x][y];
                 if (residual > 0.001) {
                     result.neutronsEscaped += (int) Math.round(residual);
                 }
             }
         }
 
-        // Execute tile callbacks and commit telemetry
+        // Execute thermal callbacks
         for (int x = 0; x < sizeX; x++) {
             for (int y = 0; y < sizeY; y++) {
                 INuclearTile tile = grid[x][y];
                 if (tile == null) continue;
 
-                int fF = (int) Math.round(tileFluxFast[x][y]);
                 int fT = (int) Math.round(tileFluxThermal[x][y]);
-                if (fF > 0) tile.addNeutronFlux(NeutronType.FAST, fF);
                 if (fT > 0) tile.addNeutronFlux(NeutronType.THERMAL, fT);
 
-                int aF = (int) Math.round(tileAbsFast[x][y]);
                 int aT = (int) Math.round(tileAbsThermal[x][y]);
-                if (aF > 0) {
-                    tile.onNeutronAbsorbed(NeutronType.FAST, aF);
-                    result.fastNeutronsAbsorbed += aF;
-                }
                 if (aT > 0) {
                     tile.onNeutronAbsorbed(NeutronType.THERMAL, aT);
                     result.thermalNeutronsAbsorbed += aT;
-                }
-
-                int sc = (int) Math.round(tileScat[x][y]);
-                if (sc > 0) {
-                    tile.onNeutronScattered(NeutronType.FAST, sc);
                 }
             }
         }

@@ -75,4 +75,11 @@ public interface INuclearTile {
     default double getInsulationDampening() {
         return 0.0;
     }
+
+    /**
+     * Number of discrete fast neutron rays/packets emitted (1 for single rod, 2 for dual, 4 for quad/fluid).
+     */
+    default int getNeutronEmissionCount() {
+        return 1;
+    }
 }
