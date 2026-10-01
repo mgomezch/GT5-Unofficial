@@ -1908,4 +1908,41 @@ public class NuclearSimulationEngineTest {
         assertTrue(reactor.addOutputToMachineList(mockHatchTe, MTENuclearReactor.CASING_INDEX));
         assertEquals(1, reactor.mOutputHatches.size());
     }
+
+    @Test
+    void testDiagonalNeutronTransportAndStencilCoupling() {
+        MockNuclearTile[][] grid2x2 = new MockNuclearTile[2][2];
+        MockNuclearTile fuel = new MockNuclearTile(true, 120);
+        MockNuclearTile diagReceiver = new MockNuclearTile(false, 0);
+        diagReceiver.absorbProb = 0.50;
+
+        grid2x2[0][0] = fuel;
+        grid2x2[1][1] = diagReceiver;
+
+        NuclearSimulationEngine.SimulationResult res = NuclearSimulationEngine.simulate(grid2x2, 2, 2);
+        assertTrue(res.totalNeutronsGenerated == 120, "Fuel generated 120 neutrons");
+        assertTrue(
+            diagReceiver.fluxReceived > 0,
+            "Diagonal receiver at (1, 1) must receive direct flux from fuel at (0, 0)");
+        assertTrue(diagReceiver.fastAbsorbed > 0, "Diagonal receiver must absorb fast neutrons emitted diagonally");
+
+        MockNuclearTile[][] grid3x3 = new MockNuclearTile[3][3];
+        MockNuclearTile fuel3 = new MockNuclearTile(true, 120);
+        MockNuclearTile naquarite = new MockNuclearTile(false, 0);
+        naquarite.absorbProb = 1.0;
+        naquarite.scatterProb = 0.0;
+        MockNuclearTile behindDiag = new MockNuclearTile(false, 0);
+
+        grid3x3[0][0] = fuel3;
+        grid3x3[1][1] = naquarite;
+        grid3x3[2][2] = behindDiag;
+
+        NuclearSimulationEngine.simulate(grid3x3, 3, 3);
+        assertTrue(naquarite.fluxReceived > 0, "Naquarite must receive diagonal flux");
+        assertTrue(naquarite.fastAbsorbed > 0, "Naquarite must absorb all diagonal flux");
+        assertEquals(
+            0,
+            behindDiag.fluxReceived,
+            "Behind tile at (2, 2) must receive 0 flux because Naquarite blocks 100%");
+    }
 }
