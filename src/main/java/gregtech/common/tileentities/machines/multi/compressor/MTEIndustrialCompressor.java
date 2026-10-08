@@ -64,7 +64,7 @@ public class MTEIndustrialCompressor extends MTEExtendedPowerMultiBlockBase<MTEI
             //spotless:on
         .addElement(
             'C',
-            buildHatchAdder(MTEIndustrialCompressor.class).atLeast(InputBus, InputHatch, OutputBus, OutputHatch)
+            buildHatchAdder(MTEIndustrialCompressor.class).atLeast(InputBus, InputHatch, OutputBus)
                 .casingIndex(((BlockCasings10) GregTechAPI.sBlockCasings10).getTextureIndex(5))
                 .hint(2)
                 .buildAndChain(
