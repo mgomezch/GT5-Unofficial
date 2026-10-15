@@ -190,6 +190,7 @@ import gregtech.common.tileentities.machines.multi.MTEIndustrialMolecularTransfo
 import gregtech.common.tileentities.machines.multi.MTEIndustrialPackager;
 import gregtech.common.tileentities.machines.multi.MTEIndustrialRockBreaker;
 import gregtech.common.tileentities.machines.multi.MTEIndustrialSifter;
+import gregtech.common.tileentities.machines.multi.MTEIndustrialSmokeStack;
 import gregtech.common.tileentities.machines.multi.MTEIndustrialThermalCentrifuge;
 import gregtech.common.tileentities.machines.multi.MTEIndustrialWireMill;
 import gregtech.common.tileentities.machines.multi.MTEIntegratedOreFactory;
@@ -9320,6 +9321,24 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
                 .getStackForm(1L));
         ItemList.Machine_Multi_Chimney
             .set(new MTEChimney(CHIMNEY_CONTROLLER.ID, "multimachine.chimney", "Chimney").getStackForm(1L));
+        ItemList.Machine_Multi_IndustrialSmokeStackT1.set(
+            new MTEIndustrialSmokeStack(
+                INDUSTRIAL_SMOKE_STACK_T1.ID,
+                "multimachine.smokestack.01",
+                "Industrial Smoke Stack T1",
+                1).getStackForm(1L));
+        ItemList.Machine_Multi_IndustrialSmokeStackT2.set(
+            new MTEIndustrialSmokeStack(
+                INDUSTRIAL_SMOKE_STACK_T2.ID,
+                "multimachine.smokestack.02",
+                "Industrial Smoke Stack T2",
+                2).getStackForm(1L));
+        ItemList.Machine_Multi_IndustrialSmokeStackT3.set(
+            new MTEIndustrialSmokeStack(
+                INDUSTRIAL_SMOKE_STACK_T3.ID,
+                "multimachine.smokestack.03",
+                "Industrial Smoke Stack T3",
+                3).getStackForm(1L));
     }
 
     private static void registerDrawerFramer() {

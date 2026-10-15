@@ -3429,6 +3429,24 @@ public class MTERecipeLoader implements Runnable {
             GTModHandler.RecipeBits.BITS | GTModHandler.RecipeBits.DO_NOT_CHECK_FOR_COLLISIONS,
             new Object[] { "BBB", "BPB", "BFB", 'B', new ItemStack(Blocks.brick_block), 'P',
                 OrePrefixes.pipeLarge.get(Materials.Bronze), 'F', new ItemStack(Blocks.furnace) });
+        GTModHandler.addCraftingRecipe(
+            ItemList.Machine_Multi_IndustrialSmokeStackT1.get(1L),
+            GTModHandler.RecipeBits.BITS | GTModHandler.RecipeBits.DO_NOT_CHECK_FOR_COLLISIONS,
+            new Object[] { "CPC", "CMC", "WCW", 'C', new ItemStack(GregTechAPI.sBlockConcretes, 1, 0), 'P',
+                OrePrefixes.pipeLarge.get(Materials.Bronze), 'M', ItemList.Hull_LV.get(1L), 'W',
+                OrePrefixes.circuit.get(Materials.LV) });
+        GTModHandler.addCraftingRecipe(
+            ItemList.Machine_Multi_IndustrialSmokeStackT2.get(1L),
+            GTModHandler.RecipeBits.BITS | GTModHandler.RecipeBits.DO_NOT_CHECK_FOR_COLLISIONS,
+            new Object[] { "CPC", "CMC", "WCW", 'C', new ItemStack(GregTechAPI.sBlockConcretes, 1, 0), 'P',
+                OrePrefixes.pipeLarge.get(Materials.Steel), 'M', ItemList.Hull_MV.get(1L), 'W',
+                OrePrefixes.circuit.get(Materials.MV) });
+        GTModHandler.addCraftingRecipe(
+            ItemList.Machine_Multi_IndustrialSmokeStackT3.get(1L),
+            GTModHandler.RecipeBits.BITS | GTModHandler.RecipeBits.DO_NOT_CHECK_FOR_COLLISIONS,
+            new Object[] { "CPC", "CMC", "WCW", 'C', new ItemStack(GregTechAPI.sBlockConcretes, 1, 0), 'P',
+                OrePrefixes.pipeLarge.get(Materials.StainlessSteel), 'M', ItemList.Hull_HV.get(1L), 'W',
+                OrePrefixes.circuit.get(Materials.HV) });
 
         GTModHandler.addCraftingRecipe(
             ItemList.BronzeBoilerLarge.get(1L),
