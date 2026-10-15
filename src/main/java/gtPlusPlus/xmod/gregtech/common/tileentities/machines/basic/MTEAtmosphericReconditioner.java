@@ -8,16 +8,19 @@ import java.util.Arrays;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.util.EnumChatFormatting;
 import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
 import net.minecraft.world.chunk.Chunk;
 import net.minecraftforge.common.util.ForgeDirection;
+import net.minecraftforge.fluids.FluidStack;
 
 import com.cleanroommc.modularui.api.drawable.IDrawable;
 import com.cleanroommc.modularui.factory.PosGuiData;
 import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.screen.UISettings;
 import com.cleanroommc.modularui.value.sync.PanelSyncManager;
+import com.gtnewhorizon.gtnhlib.util.numberformatting.NumberFormatUtil;
 
 import gregtech.api.enums.ItemList;
 import gregtech.api.enums.Materials;
@@ -40,6 +43,7 @@ import gregtech.api.util.tooltip.TooltipHelper;
 import gregtech.common.gui.modularui.hatch.MTEAtmosphericReconditionerGui;
 import gregtech.common.items.IDMetaTool01;
 import gregtech.common.items.MetaGeneratedTool01;
+import gregtech.common.pollution.IPollutionScrubber;
 import gregtech.common.pollution.Pollution;
 import gtPlusPlus.GTplusplus;
 import gtPlusPlus.core.item.general.ItemAirFilter;
@@ -48,7 +52,7 @@ import gtPlusPlus.core.util.math.MathUtils;
 import gtPlusPlus.xmod.gregtech.common.blocks.textures.TexturesGtBlock;
 
 @IMetaTileEntity.SkipGenerateDescription
-public class MTEAtmosphericReconditioner extends MTEBasicMachine {
+public class MTEAtmosphericReconditioner extends MTEBasicMachine implements IPollutionScrubber {
 
     protected int mPollutionReduction = 0;
     protected int mBaseEff = 2500;
@@ -114,6 +118,33 @@ public class MTEAtmosphericReconditioner extends MTEBasicMachine {
         super(aName, aTier, 2, aDescription, aTextures, 2, 1);
     }
 
+    protected int mStoredPollution = 0;
+
+    public int getMaxPollutionCapacity() {
+        return 10000 * (int) Math.pow(4, Math.max(0, mTier - 1));
+    }
+
+    @Override
+    public int getScrubbingCapacity() {
+        if (!isValidScrubber()) return 0;
+        return Math.max(0, getMaxPollutionCapacity() - mStoredPollution);
+    }
+
+    @Override
+    public int receivePollution(int amount) {
+        if (amount <= 0 || !isValidScrubber()) return 0;
+        int space = getScrubbingCapacity();
+        int toAdd = Math.min(amount, space);
+        mStoredPollution += toAdd;
+        return toAdd;
+    }
+
+    @Override
+    public boolean isValidScrubber() {
+        IGregTechTileEntity base = getBaseMetaTileEntity();
+        return base != null && !base.isDead() && base.isAllowedToWork();
+    }
+
     public int getPollutionReduction() {
         return mPollutionReduction;
     }
@@ -148,6 +179,7 @@ public class MTEAtmosphericReconditioner extends MTEBasicMachine {
         super.saveNBTData(aNBT);
         aNBT.setInteger("mOptimalAirFlow", this.mOptimalAirFlow);
         aNBT.setBoolean("mSaveRotor", mSaveRotor);
+        aNBT.setInteger("mStoredPollution", mStoredPollution);
     }
 
     @Override
@@ -155,6 +187,7 @@ public class MTEAtmosphericReconditioner extends MTEBasicMachine {
         super.loadNBTData(aNBT);
         this.mOptimalAirFlow = aNBT.getInteger("mOptimalAirFlow");
         this.mSaveRotor = aNBT.getBoolean("mSaveRotor");
+        this.mStoredPollution = aNBT.getInteger("mStoredPollution");
     }
 
     @Override
@@ -176,135 +209,52 @@ public class MTEAtmosphericReconditioner extends MTEBasicMachine {
     public void onPostTick(IGregTechTileEntity aBaseMetaTileEntity, long aTick) {
         super.onPostTick(aBaseMetaTileEntity, aTick);
         if (aBaseMetaTileEntity.isServerSide()) {
-
-            // Get Current Pollution Amount.
-            int mCurrentPollution = getCurrentChunkPollution();
-            boolean isIdle = true;
-
-            // Get Inventory Item
-            ItemStack stackRotor = this.mInventory[SLOT_ROTOR];
-            ItemStack stackFilter = this.mInventory[SLOT_FILTER];
-
-            // Power Drain
             long drainEU = maxEUInput() * maxAmperesIn();
-            if (aBaseMetaTileEntity.isActive() && aBaseMetaTileEntity.getStoredEU() >= drainEU) {
-                if (aBaseMetaTileEntity.decreaseStoredEnergyUnits(drainEU, false)) {
-                    isIdle = false;
+
+            int availableSpace = getCapacity();
+            FluidStack drainable = getDrainableStack();
+            if (drainable != null) {
+                if (drainable.isFluidEqual(Materials.LiquidPollution.getFluid(1))) {
+                    availableSpace -= drainable.amount;
                 } else {
-                    aBaseMetaTileEntity.setActive(false);
-                    this.sendSound((byte) -122);
+                    availableSpace = 0;
                 }
-            } else if (!aBaseMetaTileEntity.isActive() && aBaseMetaTileEntity.getStoredEU() >= drainEU / 4) {
-                if (aBaseMetaTileEntity.decreaseStoredEnergyUnits((drainEU / 4), false)) {
-                    isIdle = false;
+            }
+            boolean hasSpace = availableSpace > 0;
+            boolean canWork = aBaseMetaTileEntity.isAllowedToWork() && mStoredPollution >= 100 && hasSpace;
+
+            if (canWork && aBaseMetaTileEntity.getStoredEU() >= drainEU) {
+                if (aBaseMetaTileEntity.decreaseStoredEnergyUnits(drainEU, false)) {
+                    aBaseMetaTileEntity.setActive(true);
+                    progress = Math.toIntExact(aTick % 20);
+                    if (progress == 0) {
+                        int liquidToProduce = mStoredPollution / 100;
+                        int actualLiquid = Math.min(liquidToProduce, Math.max(0, availableSpace));
+                        if (actualLiquid > 0) {
+                            mStoredPollution -= actualLiquid * 100;
+                            mPollutionReduction = actualLiquid * 100;
+                            if (drainable == null) {
+                                setDrainableStack(Materials.LiquidPollution.getFluid(actualLiquid));
+                            } else {
+                                drainable.amount += actualLiquid;
+                            }
+                        }
+                    }
                 } else {
                     aBaseMetaTileEntity.setActive(false);
                     this.sendSound((byte) -122);
                 }
             } else {
                 aBaseMetaTileEntity.setActive(false);
-                this.sendSound((byte) -122);
+                progress = 0;
             }
 
-            progress = Math.toIntExact(aTick % 20);
-            // Only try once/sec.
-            if (!isIdle && progress == 0) {
-
-                // Check if machine can work.
-                if ((aBaseMetaTileEntity.isAllowedToWork())) {
-                    // Enable machine animation/graphic
-                    if (hasRotor(stackRotor) && hasAirFilter(stackFilter) && this.mHasPollution) {
-                        if (!this.getBaseMetaTileEntity()
-                            .isActive()) {
-                            aBaseMetaTileEntity.setActive(true);
-                        }
-                    } else if (!this.mHasPollution || mCurrentPollution <= 0
-                        || stackRotor == null
-                        || stackFilter == null
-                        || !hasRotor(stackRotor)
-                        || !hasAirFilter(stackFilter)) {
-                            if (!this.getBaseMetaTileEntity()
-                                .isActive()) {
-                                aBaseMetaTileEntity.setActive(false);
-                                this.sendSound((byte) -122);
-                            }
-                        }
-
-                    // If Active.
-                    if (aBaseMetaTileEntity.isActive()) {
-                        // Do nothing if there is no pollution.
-                        if (this.mHasPollution && mCurrentPollution > 0) {
-                            // Use a Turbine
-                            if (hasRotor(stackRotor) && hasAirFilter(stackFilter)) {
-                                mBaseEff = getBaseEfficiency(stackRotor);
-                                mOptimalAirFlow = getOptimalAirFlow(stackRotor);
-
-                                // Make sure we have a valid Turbine and Eff/Airflow
-                                if (this.mBaseEff > 0 && this.mOptimalAirFlow > 0) {
-                                    // Calculate The Voltage we are running
-                                    byte tTier = (byte) Math.max(1, GTUtility.getTier(drainEU));
-
-                                    // Check Sides for Air,
-                                    // More air means more pollution processing.
-                                    int mAirSides = getFreeSpaces();
-
-                                    int reduction = 0;
-
-                                    // If no sides are free, how will you process the atmosphere?
-                                    if (mAirSides > 0) {
-                                        // Was originally *100
-                                        reduction += (((Math.max((tTier - 2), 1) * 2) * 50) * mAirSides);
-                                        // I stole this code
-                                        reduction = (MathUtils.safeInt((long) reduction * this.mBaseEff) / 100000)
-                                            * mAirSides
-                                            * Math.max((tTier - 2), 1);
-                                        reduction = MathUtils.safeInt(((long) reduction / 100) * this.mOptimalAirFlow);
-
-                                        mPollutionReduction = reduction;
-
-                                        // Set a temp to remove variable to alleviate duplicate code.
-                                        int toRemove = Math.min(reduction, mCurrentPollution) / 2;
-                                        // We are good to clean
-                                        if (toRemove > 0) {
-                                            if (damageTurbineRotor() && damageAirFilter()) {
-                                                removePollution(mSaveRotor ? (toRemove / 2) : toRemove);
-                                            } else {
-                                                aBaseMetaTileEntity.setActive(false);
-                                            }
-                                        } // End of pollution removal block.
-                                    } // End of valid air sides block.
-                                } // End of valid toolstats block.
-                            } // End of correct inventory item block.
-                        }
-                    } else if (!aBaseMetaTileEntity.isActive()) {
-                        return;
-                    }
-                } // End of can work block.
-
-            } // End of 1/sec action block.
-            else {
-
-                if (hasRotor(stackRotor) && hasAirFilter(stackFilter)
-                    && this.mHasPollution
-                    && !isIdle
-                    && aBaseMetaTileEntity.isAllowedToWork()) {
-                    aBaseMetaTileEntity.setActive(true);
-                } else if (isIdle || !this.mHasPollution
-                    || mCurrentPollution <= 0
-                    || stackRotor == null
-                    || stackFilter == null
-                    || !hasRotor(stackRotor)
-                    || !hasAirFilter(stackFilter)) {
-                        aBaseMetaTileEntity.setActive(false);
-                    }
-            }
-            if (this.getBaseMetaTileEntity()
-                .isActive()) {
+            if (aBaseMetaTileEntity.isActive()) {
                 if (MathUtils.randInt(0, 5) <= 2) {
                     this.sendSound((byte) -120);
                 }
             }
-        } // End of is serverside block.
+        }
     }
 
     public int getCurrentChunkPollution() {
@@ -644,35 +594,16 @@ public class MTEAtmosphericReconditioner extends MTEBasicMachine {
     @Override
     public String[] getInfoData() {
         ArrayList<String> aTooltipSuper = new ArrayList<>(Arrays.asList(super.getInfoData()));
-        int mAirSides = getFreeSpaces();
-        int reduction = 0;
-
-        try {
-            long tVoltage = maxEUInput();
-            byte tTier = (byte) Math.max(1, GTUtility.getTier(tVoltage));
-            reduction += (((Math.max((tTier - 2), 1) * 2) * 50) * mAirSides);
-            reduction = (MathUtils.safeInt((long) reduction * this.mBaseEff) / 100000) * mAirSides
-                * Math.max((tTier - 2), 1);
-            reduction = MathUtils.safeInt(((long) reduction / 100) * this.mOptimalAirFlow);
-
-            aTooltipSuper.add(
-                IGregTechDeviceInformation
-                    .encode("gtpp.infodata.atmospheric_reconditioner.maximum_pollution_removed", reduction));
-        } catch (Exception t) {
-            aTooltipSuper.add(
-                IGregTechDeviceInformation
-                    .encode("gtpp.infodata.atmospheric_reconditioner.maximum_pollution_removed", mPollutionReduction));
-        }
-        aTooltipSuper
-            .add(IGregTechDeviceInformation.encode("gtpp.infodata.atmospheric_reconditioner.air_sides", mAirSides));
-
-        String[] mBuiltOutput = new String[aTooltipSuper.size()];
-        int aIndex = 0;
-        for (String i : aTooltipSuper) {
-            mBuiltOutput[aIndex++] = i;
-        }
-
-        return mBuiltOutput;
+        aTooltipSuper.add(
+            IGregTechDeviceInformation.encode(
+                "GT5U.infodata.air_filter.stored_pollution",
+                EnumChatFormatting.GREEN + NumberFormatUtil.formatNumber(mStoredPollution)
+                    + EnumChatFormatting.RESET
+                    + " / "
+                    + EnumChatFormatting.YELLOW
+                    + NumberFormatUtil.formatNumber(getMaxPollutionCapacity())
+                    + EnumChatFormatting.RESET));
+        return aTooltipSuper.toArray(new String[0]);
     }
 
     @Override

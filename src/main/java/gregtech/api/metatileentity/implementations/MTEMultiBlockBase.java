@@ -138,6 +138,7 @@ import gregtech.common.gui.modularui.widget.CheckRecipeResultSyncer;
 import gregtech.common.gui.modularui.widget.ShutDownReasonSyncer;
 import gregtech.common.gui.mui1.StructureErrorMui1Compat;
 import gregtech.common.items.MetaGeneratedTool01;
+import gregtech.common.pollution.AirDuctNetwork;
 import gregtech.common.pollution.Pollution;
 import gregtech.common.tileentities.machines.IDualInputHatch;
 import gregtech.common.tileentities.machines.IDualInputInventory;
@@ -565,6 +566,9 @@ public abstract class MTEMultiBlockBase extends MetaTileEntity
         mDynamoHatches.clear();
         mExoticDynamoHatches.clear();
         mEnergyHatches.clear();
+        for (MTEHatchMuffler muffler : mMufflerHatches) {
+            muffler.setController(null);
+        }
         setMufflers(false);
         mMufflerHatches.clear();
         mMaintenanceHatches.clear();
@@ -910,6 +914,19 @@ public abstract class MTEMultiBlockBase extends MetaTileEntity
         // Early exit if pollution is disabled
         if (!GTMod.proxy.mPollution) return true;
         mPollution += aPollutionLevel;
+
+        // If connected to an air duct network, route directly each tick!
+        if (mPollution > 0 && !mMufflerHatches.isEmpty()) {
+            for (MTEHatchMuffler muffler : validMTEList(mMufflerHatches)) {
+                if (mPollution <= 0) break;
+                AirDuctNetwork network = muffler.getConnectedAirDuctNetwork();
+                if (network != null) {
+                    int accepted = network.routePollution(mPollution);
+                    mPollution -= accepted;
+                }
+            }
+        }
+
         if (mPollution < VENT_AMOUNT) return true;
         if (mMufflerHatches.isEmpty()) {
             // No muffler present. Fail.
@@ -2252,6 +2269,7 @@ public abstract class MTEMultiBlockBase extends MetaTileEntity
                 return mMaintenanceHatches.add(hatch);
             }
             case MTEHatchMuffler hatch -> {
+                hatch.setController(this);
                 return mMufflerHatches.add(hatch);
             }
             default -> {

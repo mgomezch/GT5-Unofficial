@@ -51,6 +51,7 @@ import gregtech.api.enums.ItemList;
 import gregtech.api.enums.MachineType;
 import gregtech.api.enums.SoundResource;
 import gregtech.api.enums.VoltageIndex;
+import gregtech.api.metatileentity.implementations.MTEAirDuct;
 import gregtech.api.metatileentity.implementations.MTEBasicBatteryBuffer;
 import gregtech.api.metatileentity.implementations.MTEBasicHull;
 import gregtech.api.metatileentity.implementations.MTEBasicMachineWithRecipe;
@@ -9339,6 +9340,7 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
                 "multimachine.smokestack.03",
                 "Industrial Smoke Stack T3",
                 3).getStackForm(1L));
+        ItemList.AirDuct.set(new MTEAirDuct(AIR_DUCT.ID, "pipe.airduct", "Air Duct").getStackForm(1L));
     }
 
     private static void registerDrawerFramer() {

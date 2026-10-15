@@ -152,3 +152,74 @@ High adjusted pollution accelerates mechanical wear and tear:
 - At $G = 6,000$: maintenance problems are $8\times$ as frequent.
 - At $G \ge 25,100$: maintenance problems trigger reliably every check cycle until repaired.
 
+---
+
+## 6. Liquid Pollution & Air Duct Network
+
+Rather than venting all pollution into the atmosphere or relying exclusively on passive dilution, players can capture industrial exhaust at the source and process it into a useful chemical byproduct: **Liquid Pollution**.
+
+### 1. Liquid Pollution Fluid
+- **Conversion Ratio**: **100 pollution absorbed $\longrightarrow$ 1 Liter (1 mB) of Liquid Pollution**.
+- **Material**: Registered as `Materials.LiquidPollution` (ID: 950).
+- **Physical Characteristics**: Viscous dark sludge fluid with custom animated fluid textures, usable in fluid pipes, tanks, drums, and universal fluid cells.
+
+### 2. Air Duct Network (`MTEAirDuct`)
+- **Block & Item**: `ItemList.AirDuct` (MTE ID: 12028).
+- **Conduit Role**:
+  - Single-tier pipe-like conduit with standard 0.5-block pipe geometry.
+  - Does **not** transport items, fluids, or EU.
+  - Connects to adjacent Air Ducts, Muffler Hatches, and valid `IPollutionScrubber` machines.
+- **Recipe**:
+  - **Machine**: Bending Machine (LV).
+  - **Inputs**: 1x Steel Plate (`plateSteel`) + Programmed Circuit 4.
+  - **Output**: 4x Air Duct.
+  - **Duration & Energy**: 5 seconds (100 ticks) at 16 EU/t (LV).
+- **Dynamic Network Graph (`AirDuctNetwork`)**:
+  - Interconnected air duct blocks form a cohesive network grid similar to GregTech item pipes.
+  - Automatically discovers connected scrubbers and muffler sources via breadth-first search (BFS).
+  - An arbitrary duct block serves as the **network anchor**, serializing the coordinates of connected scrubbers into its NBT state (`connectedScrubbers`) across chunk unloads and world saves.
+  - Network state invalidates and reconstructs automatically upon block placement or destruction.
+
+### 3. Multiblock Exhaust Routing
+- When a GregTech multiblock machine with a **Muffler Hatch** is connected to an Air Duct:
+  1. Each tick that the machine emits pollution, it checks its connected `AirDuctNetwork`.
+  2. Queries the total available scrubbing buffer across all active scrubbers in the network.
+  3. Diverts pollution into the network up to the scrubbers' available capacity.
+  4. Only residual pollution that exceeds the network's absorption capacity is vented into the chunk atmosphere.
+
+---
+
+## 7. Pollution Scrubbers & Filtering
+
+Pollution scrubbers absorb pollution from the Air Duct network and condense it into Liquid Pollution.
+
+### 1. Repurposed Singleblock Air Filters (`MTEAtmosphericReconditioner`)
+Singleblock air filters (formerly Atmospheric Reconditioners) have been repurposed from passive ambient chunk scrubbers into in-line duct scrubbers:
+- **Operation**:
+  - Implements `IPollutionScrubber`.
+  - Connects directly to Air Ducts and receives piped exhaust into an internal pollution buffer.
+  - **Buffer Capacity**: $10,000 \times 4^{\text{tier}-1}$ pollution (e.g. LV = 10,000, MV = 40,000, HV = 160,000, etc.).
+- **Condensation Cycle**:
+  - Every 20 ticks (1 second), consumes buffered pollution at a 100:1 ratio into Liquid Pollution.
+  - Stores output fluid in an internal fluid tank (16,000 L base capacity) with automated fluid auto-output into adjacent tanks or pipes.
+
+### 2. Electric Air Filter Multiblock (`MTEAirFilterBase`)
+The **Electric Air Filter** is a high-throughput industrial multiblock for high-volume pollution capture and condensation.
+
+- **Air Duct Connection**:
+  - Connects to the Air Duct network through its required **Muffler Hatch** (strictly 1 required at the center of the structure).
+  - Air ducts connect directly to the muffler hatch face to feed captured emissions.
+- **Pollution Buffer**:
+  - Storage capacity scales with muffler tier:
+    $$\text{Capacity} = 10,000 \times 4^{\text{mufflerTier}-1}$$
+- **Processing Rate & Overclocking**:
+  - **Base Recipe (LV)**: Consumes **1,000 pollution $\longrightarrow$ 10 L Liquid Pollution** per second (20 ticks) at 30 EU/t.
+  - **Tier-Based Overclocking**:
+    - Power tier determined by total installed voltage from Energy Hatches.
+    - Supports normal operation with 1 single-amp Energy Hatch or overclocks with 2 single-amp Energy Hatches.
+    - Features **perfect overclocks**: each overclock tier increases energy consumption by $4\times$ and quadruples both pollution throughput and Liquid Pollution production, keeping cycle duration constant at 20 ticks (1 second).
+- **Fluid Output**:
+  - Outputs Liquid Pollution directly to installed Fluid Output Hatches (`mOutputFluids`).
+  - Halts processing gracefully if output hatches are completely full (`canOutputAll()` check).
+- **Visuals**:
+  - Retains custom animated spinning turbine texture overlays while actively processing pollution.

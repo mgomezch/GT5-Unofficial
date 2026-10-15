@@ -9769,6 +9769,7 @@ public class MaterialsInit {
         Materials.Lepidolite = loadLepidolite();
         Materials.Lignite = loadLignite();
         Materials.LiquidAir = loadLiquidAir();
+        Materials.LiquidPollution = loadLiquidPollution();
         Materials.LiveRoot = loadLiveRoot();
         Materials.Malachite = loadMalachite();
         Materials.Manyullyn = loadManyullyn();
@@ -10796,6 +10797,18 @@ public class MaterialsInit {
             .addMaterial(Materials.Argon, 1)
             .addMaterial(Materials.NobleGases, 1)
             .addSubTag(SubTag.TRANSPARENT)
+            .constructMaterial();
+    }
+
+    private static Materials loadLiquidPollution() {
+        return new MaterialBuilder().setName("LiquidPollution")
+            .setDefaultLocalName("Liquid Pollution")
+            .setIconSet(TextureSet.SET_FLUID)
+            .setColor(Dyes.dyeBlack)
+            .setARGB(0xff2b3a2a)
+            .addCell()
+            .setMeltingPoint(295)
+            .addSubTag(SubTag.NO_SMELTING)
             .constructMaterial();
     }
 

@@ -725,6 +725,7 @@ public class Materials implements IColorModulationContainer, IOreMaterial {
     public static Materials Lepidolite;
     public static Materials Lignite;
     public static Materials LiquidAir;
+    public static Materials LiquidPollution;
     public static Materials LiveRoot;
     public static Materials Malachite;
     public static Materials Manyullyn;

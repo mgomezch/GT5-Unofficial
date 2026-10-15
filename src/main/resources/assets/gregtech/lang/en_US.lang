@@ -8323,6 +8323,8 @@ GT5U.infodata.world_accelerator.radius=Radius setting: [%s / %s]
 GT5U.infodata.air_filter.has_filter=Has a filter in it: %b
 GT5U.infodata.air_filter.pollution_reduction=Pollution reduction: %s gibbl/t
 GT5U.infodata.air_filter.remaining_cycles=remaining cycles for the filter (if present): %d
+GT5U.infodata.air_filter.stored_pollution=Stored Pollution: %s
+GT5U.infodata.air_filter.processing_rate=Processing Rate: %s
 
 GT5U.infodata.diesel_engine=Diesel Engine
 GT5U.infodata.extreme_diesel_engine=Extreme Diesel Engine
@@ -9955,6 +9957,12 @@ GT5U.chat.bec-slowdowns=Slowdowns: %s
 # Test Factory Machines
 gt.blockmachines.pipe.test.name=Test Factory Pipe
 gt.blockmachines.hatch.test.name=Test Factory Hatch
+
+# Air Duct
+gt.blockmachines.pipe.airduct.name=Air Duct
+gt.blockmachines.pipe.airduct.desc.0=Transports abstract pollution between muffler hatches and scrubbers
+gt.blockmachines.pipe.airduct.desc.1=Does not transport items or fluids
+gt.blockmachines.pipe.airduct.desc.2=Crafted with Steel in a Bending Machine
 
 # Basic Generators - Shared
 gt.blockmachines.basicgenerator.fuel_efficiency=Fuel Efficiency: %s%%

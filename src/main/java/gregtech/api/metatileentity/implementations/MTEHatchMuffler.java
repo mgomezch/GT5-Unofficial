@@ -3,6 +3,8 @@ package gregtech.api.metatileentity.implementations;
 import static gregtech.api.enums.Textures.BlockIcons.OVERLAY_MUFFLER;
 import static gregtech.api.objects.XSTR.XSTR_INSTANCE;
 
+import java.lang.ref.WeakReference;
+
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
@@ -21,7 +23,10 @@ import gregtech.api.render.TextureFactory;
 import gregtech.api.util.GTSplit;
 import gregtech.api.util.WorldSpawnedEventBuilder;
 import gregtech.api.util.tooltip.TooltipHelper;
+import gregtech.common.pollution.AirDuctNetwork;
+import gregtech.common.pollution.IPollutionScrubber;
 import gregtech.common.pollution.Pollution;
+import gregtech.common.tileentities.machines.multi.MTEAirFilterBase;
 
 @SuppressWarnings("unused") // Unused API is expected within scope
 @IMetaTileEntity.SkipGenerateDescription
@@ -190,6 +195,58 @@ public class MTEHatchMuffler extends MTEHatch {
         return (int) ((float) aPollution * ((100F - 12.5F * ((float) mTier - 1F)) / 100F));
     }
 
+    protected WeakReference<MTEMultiBlockBase> mController;
+
+    public void setController(MTEMultiBlockBase controller) {
+        this.mController = controller == null ? null : new WeakReference<>(controller);
+        IGregTechTileEntity base = getBaseMetaTileEntity();
+        if (base != null && !base.isClientSide()) {
+            for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS) {
+                IGregTechTileEntity adj = base.getIGregTechTileEntityAtSide(side);
+                if (adj != null && adj.getMetaTileEntity() instanceof MTEAirDuct duct) {
+                    AirDuctNetwork net = duct.getNetwork();
+                    if (net != null) {
+                        net.invalidate();
+                    }
+                }
+            }
+        }
+    }
+
+    public MTEMultiBlockBase getController() {
+        return mController == null ? null : mController.get();
+    }
+
+    public IPollutionScrubber getScrubber() {
+        MTEMultiBlockBase controller = getController();
+        if (controller instanceof IPollutionScrubber scrubber) {
+            return scrubber;
+        }
+        return null;
+    }
+
+    public AirDuctNetwork getConnectedAirDuctNetwork() {
+        IGregTechTileEntity base = getBaseMetaTileEntity();
+        if (base == null) return null;
+        for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS) {
+            IGregTechTileEntity adj = base.getIGregTechTileEntityAtSide(side);
+            if (adj != null && adj.getMetaTileEntity() instanceof MTEAirDuct duct) {
+                AirDuctNetwork net = duct.getNetwork();
+                if (net != null && !net.isInvalid()) {
+                    return net;
+                }
+            }
+        }
+        return null;
+    }
+
+    public boolean isFrontFacingConnectedToAirDuct() {
+        IGregTechTileEntity base = getBaseMetaTileEntity();
+        if (base == null) return false;
+        IGregTechTileEntity adj = base.getIGregTechTileEntityAtSide(base.getFrontFacing());
+        return adj != null && adj.getMetaTileEntity() instanceof MTEAirDuct;
+    }
+
     /**
      * @param mte             The multi-block controller's {@link MetaTileEntity} MetaTileEntity is passed so newer
      *                        muffler hatches can do wacky things with the multis
@@ -197,8 +254,24 @@ public class MTEHatchMuffler extends MTEHatch {
      * @return pollution success
      */
     public boolean polluteEnvironment(MetaTileEntity mte, int pollutionAmount) {
-        if (getBaseMetaTileEntity().getAirAtSide(getBaseMetaTileEntity().getFrontFacing())) {
-            Pollution.addPollution(getBaseMetaTileEntity(), calculatePollutionReduction(pollutionAmount));
+        if (mte instanceof MTEAirFilterBase) {
+            return true;
+        }
+
+        int remaining = pollutionAmount;
+        AirDuctNetwork network = getConnectedAirDuctNetwork();
+        if (network != null) {
+            int accepted = network.routePollution(pollutionAmount);
+            remaining -= accepted;
+        }
+
+        if (remaining <= 0) {
+            return true;
+        }
+
+        if (getBaseMetaTileEntity().getAirAtSide(getBaseMetaTileEntity().getFrontFacing())
+            || isFrontFacingConnectedToAirDuct()) {
+            Pollution.addPollution(getBaseMetaTileEntity(), calculatePollutionReduction(remaining));
             return true;
         }
         return false;

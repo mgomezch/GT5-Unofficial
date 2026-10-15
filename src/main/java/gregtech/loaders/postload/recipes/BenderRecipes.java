@@ -22,6 +22,14 @@ public class BenderRecipes implements Runnable {
     @Override
     public void run() {
         GTValues.RA.stdBuilder()
+            .itemInputs(GTOreDictUnificator.get(OrePrefixes.plate, Materials.Steel, 1L))
+            .circuit(4)
+            .itemOutputs(ItemList.AirDuct.get(4L))
+            .duration(5 * SECONDS)
+            .eut(TierEU.RECIPE_LV)
+            .addTo(benderRecipes);
+
+        GTValues.RA.stdBuilder()
             .itemInputs(GTOreDictUnificator.get(OrePrefixes.stick, Materials.Aluminium, 20L))
             .circuit(10)
             .itemOutputs(ItemList.RC_Rail_Standard.get(64L))

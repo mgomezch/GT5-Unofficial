@@ -2724,6 +2724,7 @@ public enum ItemList implements IItemContainer {
     Machine_Multi_IndustrialSmokeStackT1,
     Machine_Multi_IndustrialSmokeStackT2,
     Machine_Multi_IndustrialSmokeStackT3,
+    AirDuct,
     Heavy_Hellish_Mud,
     Netherite_Scrap_Seed,
     Brittle_Netherite_Scrap,
