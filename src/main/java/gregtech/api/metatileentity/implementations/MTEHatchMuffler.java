@@ -6,6 +6,8 @@ import static gregtech.api.objects.XSTR.XSTR_INSTANCE;
 import java.lang.ref.WeakReference;
 
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.StatCollector;
 import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
@@ -196,9 +198,44 @@ public class MTEHatchMuffler extends MTEHatch {
     }
 
     protected WeakReference<MTEMultiBlockBase> mController;
+    protected WeakReference<MTEMultiBlockBase> mLastController;
+    protected int mLastControllerX, mLastControllerY, mLastControllerZ;
+    protected boolean mHasLastController = false;
+
+    @Override
+    public void saveNBTData(NBTTagCompound aNBT) {
+        super.saveNBTData(aNBT);
+        if (mHasLastController) {
+            aNBT.setBoolean("mHasLastController", true);
+            aNBT.setInteger("mLastControllerX", mLastControllerX);
+            aNBT.setInteger("mLastControllerY", mLastControllerY);
+            aNBT.setInteger("mLastControllerZ", mLastControllerZ);
+        }
+    }
+
+    @Override
+    public void loadNBTData(NBTTagCompound aNBT) {
+        super.loadNBTData(aNBT);
+        mHasLastController = aNBT.getBoolean("mHasLastController");
+        if (mHasLastController) {
+            mLastControllerX = aNBT.getInteger("mLastControllerX");
+            mLastControllerY = aNBT.getInteger("mLastControllerY");
+            mLastControllerZ = aNBT.getInteger("mLastControllerZ");
+        }
+    }
 
     public void setController(MTEMultiBlockBase controller) {
         this.mController = controller == null ? null : new WeakReference<>(controller);
+        if (controller != null) {
+            this.mLastController = this.mController;
+            IGregTechTileEntity cBase = controller.getBaseMetaTileEntity();
+            if (cBase != null) {
+                this.mLastControllerX = cBase.getXCoord();
+                this.mLastControllerY = cBase.getYCoord();
+                this.mLastControllerZ = cBase.getZCoord();
+                this.mHasLastController = true;
+            }
+        }
         IGregTechTileEntity base = getBaseMetaTileEntity();
         if (base != null && !base.isClientSide()) {
             for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS) {
@@ -219,10 +256,40 @@ public class MTEHatchMuffler extends MTEHatch {
 
     public IPollutionScrubber getScrubber() {
         MTEMultiBlockBase controller = getController();
+        if (controller == null && mLastController != null) {
+            controller = mLastController.get();
+        }
+        if (controller == null && mHasLastController) {
+            IGregTechTileEntity base = getBaseMetaTileEntity();
+            if (base != null && base.getWorld() != null) {
+                TileEntity te = base.getWorld()
+                    .getTileEntity(mLastControllerX, mLastControllerY, mLastControllerZ);
+                if (te instanceof IGregTechTileEntity gtTE
+                    && gtTE.getMetaTileEntity() instanceof MTEMultiBlockBase multi) {
+                    controller = multi;
+                    mLastController = new WeakReference<>(multi);
+                }
+            }
+        }
         if (controller instanceof IPollutionScrubber scrubber) {
             return scrubber;
         }
         return null;
+    }
+
+    @Override
+    public void onBlockDestroyed() {
+        super.onBlockDestroyed();
+        IPollutionScrubber scrubber = getScrubber();
+        if (scrubber != null) {
+            int buffered = scrubber.drainStoredPollution();
+            if (buffered > 0) {
+                IGregTechTileEntity base = getBaseMetaTileEntity();
+                if (base != null && !base.isClientSide() && base.getWorld() != null) {
+                    Pollution.addPollution(base, buffered);
+                }
+            }
+        }
     }
 
     public AirDuctNetwork getConnectedAirDuctNetwork() {

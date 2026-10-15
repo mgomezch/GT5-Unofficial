@@ -62,6 +62,7 @@ import gregtech.api.util.GTUtilityClient;
 import gregtech.api.util.MultiblockTooltipBuilder;
 import gregtech.common.items.MetaGeneratedTool01;
 import gregtech.common.pollution.IPollutionScrubber;
+import gregtech.common.pollution.Pollution;
 
 public abstract class MTEAirFilterBase extends MTEEnhancedMultiBlockBase<MTEAirFilterBase>
     implements ISurvivalConstructable, ICasingTextureProvider, IPollutionScrubber {
@@ -270,6 +271,34 @@ public abstract class MTEAirFilterBase extends MTEEnhancedMultiBlockBase<MTEAirF
     @Override
     public boolean isValidScrubber() {
         return mMachine && getBaseMetaTileEntity() != null && !getBaseMetaTileEntity().isDead();
+    }
+
+    @Override
+    public int getStoredPollution() {
+        return mStoredPollution;
+    }
+
+    public void setStoredPollution(int aPollution) {
+        this.mStoredPollution = Math.max(0, aPollution);
+    }
+
+    @Override
+    public int drainStoredPollution() {
+        int drained = mStoredPollution;
+        mStoredPollution = 0;
+        return drained;
+    }
+
+    @Override
+    public void onBlockDestroyed() {
+        super.onBlockDestroyed();
+        int buffered = drainStoredPollution();
+        if (buffered > 0) {
+            IGregTechTileEntity base = getBaseMetaTileEntity();
+            if (base != null && !base.isClientSide() && base.getWorld() != null) {
+                Pollution.addPollution(base, buffered);
+            }
+        }
     }
 
     @NotNull

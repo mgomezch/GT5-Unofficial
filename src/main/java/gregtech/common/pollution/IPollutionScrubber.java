@@ -28,4 +28,20 @@ public interface IPollutionScrubber {
      * @return the base meta tile entity hosting this scrubber.
      */
     gregtech.api.interfaces.tileentity.IGregTechTileEntity getBaseMetaTileEntity();
+
+    /**
+     * @return current amount of buffered/stored pollution in this scrubber.
+     */
+    default int getStoredPollution() {
+        return 0;
+    }
+
+    /**
+     * Drain and clear all buffered pollution from this scrubber.
+     *
+     * @return the amount of pollution drained
+     */
+    default int drainStoredPollution() {
+        return 0;
+    }
 }

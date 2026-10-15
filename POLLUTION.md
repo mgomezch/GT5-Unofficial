@@ -223,3 +223,13 @@ The **Electric Air Filter** is a high-throughput industrial multiblock for high-
   - Halts processing gracefully if output hatches are completely full (`canOutputAll()` check).
 - **Visuals**:
   - Retains custom animated spinning turbine texture overlays while actively processing pollution.
+
+### 3. Containment Breach (Buffered Pollution Release on Break)
+Pollution held in scrubber buffers is under high physical concentration and pressure. If containment is breached by breaking the machine or its intake:
+- **Singleblock Air Filters (`MTEAtmosphericReconditioner`)**:
+  - Breaking the machine (`onBlockDestroyed`) immediately vents all buffered pollution into the chunk atmosphere at the machine's exact $(x, y, z)$ coordinates.
+- **Electric Air Filter Controllers (`MTEAirFilterBase`)**:
+  - Breaking the multiblock controller immediately vents all buffered pollution into the chunk atmosphere at the controller's coordinates and clears the buffer.
+- **Muffler Hatches in Electric Air Filters (`MTEHatchMuffler`)**:
+  - If a muffler hatch charged with pollution in an Electric Air Filter gets broken, it immediately vents all of the multiblock's buffered pollution into the chunk atmosphere at the muffler hatch's coordinates.
+  - The multiblock's stored pollution buffer is safely drained to zero upon release, ensuring no double-venting occurs if the controller or remaining structure is dismantled subsequently.

@@ -60,6 +60,16 @@ public class AirDuctNetworkTest {
         public int getStored() {
             return stored.get();
         }
+
+        @Override
+        public int getStoredPollution() {
+            return stored.get();
+        }
+
+        @Override
+        public int drainStoredPollution() {
+            return stored.getAndSet(0);
+        }
     }
 
     @Test
@@ -197,5 +207,39 @@ public class AirDuctNetworkTest {
         assertNotNull(Materials.LiquidPollution);
         assertEquals("LiquidPollution", Materials.LiquidPollution.mName);
         assertEquals("Liquid Pollution", Materials.LiquidPollution.mDefaultLocalName);
+    }
+
+    @Test
+    void testBufferedPollutionReleaseOnBreak() {
+        MockScrubber scrubber = new MockScrubber(40000);
+        scrubber.receivePollution(25000);
+        assertEquals(25000, scrubber.getStoredPollution());
+        assertEquals(15000, scrubber.getScrubbingCapacity());
+
+        // When broken, drains stored pollution immediately to release into environment
+        int released = scrubber.drainStoredPollution();
+        assertEquals(25000, released);
+        assertEquals(0, scrubber.getStoredPollution());
+        assertEquals(40000, scrubber.getScrubbingCapacity());
+
+        // Subsequent break or check returns 0 (preventing duplicate emission)
+        int secondRelease = scrubber.drainStoredPollution();
+        assertEquals(0, secondRelease);
+    }
+
+    @Test
+    void testMufflerHatchScrubberDrainInteraction() {
+        MockScrubber filter = new MockScrubber(160000);
+        filter.receivePollution(50000);
+        assertEquals(50000, filter.getStoredPollution());
+
+        // Breaking muffler hatch attached to filter drains the filter's pollution
+        int drainedByMuffler = filter.drainStoredPollution();
+        assertEquals(50000, drainedByMuffler);
+        assertEquals(0, filter.getStoredPollution());
+
+        // Now if the filter itself is broken afterwards, nothing left to release
+        int drainedByFilter = filter.drainStoredPollution();
+        assertEquals(0, drainedByFilter);
     }
 }

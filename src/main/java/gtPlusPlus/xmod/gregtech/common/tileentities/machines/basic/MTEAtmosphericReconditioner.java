@@ -145,6 +145,34 @@ public class MTEAtmosphericReconditioner extends MTEBasicMachine implements IPol
         return base != null && !base.isDead() && base.isAllowedToWork();
     }
 
+    @Override
+    public int getStoredPollution() {
+        return mStoredPollution;
+    }
+
+    public void setStoredPollution(int aPollution) {
+        this.mStoredPollution = Math.max(0, aPollution);
+    }
+
+    @Override
+    public int drainStoredPollution() {
+        int drained = mStoredPollution;
+        mStoredPollution = 0;
+        return drained;
+    }
+
+    @Override
+    public void onBlockDestroyed() {
+        super.onBlockDestroyed();
+        int buffered = drainStoredPollution();
+        if (buffered > 0) {
+            IGregTechTileEntity base = getBaseMetaTileEntity();
+            if (base != null && !base.isClientSide() && base.getWorld() != null) {
+                Pollution.addPollution(base, buffered);
+            }
+        }
+    }
+
     public int getPollutionReduction() {
         return mPollutionReduction;
     }
