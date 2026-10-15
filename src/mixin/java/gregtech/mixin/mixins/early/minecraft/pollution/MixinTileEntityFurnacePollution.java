@@ -25,6 +25,11 @@ public abstract class MixinTileEntityFurnacePollution extends TileEntity {
             opcode = Opcodes.GETFIELD,
             ordinal = 2))
     private void gt5u$addPollution(CallbackInfo ci) {
-        furnaceAddPollutionOnUpdate(this.worldObj, this.xCoord, this.zCoord, FurnacePollution.FURNACE.getPollution());
+        furnaceAddPollutionOnUpdate(
+            this.worldObj,
+            this.xCoord,
+            this.yCoord,
+            this.zCoord,
+            FurnacePollution.FURNACE.getPollution());
     }
 }

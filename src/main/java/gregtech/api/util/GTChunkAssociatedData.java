@@ -474,7 +474,11 @@ public abstract class GTChunkAssociatedData<T extends GTChunkAssociatedData.IDat
     public static class EventHandler {
 
         private EventHandler() {
-            MinecraftForge.EVENT_BUS.register(this);
+            try {
+                MinecraftForge.EVENT_BUS.register(this);
+            } catch (Throwable ignored) {
+                // Ignore in unit tests / test runners where FML environment is not initialized
+            }
         }
 
         @SubscribeEvent

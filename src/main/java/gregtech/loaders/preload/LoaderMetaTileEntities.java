@@ -146,6 +146,7 @@ import gregtech.common.tileentities.machines.multi.MTEAlgaePond;
 import gregtech.common.tileentities.machines.multi.MTEAssemblyLine;
 import gregtech.common.tileentities.machines.multi.MTEBrickedBlastFurnace;
 import gregtech.common.tileentities.machines.multi.MTECharcoalPit;
+import gregtech.common.tileentities.machines.multi.MTEChimney;
 import gregtech.common.tileentities.machines.multi.MTECleanroom;
 import gregtech.common.tileentities.machines.multi.MTECokeOven;
 import gregtech.common.tileentities.machines.multi.MTEConcreteBackfiller1;
@@ -9317,6 +9318,8 @@ public class LoaderMetaTileEntities implements Runnable { // TODO CHECK CIRCUIT 
         ItemList.Machine_Multi_AirFilterT3.set(
             new MTEAirFilter3(AIR_FILTER_CONTROLLER_T3.ID, "multimachine.airfilter.03", "Electric Air Filter T3")
                 .getStackForm(1L));
+        ItemList.Machine_Multi_Chimney
+            .set(new MTEChimney(CHIMNEY_CONTROLLER.ID, "multimachine.chimney", "Chimney").getStackForm(1L));
     }
 
     private static void registerDrawerFramer() {

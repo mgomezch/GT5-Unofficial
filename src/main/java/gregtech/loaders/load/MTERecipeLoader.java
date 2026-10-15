@@ -1812,10 +1812,12 @@ public class MTERecipeLoader implements Runnable {
             new Object[] { " B ", "   ", "   ", 'B', GregtechItemList.Industrial_PlatePress });
 
         // Planetary Gas Siphon Conversion Recipe
-        GTModHandler.addShapelessCraftingRecipe(
-            ItemList.PlanetarySiphon.get(1),
-            GTModHandler.RecipeBits.DO_NOT_CHECK_FOR_COLLISIONS | GTModHandler.RecipeBits.BUFFERED,
-            new Object[] { ItemList.PlanetaryGasSiphonController });
+        if (ItemList.PlanetarySiphon.hasBeenSet() && ItemList.PlanetaryGasSiphonController.hasBeenSet()) {
+            GTModHandler.addShapelessCraftingRecipe(
+                ItemList.PlanetarySiphon.get(1),
+                GTModHandler.RecipeBits.DO_NOT_CHECK_FOR_COLLISIONS | GTModHandler.RecipeBits.BUFFERED,
+                new Object[] { ItemList.PlanetaryGasSiphonController });
+        }
 
         // Large Boilers Conversion Recipe
         GTModHandler.addShapelessCraftingRecipe(
@@ -3422,6 +3424,11 @@ public class MTERecipeLoader implements Runnable {
             new Object[] { "FFF", aTextCableHull, aTextWireCoil, 'M', ItemList.Casing_HeatProof, 'F',
                 OreDictNames.craftingBlastFurnace, 'C', OrePrefixes.circuit.get(Materials.HV), 'W',
                 OrePrefixes.cableGt01.get(Materials.AnnealedCopper) });
+        GTModHandler.addCraftingRecipe(
+            ItemList.Machine_Multi_Chimney.get(1L),
+            GTModHandler.RecipeBits.BITS | GTModHandler.RecipeBits.DO_NOT_CHECK_FOR_COLLISIONS,
+            new Object[] { "BBB", "BPB", "BFB", 'B', new ItemStack(Blocks.brick_block), 'P',
+                OrePrefixes.pipeLarge.get(Materials.Bronze), 'F', new ItemStack(Blocks.furnace) });
 
         GTModHandler.addCraftingRecipe(
             ItemList.BronzeBoilerLarge.get(1L),

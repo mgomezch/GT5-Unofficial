@@ -149,8 +149,12 @@ public class Pollution {
             // get pollution
             ChunkData currentData = STORAGE.get(world, actualPos);
             int tPollution = currentData.getAmount();
+            float tHeight = currentData.getHeight();
             // remove some
             tPollution = (int) (0.9945f * tPollution);
+            if (tPollution == 0) {
+                tHeight = Float.NaN;
+            }
 
             if (tPollution > 400000) { // Spread Pollution
 
@@ -165,9 +169,18 @@ public class Pollution {
                     if (neighborPollution * 6 < tPollution * 5) { // MATHEMATICS...
                         int tDiff = tPollution - neighborPollution;
                         tDiff = tDiff / 20;
-                        neighborPollution = GTUtility.safeInt((long) neighborPollution + tDiff); // tNPol += tDiff;
-                        tPollution -= tDiff;
-                        setChunkPollution(neighborPosition, neighborPollution);
+                        if (tDiff > 0) {
+                            final float propHeight = tHeight;
+                            final int amountToProp = tDiff;
+                            tPollution -= tDiff;
+                            mutatePollution(world, neighborPosition.chunkXPos, neighborPosition.chunkZPos, d -> {
+                                if (Float.isNaN(propHeight)) {
+                                    d.changeAmount(amountToProp);
+                                } else {
+                                    d.addPollution(amountToProp, propHeight);
+                                }
+                            }, pollutedChunks);
+                        }
                     }
                 }
 
@@ -185,26 +198,24 @@ public class Pollution {
                     for (EntityLivingBase tEnt : tEntitys) {
                         if (tEnt instanceof EntityPlayerMP && ((EntityPlayerMP) tEnt).capabilities.isCreativeMode)
                             continue;
+                        if (XSTR_INSTANCE.nextFloat() > getPollutionEffectFactor(tEnt.posY, tHeight)) continue;
                         if (!(HazardProtection.isWearingFullGasHazmat(tEnt))) {
                             switch (XSTR_INSTANCE.nextInt(3)) {
-                                case 1:
-                                    tEnt.addPotionEffect(
-                                        new PotionEffect(
-                                            Potion.weakness.id,
-                                            Math.min(tPollution / 1000, 1000),
-                                            tPollution / 400000));
-                                case 2:
-                                    tEnt.addPotionEffect(
-                                        new PotionEffect(
-                                            Potion.moveSlowdown.id,
-                                            Math.min(tPollution / 1000, 1000),
-                                            tPollution / 400000));
-                                default:
-                                    tEnt.addPotionEffect(
-                                        new PotionEffect(
-                                            Potion.digSlowdown.id,
-                                            Math.min(tPollution / 1000, 1000),
-                                            tPollution / 400000));
+                                case 1 -> tEnt.addPotionEffect(
+                                    new PotionEffect(
+                                        Potion.weakness.id,
+                                        Math.min(tPollution / 1000, 1000),
+                                        tPollution / 400000));
+                                case 2 -> tEnt.addPotionEffect(
+                                    new PotionEffect(
+                                        Potion.moveSlowdown.id,
+                                        Math.min(tPollution / 1000, 1000),
+                                        tPollution / 400000));
+                                default -> tEnt.addPotionEffect(
+                                    new PotionEffect(
+                                        Potion.digSlowdown.id,
+                                        Math.min(tPollution / 1000, 1000),
+                                        tPollution / 400000));
                             }
                         }
                     }
@@ -214,28 +225,20 @@ public class Pollution {
                         for (EntityLivingBase tEnt : tEntitys) {
                             if (tEnt instanceof EntityPlayerMP && ((EntityPlayerMP) tEnt).capabilities.isCreativeMode)
                                 continue;
+                            if (XSTR_INSTANCE.nextFloat() > getPollutionEffectFactor(tEnt.posY, tHeight)) continue;
                             if (!HazardProtection.isWearingFullGasHazmat(tEnt)) {
                                 switch (XSTR_INSTANCE.nextInt(4)) {
-                                    case 1:
-                                        tEnt.addPotionEffect(
-                                            new PotionEffect(
-                                                Potion.confusion.id,
-                                                Math.min(tPollution / 2000, 1000),
-                                                1));
-                                    case 2:
-                                        tEnt.addPotionEffect(
-                                            new PotionEffect(
-                                                Potion.poison.id,
-                                                Math.min(tPollution / 4000, 1000),
-                                                tPollution / 500000));
-                                    case 3:
-                                        tEnt.addPotionEffect(
-                                            new PotionEffect(
-                                                Potion.blindness.id,
-                                                Math.min(tPollution / 2000, 1000),
-                                                1));
-                                    default:
-                                        tEnt.addPotionEffect(new PotionEffect(Potion.hunger.id, tPollution / 500000));
+                                    case 1 -> tEnt.addPotionEffect(
+                                        new PotionEffect(Potion.confusion.id, Math.min(tPollution / 2000, 1000), 1));
+                                    case 2 -> tEnt.addPotionEffect(
+                                        new PotionEffect(
+                                            Potion.poison.id,
+                                            Math.min(tPollution / 4000, 1000),
+                                            tPollution / 500000));
+                                    case 3 -> tEnt.addPotionEffect(
+                                        new PotionEffect(Potion.blindness.id, Math.min(tPollution / 2000, 1000), 1));
+                                    default -> tEnt
+                                        .addPotionEffect(new PotionEffect(Potion.hunger.id, tPollution / 500000));
                                 }
                             }
                         }
@@ -247,14 +250,23 @@ public class Pollution {
                                 int x = (actualPos.chunkXPos << 4) + XSTR_INSTANCE.nextInt(16);
                                 int y = 60 + (-f + XSTR_INSTANCE.nextInt(f * 2 + 1));
                                 int z = (actualPos.chunkZPos << 4) + XSTR_INSTANCE.nextInt(16);
-                                damageBlock(world, x, y, z, tPollution > GTMod.proxy.mPollutionSourRainLimit);
+                                if (XSTR_INSTANCE.nextFloat() <= getPollutionEffectFactor(y, tHeight)) {
+                                    damageBlock(world, x, y, z, tPollution > GTMod.proxy.mPollutionSourRainLimit);
+                                }
                             }
                         }
                     }
                 }
             }
             // Write new pollution to Hashmap !!!
-            setChunkPollution(actualPos, tPollution);
+            final float finalHeight = tHeight;
+            final int finalPollution = tPollution;
+            mutatePollution(
+                world,
+                actualPos.chunkXPos,
+                actualPos.chunkZPos,
+                c -> c.set(finalPollution, finalHeight),
+                pollutedChunks);
 
             // Send new value to players nearby
             if (tPollution > POLLUTIONPACKET_MINVALUE) {
@@ -331,6 +343,12 @@ public class Pollution {
         }
     }
 
+    public static double getPollutionEffectFactor(double targetY, float pollutionHeight) {
+        if (Float.isNaN(pollutionHeight)) return 1.0;
+        double deltaY = Math.abs(targetY - pollutionHeight);
+        return Math.pow(0.2, deltaY / 50.0);
+    }
+
     private static Pollution getPollutionManager(World world) {
         return GTMod.proxy.dimensionWisePollution
             .computeIfAbsent(world.provider.dimensionId, i -> new Pollution(world));
@@ -359,12 +377,16 @@ public class Pollution {
             }
         }
 
-        addPollution(te.getWorldObj(), te.xCoord >> 4, te.zCoord >> 4, aPollution);
+        addPollution(te.getWorldObj(), te.xCoord >> 4, te.zCoord >> 4, aPollution, te.yCoord);
     }
 
     /** @see #addPollution(World, int, int, int) */
     public static void addPollution(Chunk ch, int aPollution) {
         addPollution(ch.worldObj, ch.xPosition, ch.zPosition, aPollution);
+    }
+
+    public static void addPollution(Chunk ch, int aPollution, double height) {
+        addPollution(ch.worldObj, ch.xPosition, ch.zPosition, aPollution, height);
     }
 
     /**
@@ -378,7 +400,40 @@ public class Pollution {
      */
     public static void addPollution(World w, int chunkX, int chunkZ, int aPollution) {
         if (!GTMod.proxy.mPollution || aPollution == 0 || w.isRemote) return;
-        mutatePollution(w, chunkX, chunkZ, d -> d.changeAmount(aPollution), null);
+        ChunkData current = STORAGE.get(w, chunkX, chunkZ);
+        double height = current.hasHeight() ? current.getHeight() : 64.0;
+        addPollution(w, chunkX, chunkZ, aPollution, height);
+    }
+
+    public static void addPollution(World w, int chunkX, int chunkZ, int aPollution, double height) {
+        if (!GTMod.proxy.mPollution || aPollution == 0 || w.isRemote) return;
+        mutatePollution(w, chunkX, chunkZ, d -> d.addPollution(aPollution, height), null);
+    }
+
+    /**
+     * Moves pollution from current height to a new emission height (such as a chimney stack).
+     * If a muffler hatch is present, outputAmount can be smaller than amountToRemove,
+     * permanently reducing pollution while preserving the height impact as if all amountToRemove was vented.
+     */
+    public static void movePollutionHeight(World world, int chunkX, int chunkZ, int amountToRemove, int outputAmount,
+        double newEmissionHeight) {
+        if (!GTMod.proxy.mPollution || world.isRemote) return;
+        mutatePollution(world, chunkX, chunkZ, d -> {
+            int current = d.getAmount();
+            if (current <= 0) return;
+            int removed = Math.min(current, amountToRemove);
+            float oldHeight = d.getHeight();
+            int remaining = current - removed;
+            if (remaining <= 0 || Float.isNaN(oldHeight)) {
+                d.set(outputAmount, (float) newEmissionHeight);
+            } else {
+                long virtualTotal = (long) remaining + removed;
+                double weightedHeight = ((double) remaining * oldHeight + (double) removed * newEmissionHeight)
+                    / (double) virtualTotal;
+                int newTotal = GTUtility.safeInt((long) remaining + outputAmount, 0);
+                d.set(newTotal, (float) weightedHeight);
+            }
+        }, null);
     }
 
     private static void mutatePollution(World world, int x, int z, Consumer<ChunkData> mutator,
@@ -421,6 +476,32 @@ public class Pollution {
         }
         return STORAGE.get(w, chunkX, chunkZ)
             .getAmount();
+    }
+
+    public static float getPollutionHeight(World w, int chunkX, int chunkZ) {
+        if (!GTMod.proxy.mPollution || w.isRemote) return Float.NaN;
+        return STORAGE.get(w, chunkX, chunkZ)
+            .getHeight();
+    }
+
+    public static float getPollutionHeight(Chunk ch) {
+        return getPollutionHeight(ch.worldObj, ch.xPosition, ch.zPosition);
+    }
+
+    public static float getPollutionHeight(IGregTechTileEntity te) {
+        return getPollutionHeight(te.getWorld(), te.getXCoord() >> 4, te.getZCoord() >> 4);
+    }
+
+    public static boolean hasPollutionHeight(Chunk ch) {
+        if (!GTMod.proxy.mPollution || ch.worldObj.isRemote) return false;
+        return STORAGE.isCreated(ch.worldObj, ch.getChunkCoordIntPair()) && STORAGE.get(ch)
+            .hasHeight();
+    }
+
+    public static boolean hasPollutionHeight(World w, int chunkX, int chunkZ) {
+        if (!GTMod.proxy.mPollution || w.isRemote) return false;
+        return STORAGE.isCreated(w, chunkX, chunkZ) && STORAGE.get(w, chunkX, chunkZ)
+            .hasHeight();
     }
 
     public static boolean hasPollution(Chunk ch) {
@@ -466,23 +547,34 @@ public class Pollution {
     private static final class Storage extends GTChunkAssociatedData<ChunkData> {
 
         private Storage() {
-            super("Pollution", ChunkData.class, 64, (byte) 0, false);
+            super("Pollution", ChunkData.class, 64, (byte) 1, false);
         }
 
         @Override
         protected void writeElement(DataOutput output, ChunkData element, World world, int chunkX, int chunkZ)
             throws IOException {
             output.writeInt(element.getAmount());
+            output.writeFloat(element.getHeight());
         }
 
         @Override
         protected ChunkData readElement(DataInput input, int version, World world, int chunkX, int chunkZ)
             throws IOException {
-            if (version != 0) throw new IOException("Region file corrupted");
-            ChunkData data = new ChunkData(input.readInt());
-            if (data.getAmount() > 0)
-                getPollutionManager(world).pollutedChunks.add(new ChunkCoordIntPair(chunkX, chunkZ));
-            return data;
+            if (version == 0) {
+                int amount = input.readInt();
+                ChunkData data = new ChunkData(amount, Float.NaN);
+                if (data.getAmount() > 0)
+                    getPollutionManager(world).pollutedChunks.add(new ChunkCoordIntPair(chunkX, chunkZ));
+                return data;
+            } else if (version == 1) {
+                int amount = input.readInt();
+                float height = input.readFloat();
+                ChunkData data = new ChunkData(amount, height);
+                if (data.getAmount() > 0)
+                    getPollutionManager(world).pollutedChunks.add(new ChunkCoordIntPair(chunkX, chunkZ));
+                return data;
+            }
+            throw new IOException("Region file corrupted");
         }
 
         @Override
@@ -498,18 +590,28 @@ public class Pollution {
         public boolean isCreated(World world, ChunkCoordIntPair coord) {
             return isCreated(world.provider.dimensionId, coord.chunkXPos, coord.chunkZPos);
         }
+
+        public boolean isCreated(World world, int chunkX, int chunkZ) {
+            return isCreated(world.provider.dimensionId, chunkX, chunkZ);
+        }
     }
 
     private static final class ChunkData implements GTChunkAssociatedData.IData {
 
         public int amount;
+        public float height;
 
         private ChunkData() {
-            this(0);
+            this(0, Float.NaN);
         }
 
         private ChunkData(int amount) {
+            this(amount, Float.NaN);
+        }
+
+        private ChunkData(int amount, float height) {
             this.amount = Math.max(0, amount);
+            this.height = this.amount > 0 ? height : Float.NaN;
         }
 
         /**
@@ -519,12 +621,48 @@ public class Pollution {
             return amount;
         }
 
+        public float getHeight() {
+            return height;
+        }
+
+        public boolean hasHeight() {
+            return !Float.isNaN(height);
+        }
+
         public void setAmount(int amount) {
             this.amount = Math.max(amount, 0);
+            if (this.amount == 0) {
+                this.height = Float.NaN;
+            }
+        }
+
+        public void set(int amount, float height) {
+            this.amount = Math.max(amount, 0);
+            this.height = this.amount > 0 ? height : Float.NaN;
         }
 
         public void changeAmount(int delta) {
-            this.amount = Math.max(GTUtility.safeInt(amount + (long) delta, 0), 0);
+            this.amount = Math.max(GTUtility.safeInt((long) amount + delta, 0), 0);
+            if (this.amount == 0) {
+                this.height = Float.NaN;
+            }
+        }
+
+        public void addPollution(int addedAmount, double emissionHeight) {
+            if (addedAmount <= 0) {
+                changeAmount(addedAmount);
+                return;
+            }
+            if (this.amount <= 0 || Float.isNaN(this.height)) {
+                this.amount = GTUtility.safeInt((long) Math.max(0, this.amount) + addedAmount, 0);
+                this.height = (float) emissionHeight;
+            } else {
+                long totalPollution = (long) this.amount + addedAmount;
+                double newHeight = ((double) this.amount * this.height + (double) addedAmount * emissionHeight)
+                    / (double) totalPollution;
+                this.amount = GTUtility.safeInt(totalPollution, 0);
+                this.height = (float) newHeight;
+            }
         }
 
         @Override
