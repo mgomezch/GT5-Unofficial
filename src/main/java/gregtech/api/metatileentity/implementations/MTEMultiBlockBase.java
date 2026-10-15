@@ -6,6 +6,7 @@ import static gregtech.api.enums.GTValues.VN;
 import static gregtech.api.enums.HatchElement.Energy;
 import static gregtech.api.interfaces.tileentity.IGregTechDeviceInformation.encode;
 import static gregtech.api.metatileentity.BaseTileEntity.TOOLTIP_DELAY;
+import static gregtech.api.objects.XSTR.XSTR_INSTANCE;
 import static gregtech.api.recipe.check.SingleRecipeCheck.getDisplayString;
 import static gregtech.api.util.GTUtility.filterValidMTEs;
 import static gregtech.api.util.GTUtility.formatShortenedLong;
@@ -257,6 +258,30 @@ public abstract class MTEMultiBlockBase extends MetaTileEntity
     protected long mLastWorkingTick = 0, mTotalRunTime = 0;
     private static final int CHECK_INTERVAL = 100; // How often should we check for a new recipe on an idle machine?
     private final int randomTickOffset = (int) (Math.random() * CHECK_INTERVAL + 1);
+
+    protected double cachedAdjustedPollution = 0.0;
+    protected long lastPollutionCheckTick = -100;
+
+    public double getAtHeightAdjustedPollution() {
+        if (!GTMod.proxy.mPollution) return 0.0;
+        if (mTotalRunTime - lastPollutionCheckTick >= 20 || lastPollutionCheckTick < 0) {
+            lastPollutionCheckTick = mTotalRunTime;
+            cachedAdjustedPollution = Pollution.getAtHeightAdjustedPollution(getBaseMetaTileEntity());
+        }
+        return cachedAdjustedPollution;
+    }
+
+    public int getPollutionEfficiencyPenalty() {
+        if (!GTMod.proxy.mPollution) return 0;
+        return Pollution.getPollutionEfficiencyPenalty(getAtHeightAdjustedPollution());
+    }
+
+    public int getIdealEfficiency() {
+        return Math.max(
+            0,
+            getMaxEfficiency(getControllerSlot()) - ((getIdealStatus() - getRepairStatus()) * 1000)
+                - getPollutionEfficiencyPenalty());
+    }
 
     /**
      * A list of structure errors. Private so that multis have to use the parameters (to make it easier to
@@ -809,6 +834,12 @@ public abstract class MTEMultiBlockBase extends MetaTileEntity
 
     protected void runMachine(IGregTechTileEntity aBaseMetaTileEntity, long aTick) {
         if (mMaxProgresstime > 0 && doRandomMaintenanceDamage()) {
+            int targetEfficiency = getIdealEfficiency();
+            if (mEfficiencyIncrease == 10000) {
+                mEfficiency = targetEfficiency;
+            } else if (mEfficiency > targetEfficiency) {
+                mEfficiency = targetEfficiency;
+            }
             if (onRunningTick(mInventory[1])) {
                 markDirty();
                 if (!polluteEnvironment(getPollutionPerTick(mInventory[1]))) {
@@ -832,12 +863,7 @@ public abstract class MTEMultiBlockBase extends MetaTileEntity
                         mOutputItems = null;
                         mOutputFluids = null;
                         outputAfterRecipe();
-                        mEfficiency = Math.max(
-                            0,
-                            Math.min(
-                                mEfficiency + mEfficiencyIncrease,
-                                getMaxEfficiency(getControllerSlot())
-                                    - ((getIdealStatus() - getRepairStatus()) * 1000)));
+                        mEfficiency = Math.max(0, Math.min(mEfficiency + mEfficiencyIncrease, getIdealEfficiency()));
                         mOutputItems = null;
                         mProgresstime = 0;
                         mMaxProgresstime = 0;
@@ -1108,7 +1134,7 @@ public abstract class MTEMultiBlockBase extends MetaTileEntity
         updateSlots();
         if (!result.wasSuccessful()) return result;
 
-        mEfficiency = (10000 - (getIdealStatus() - getRepairStatus()) * 1000);
+        mEfficiency = getIdealEfficiency();
         mEfficiencyIncrease = 10000;
         mMaxProgresstime = processingLogic.getDuration();
         setEnergyUsage(processingLogic);
@@ -1466,7 +1492,9 @@ public abstract class MTEMultiBlockBase extends MetaTileEntity
 
     public int getCurrentEfficiency(ItemStack itemStack) {
         int maxEff = getMaxEfficiency(itemStack);
-        return maxEff - (getIdealStatus() - getRepairStatus()) * maxEff / 10;
+        int maintenanceLoss = (getIdealStatus() - getRepairStatus()) * maxEff / 10;
+        int pollutionLoss = (int) Math.round(getPollutionEfficiencyPenalty() * (maxEff / 10000.0));
+        return Math.max(0, maxEff - maintenanceLoss - pollutionLoss);
     }
 
     public long getEUtForDamageCalc() {
@@ -1484,7 +1512,7 @@ public abstract class MTEMultiBlockBase extends MetaTileEntity
         }
         if (mRuntime++ > 1000) {
             mRuntime = 0;
-            if (shouldCheckMaintenance() && getBaseMetaTileEntity().getRandomNumber(6000) == 0) {
+            if (shouldCheckMaintenance() && shouldCauseMaintenanceIssue()) {
                 causeMaintenanceIssue();
             }
             if (mInventory[1] != null && getBaseMetaTileEntity().getRandomNumber(2) == 0
@@ -1512,6 +1540,22 @@ public abstract class MTEMultiBlockBase extends MetaTileEntity
             case 4 -> mSolderingTool = false;
             case 5 -> mCrowbar = false;
         }
+    }
+
+    public boolean shouldCauseMaintenanceIssue() {
+        return shouldCauseMaintenanceIssue(1, 6000);
+    }
+
+    public boolean shouldCauseMaintenanceIssue(int baseThreshold, int maxRange) {
+        if (!shouldCheckMaintenance()) return false;
+        double gibbl = getAtHeightAdjustedPollution();
+        if (gibbl <= 0.0) {
+            return getBaseMetaTileEntity().getRandomNumber(maxRange) < baseThreshold;
+        }
+        double multiplier = Pollution.getMaintenanceFrequencyMultiplier(gibbl);
+        double chance = Math.min(1.0, ((double) baseThreshold / (double) maxRange) * multiplier);
+        if (chance >= 1.0) return true;
+        return XSTR_INSTANCE.nextDouble() < chance;
     }
 
     public void explodeMultiblock() {
@@ -2568,6 +2612,14 @@ public abstract class MTEMultiBlockBase extends MetaTileEntity
 
         if (mEfficiency > 0) {
             info.add(encode("GT5U.multiblock.scanner.efficiency", formatNumber(mEfficiency / 100.0F)));
+        }
+
+        int pollutionPenalty = getPollutionEfficiencyPenalty();
+        if (pollutionPenalty > 0) {
+            info.add(
+                StatCollector.translateToLocalFormatted(
+                    "GT5U.multiblock.scanner.pollution_penalty",
+                    formatNumber(pollutionPenalty / 100.0F)));
         }
 
         if (getPollutionPerSecond(getStackForm(1)) > 0) {

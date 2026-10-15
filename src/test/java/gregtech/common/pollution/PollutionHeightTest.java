@@ -127,4 +127,70 @@ public class PollutionHeightTest {
         assertEquals(3200000, 100 * t3Base);
         assertEquals(12800000, 100 * (t3Base * 4));
     }
+
+    @Test
+    void testAtHeightAdjustedPollutionScore() {
+        // Zero distance: 100% of chunk pollution
+        assertEquals(10000.0, Pollution.getAtHeightAdjustedPollution(64.0, 10000, 64.0f), 1e-9);
+
+        // 30 blocks vertical distance: hits 50%
+        assertEquals(5000.0, Pollution.getAtHeightAdjustedPollution(94.0, 10000, 64.0f), 1e-9);
+        assertEquals(5000.0, Pollution.getAtHeightAdjustedPollution(34.0, 10000, 64.0f), 1e-9);
+
+        // 60 blocks vertical distance: hits 25% (0.5^2)
+        assertEquals(2500.0, Pollution.getAtHeightAdjustedPollution(124.0, 10000, 64.0f), 1e-9);
+
+        // 90 blocks vertical distance: hits 12.5% (0.5^3)
+        assertEquals(1250.0, Pollution.getAtHeightAdjustedPollution(154.0, 10000, 64.0f), 1e-9);
+
+        // Undefined height (NaN): full chunk pollution applies
+        assertEquals(10000.0, Pollution.getAtHeightAdjustedPollution(64.0, 10000, Float.NaN), 1e-9);
+
+        // Zero or negative pollution: returns 0.0
+        assertEquals(0.0, Pollution.getAtHeightAdjustedPollution(64.0, 0, 64.0f), 1e-9);
+        assertEquals(0.0, Pollution.getAtHeightAdjustedPollution(64.0, -500, 64.0f), 1e-9);
+    }
+
+    @Test
+    void testPollutionEfficiencyPenalty() {
+        // 0 gibbl: no penalty
+        assertEquals(0, Pollution.getPollutionEfficiencyPenalty(0.0));
+        assertEquals(0, Pollution.getPollutionEfficiencyPenalty(-100.0));
+
+        // First 10%: 1% (100 points) per 5,000 gibbl
+        // 2,500 gibbl -> 0.5% (50 points)
+        assertEquals(50, Pollution.getPollutionEfficiencyPenalty(2500.0));
+        // 5,000 gibbl -> 1.0% (100 points)
+        assertEquals(100, Pollution.getPollutionEfficiencyPenalty(5000.0));
+        // 10,000 gibbl -> 2.0% (200 points)
+        assertEquals(200, Pollution.getPollutionEfficiencyPenalty(10000.0));
+        // 25,000 gibbl -> 5.0% (500 points)
+        assertEquals(500, Pollution.getPollutionEfficiencyPenalty(25000.0));
+        // 50,000 gibbl -> 10.0% (1,000 points)
+        assertEquals(1000, Pollution.getPollutionEfficiencyPenalty(50000.0));
+
+        // After 50,000: 1% (100 points) per 10,000 gibbl
+        // 60,000 gibbl -> 10% + 1% = 11% (1,100 points)
+        assertEquals(1100, Pollution.getPollutionEfficiencyPenalty(60000.0));
+        // 100,000 gibbl -> 10% + 5% = 15% (1,500 points)
+        assertEquals(1500, Pollution.getPollutionEfficiencyPenalty(100000.0));
+        // 150,000 gibbl -> 10% + 10% = 20% (2,000 points)
+        assertEquals(2000, Pollution.getPollutionEfficiencyPenalty(150000.0));
+    }
+
+    @Test
+    void testMaintenanceFrequencyMultiplier() {
+        // 0 gibbl: base frequency (multiplier = 1.0)
+        assertEquals(1.0, Pollution.getMaintenanceFrequencyMultiplier(0.0), 1e-9);
+        assertEquals(1.0, Pollution.getMaintenanceFrequencyMultiplier(-50.0), 1e-9);
+
+        // Every 2,000 gibbl doubles the frequency
+        assertEquals(2.0, Pollution.getMaintenanceFrequencyMultiplier(2000.0), 1e-9);
+        assertEquals(4.0, Pollution.getMaintenanceFrequencyMultiplier(4000.0), 1e-9);
+        assertEquals(8.0, Pollution.getMaintenanceFrequencyMultiplier(6000.0), 1e-9);
+        assertEquals(16.0, Pollution.getMaintenanceFrequencyMultiplier(8000.0), 1e-9);
+
+        // Fractional gibbl follows continuous 2^(G / 2000)
+        assertEquals(Math.sqrt(2.0), Pollution.getMaintenanceFrequencyMultiplier(1000.0), 1e-9);
+    }
 }

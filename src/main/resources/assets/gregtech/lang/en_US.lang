@@ -4479,6 +4479,7 @@ GT5U.multiblock.scanner.pollution=Pollution reduced to: §a%s§r%%
 GT5U.multiblock.scanner.energy=Stored Energy: §a%s §rEU / §e%s §rEU
 GT5U.multiblock.scanner.Progress=Progress: §a%s §rs / §e%s §rs
 GT5U.multiblock.scanner.efficiency=Efficiency: §e%s§r%%
+GT5U.multiblock.scanner.pollution_penalty=Pollution Efficiency Penalty: §c-%s§r%%
 GT5U.large_boiler.scanner.steam_output=Steam Output: §e%s§r %s/t
 GT5U.large_boiler.scanner.water_consumption=Water Consumption: §e%s§r %s/t
 GT5U.large_boiler.scanner.fuel_combination=Fuel Combination: §e%d§r/§e%d§r fuels, target §e%s§r%%

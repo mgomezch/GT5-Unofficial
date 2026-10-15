@@ -110,3 +110,45 @@ Because of the massive vertical height of these towers (up to 90 blocks), struct
 - Automatically reads the local wind speed and direction from **IndustrialCraft 2's WindSim** (`WorldData.get(world).windSim.getWindAt(topHeight)`).
 - The smoke plume offsets in real time according to the wind vector.
 - Plume color dynamically reflects power source: **white** for steam power, **dark grey/black** for electricity.
+
+---
+
+## 5. Pollution Incentives for Multiblock Machines
+
+To incentivize pollution management and reward building tall chimneys and industrial smoke stacks, GregTech multiblock machines suffer performance and maintenance degradation when operating in polluted environments at machine altitude.
+
+### At-Height Adjusted Gibbl Score
+Multiblock penalties evaluate the pollution intensity at the machine's actual vertical coordinate:
+$$G = P_{\text{chunk}} \times 0.5^{\frac{|\Delta y|}{30.0}} = P_{\text{chunk}} \times 2^{-\frac{|y_{\text{machine}} - y_{\text{pollution}}|}{30.0}}$$
+
+- **Zero Vertical Distance ($\Delta y = 0$)**: Machine experiences 100% of the chunk's pollution ($G = P$).
+- **30 Blocks Distance ($\Delta y = 30$)**: Machine experiences 50% of the chunk's pollution ($G = 0.5 \cdot P$).
+- **60 Blocks Distance ($\Delta y = 60$)**: Machine experiences 25% of the chunk's pollution ($G = 0.25 \cdot P$).
+- **Undefined Pollution Altitude**: If no altitude is recorded, $G = P_{\text{chunk}}$.
+
+### Effect 1: Machine Efficiency Penalties
+Operating in high adjusted pollution decreases a multiblock's running efficiency ($m\text{Efficiency}$):
+1. **First 10% Decrease ($G \le 50,000$)**:
+   - Efficiency decreases by **1% (100 efficiency points out of 10,000) for every 5,000 adjusted gibbl**.
+   - At $50,000$ adjusted gibbl, the penalty reaches $10\%$ ($1,000$ points).
+2. **Beyond 50,000 Gibbl ($G > 50,000$)**:
+   - Efficiency decreases by **1% for every 10,000 adjusted gibbl** beyond $50,000$:
+   $$\text{Penalty (\%)} = 10.0\% + \frac{G - 50,000}{10,000} \times 1.0\%$$
+3. **Machine Mechanics**:
+   - The efficiency penalty stacks directly with maintenance problem penalties.
+   - **Power Consumers**: Inversely increases energy consumption via $\text{ActualEnergyUsage} = \frac{-\text{EUt} \times 10,000}{\max(1000, m\text{Efficiency})}$. A 10% efficiency drop results in $\sim 11.1\%$ higher power draw.
+   - **Power Generators**: Linearly reduces EU generation via $\frac{\text{EUt} \times m\text{Efficiency}}{10,000}$.
+   - **Production Speeds**: Affects multiblocks that scale output or tick rate by $getCurrentEfficiency()$.
+   - **Scanner / Portable Diagnostics**: Portable scanner and Waila displays report both the degraded efficiency and the exact pollution penalty: `Pollution Efficiency Penalty: -X%`.
+
+### Effect 2: Increased Maintenance Problem Frequency
+High adjusted pollution accelerates mechanical wear and tear:
+- **Doubling Rate**: Every **2,000 adjusted at-height gibbl** doubles the frequency of random maintenance problems:
+  $$M = 2^{\frac{G}{2000.0}}$$
+- The baseline maintenance check (1 in 6,000 chance per 1,000 ticks) is scaled by $M$:
+  $$P(\text{problem}) = \min\left(1.0, \frac{1}{6000} \times 2^{\frac{G}{2000.0}}\right)$$
+- At $G = 2,000$: maintenance problems are $2\times$ as frequent.
+- At $G = 4,000$: maintenance problems are $4\times$ as frequent.
+- At $G = 6,000$: maintenance problems are $8\times$ as frequent.
+- At $G \ge 25,100$: maintenance problems trigger reliably every check cycle until repaired.
+

@@ -510,6 +510,61 @@ public class Pollution {
             .getAmount() > 0;
     }
 
+    /**
+     * Calculates the at-height adjusted pollution gibbl score.
+     * Takes the target Y, chunk pollution, and pollution height.
+     * The pollution number is multiplied by an exponential decay factor:
+     * factor = 0.5^(|targetY - pollutionHeight| / 30.0).
+     */
+    public static double getAtHeightAdjustedPollution(double targetY, int chunkPollution, float pollutionHeight) {
+        if (chunkPollution <= 0) return 0.0;
+        if (Float.isNaN(pollutionHeight)) return chunkPollution;
+        double deltaY = Math.abs(targetY - pollutionHeight);
+        double factor = Math.pow(0.5, deltaY / 30.0);
+        return chunkPollution * factor;
+    }
+
+    /**
+     * Calculates the at-height adjusted pollution gibbl score at the location of a TileEntity.
+     */
+    public static double getAtHeightAdjustedPollution(IGregTechTileEntity te) {
+        if (te == null) return 0.0;
+        World w = te.getWorld();
+        if (w == null) return 0.0;
+        int chunkX = te.getXCoord() >> 4;
+        int chunkZ = te.getZCoord() >> 4;
+        int pollution = getPollution(w, chunkX, chunkZ);
+        if (pollution <= 0) return 0.0;
+        float height = getPollutionHeight(w, chunkX, chunkZ);
+        return getAtHeightAdjustedPollution(te.getYCoord(), pollution, height);
+    }
+
+    /**
+     * Calculates the multiblock machine efficiency penalty in GregTech efficiency points (where 10000 = 100%):
+     * - Decreases by 1% (100 points) for every 5000 adjusted at-height gibbl for the first 10% (up to 50000 gibbl)
+     * - Decreases by 1% (100 points) for every 10000 gibbl after 50000 gibbl
+     */
+    public static int getPollutionEfficiencyPenalty(double adjustedGibbl) {
+        if (adjustedGibbl <= 0.0) return 0;
+        double penaltyPercent;
+        if (adjustedGibbl <= 50000.0) {
+            penaltyPercent = adjustedGibbl / 5000.0;
+        } else {
+            penaltyPercent = 10.0 + ((adjustedGibbl - 50000.0) / 10000.0);
+        }
+        return Math.max(0, (int) Math.round(penaltyPercent * 100.0));
+    }
+
+    /**
+     * Calculates the multiplier for maintenance issue frequency.
+     * Every 2000 adjusted at-height gibbl doubles the frequency:
+     * multiplier = 2^(adjustedGibbl / 2000.0).
+     */
+    public static double getMaintenanceFrequencyMultiplier(double adjustedGibbl) {
+        if (adjustedGibbl <= 0.0) return 1.0;
+        return Math.pow(2.0, adjustedGibbl / 2000.0);
+    }
+
     public static void migrate(ChunkDataEvent.Load e) {
         addPollution(
             e.getChunk(),

@@ -534,7 +534,7 @@ public abstract class MTEXLTurbineBase extends MTEExtendedPowerMultiBlockBase<MT
         if (mRuntime++ > 1000) {
             mRuntime = 0;
 
-            if (shouldCheckMaintenance() && getBaseMetaTileEntity().getRandomNumber(6000) < getMaintenanceThreshold()) {
+            if (shouldCheckMaintenance() && shouldCauseMaintenanceIssue(getMaintenanceThreshold(), 6000)) {
                 causeMaintenanceIssue();
             }
             for (int slot = 0; slot < turbineHolder.getSlots(); slot++) {
