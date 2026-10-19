@@ -271,6 +271,10 @@ public class MTEMultiBlockBaseGui<T extends MTEMultiBlockBase> {
         return getTerminalRowWidth();
     }
 
+    public int getTerminalWidth() {
+        return getTerminalWidgetWidth();
+    }
+
     protected int getTerminalWidgetHeight() {
         return getTerminalRowHeight();
     }
@@ -379,6 +383,7 @@ public class MTEMultiBlockBaseGui<T extends MTEMultiBlockBase> {
 
         return new DynamicSyncedWidget<>().widthRel(0.85f)
             .coverChildrenHeight(0)
+            .marginBottom(2)
             .syncHandler(errorSyncer);
     }
 

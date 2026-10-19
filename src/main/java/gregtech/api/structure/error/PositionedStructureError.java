@@ -70,6 +70,8 @@ public class PositionedStructureError implements StructureError {
     public IWidget createWidget(MTEMultiBlockBaseGui<?> gui) {
         String text = buildDisplayText();
         boolean multiLine = expectedBlocks.size() > 1 || text.length() > 40;
+        int terminalWidth = gui != null ? gui.getTerminalWidth() : 190;
+        int textMaxWidth = Math.max(10, (int) ((terminalWidth - 4) * 0.85f) - 16);
 
         return Flow.row()
             .widthRel(1)
@@ -81,6 +83,7 @@ public class PositionedStructureError implements StructureError {
                     .color(TEXT_COLOR)
                     .alignment(multiLine ? Alignment.TopLeft : Alignment.CenterLeft)
                     .asWidget()
+                    .maxWidth(textMaxWidth)
                     .expanded());
     }
 
