@@ -236,6 +236,11 @@ public class MTEAtmosphericReconditioner extends MTEBasicMachine implements IPol
     }
 
     @Override
+    public int getCapacity() {
+        return getCapacityForTier(mTier);
+    }
+
+    @Override
     public void onPostTick(IGregTechTileEntity aBaseMetaTileEntity, long aTick) {
         super.onPostTick(aBaseMetaTileEntity, aTick);
         if (aBaseMetaTileEntity.isServerSide()) {

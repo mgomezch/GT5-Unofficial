@@ -261,7 +261,7 @@ public class MTEIndustrialSmokeStack extends MTEEnhancedMultiBlockBase<MTEIndust
         if (mte == null) return false;
 
         if (mte instanceof MTEHatchEnergy energyHatch) {
-            if (energyHatch.mTier == this.mTier && energyHatch.maxAmperesIn() == 1) {
+            if (energyHatch.mTier == this.mTier && energyHatch.maxAmperesIn() <= 2) {
                 energyHatch.updateTexture(aBaseCasingIndex);
                 energyHatch.updateCraftingIcon(this.getMachineCraftingIcon());
                 return mEnergyHatches.add(energyHatch);
@@ -403,7 +403,7 @@ public class MTEIndustrialSmokeStack extends MTEEnhancedMultiBlockBase<MTEIndust
         } else {
             if (mEnergyHatches.size() > 4) return false;
             for (MTEHatchEnergy h : mEnergyHatches) {
-                if (h.mTier != this.mTier || h.maxAmperesIn() != 1) return false;
+                if (h.mTier != this.mTier || h.maxAmperesIn() > 2) return false;
             }
             this.isSteamPowered = false;
         }
