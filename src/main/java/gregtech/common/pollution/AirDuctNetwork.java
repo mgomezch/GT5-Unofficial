@@ -1,7 +1,7 @@
 package gregtech.common.pollution;
 
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 import gregtech.api.metatileentity.implementations.MTEAirDuct;
@@ -12,9 +12,15 @@ import gregtech.api.metatileentity.implementations.MTEAirDuct;
  */
 public class AirDuctNetwork {
 
-    private final Set<MTEAirDuct> ducts = new HashSet<>();
-    private final Set<IPollutionScrubber> scrubbers = new HashSet<>();
+    private final Set<MTEAirDuct> ducts = new LinkedHashSet<>();
+    private final Set<IPollutionScrubber> scrubbers = new LinkedHashSet<>();
     private boolean invalid = false;
+
+    public static int calculateMaxPollutionCapacity(int tier) {
+        int clampedTier = Math.max(1, Math.min(15, tier));
+        long cap = 10000L * (1L << (2 * (clampedTier - 1)));
+        return (int) Math.min(Integer.MAX_VALUE, cap);
+    }
 
     public void addDuct(MTEAirDuct duct) {
         if (duct != null) {

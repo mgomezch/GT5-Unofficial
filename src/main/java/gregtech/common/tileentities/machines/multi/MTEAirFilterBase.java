@@ -63,6 +63,7 @@ import gregtech.api.util.MultiblockTooltipBuilder;
 import gregtech.common.items.MetaGeneratedTool01;
 import gregtech.common.pollution.IPollutionScrubber;
 import gregtech.common.pollution.Pollution;
+import gregtech.common.tileentities.machines.RecipeCheckReason;
 
 public abstract class MTEAirFilterBase extends MTEEnhancedMultiBlockBase<MTEAirFilterBase>
     implements ISurvivalConstructable, ICasingTextureProvider, IPollutionScrubber {
@@ -148,11 +149,19 @@ public abstract class MTEAirFilterBase extends MTEEnhancedMultiBlockBase<MTEAirF
     public MTEAirFilterBase(int aID, String aName, String aNameRegional) {
         super(aID, aName, aNameRegional);
         usesTurbine = false;
+        doPeriodicChecks = true;
     }
 
     public MTEAirFilterBase(String aName) {
         super(aName);
         usesTurbine = false;
+        doPeriodicChecks = true;
+    }
+
+    @Override
+    public void clearHatches() {
+        super.clearHatches();
+        doPeriodicChecks = true;
     }
 
     public abstract long getEUt();
@@ -224,15 +233,7 @@ public abstract class MTEAirFilterBase extends MTEEnhancedMultiBlockBase<MTEAirF
 
     @Override
     public boolean isCorrectMachinePart(ItemStack aStack) {
-        if (aStack == null) return false;
-        if (!(aStack.getItem() instanceof MetaGeneratedTool01 tool)) return false;
-        if (aStack.getItemDamage() < 170 || aStack.getItemDamage() > 179) return false;
-
-        IToolStats stats = tool.getToolStats(aStack);
-        if (stats == null || stats.getSpeedMultiplier() <= 0) return false;
-
-        Materials material = MetaGeneratedTool.getPrimaryMaterial(aStack);
-        return material != null && material.mToolSpeed > 0;
+        return true;
     }
 
     private float getTurbineDamage(ItemStack aStack) {
@@ -270,7 +271,10 @@ public abstract class MTEAirFilterBase extends MTEEnhancedMultiBlockBase<MTEAirF
         if (amount <= 0 || !isValidScrubber()) return 0;
         int space = getScrubbingCapacity();
         int toAdd = Math.min(amount, space);
-        mStoredPollution += toAdd;
+        if (toAdd > 0) {
+            mStoredPollution += toAdd;
+            scheduleRecipeCheck(RecipeCheckReason.IMMEDIATE);
+        }
         return toAdd;
     }
 
@@ -286,6 +290,9 @@ public abstract class MTEAirFilterBase extends MTEEnhancedMultiBlockBase<MTEAirF
 
     public void setStoredPollution(int aPollution) {
         this.mStoredPollution = Math.max(0, aPollution);
+        if (this.mStoredPollution > 0) {
+            scheduleRecipeCheck(RecipeCheckReason.IMMEDIATE);
+        }
     }
 
     @Override

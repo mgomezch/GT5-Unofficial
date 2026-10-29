@@ -846,7 +846,10 @@ public abstract class MTEMultiBlockBase extends MetaTileEntity
             }
             if (onRunningTick(mInventory[1])) {
                 markDirty();
-                if (!polluteEnvironment(getPollutionPerTick(mInventory[1]))) {
+                int subTickMultiplier = processingLogic != null
+                    ? Math.max(1, processingLogic.getCurrentParallels() / Math.max(1, getTrueParallel()))
+                    : 1;
+                if (!polluteEnvironment(getPollutionPerTick(mInventory[1]) * subTickMultiplier)) {
                     stopMachine(ShutDownReasonRegistry.POLLUTION_FAIL);
                 }
                 if (mMaxProgresstime > 0) {

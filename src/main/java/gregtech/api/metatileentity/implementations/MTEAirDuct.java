@@ -95,12 +95,33 @@ public class MTEAirDuct extends MetaPipeEntity {
 
     @Override
     public boolean letsIn(Cover cover) {
-        return false;
+        return true;
     }
 
     @Override
     public boolean letsOut(Cover cover) {
-        return false;
+        return true;
+    }
+
+    @Override
+    public int connect(ForgeDirection side) {
+        byte before = mConnections;
+        int res = super.connect(side);
+        if (mConnections != before && network != null) {
+            network.invalidate();
+            network = null;
+        }
+        return res;
+    }
+
+    @Override
+    public void disconnect(ForgeDirection side) {
+        byte before = mConnections;
+        super.disconnect(side);
+        if (mConnections != before && network != null) {
+            network.invalidate();
+            network = null;
+        }
     }
 
     @Override
@@ -155,6 +176,9 @@ public class MTEAirDuct extends MetaPipeEntity {
 
             IGregTechTileEntity currentBase = current.getBaseMetaTileEntity();
             if (currentBase == null) continue;
+            if (current.mConnections == 0) {
+                current.checkConnections();
+            }
 
             for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS) {
                 if (!current.isConnectedAtSide(side)) continue;
@@ -164,6 +188,9 @@ public class MTEAirDuct extends MetaPipeEntity {
                 IMetaTileEntity adjMeta = adjTile.getMetaTileEntity();
 
                 if (adjMeta instanceof MTEAirDuct neighborDuct) {
+                    if (neighborDuct.mConnections == 0) {
+                        neighborDuct.checkConnections();
+                    }
                     if (neighborDuct.isConnectedAtSide(side.getOpposite()) && visited.add(neighborDuct)) {
                         queue.add(neighborDuct);
                     }
@@ -214,6 +241,7 @@ public class MTEAirDuct extends MetaPipeEntity {
 
     @Override
     public void saveNBTData(NBTTagCompound aNBT) {
+        aNBT.setByte("mConnections", mConnections);
         if (network != null && !network.isInvalid() && network.getAnchorDuct() == this) {
             aNBT.setBoolean("isNetworkAnchor", true);
             NBTTagList scrubberList = new NBTTagList();
@@ -232,5 +260,9 @@ public class MTEAirDuct extends MetaPipeEntity {
     }
 
     @Override
-    public void loadNBTData(NBTTagCompound aNBT) {}
+    public void loadNBTData(NBTTagCompound aNBT) {
+        if (aNBT.hasKey("mConnections")) {
+            mConnections = aNBT.getByte("mConnections");
+        }
+    }
 }

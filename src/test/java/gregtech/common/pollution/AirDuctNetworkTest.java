@@ -127,24 +127,12 @@ public class AirDuctNetworkTest {
     @Test
     void testScrubberTierCapacityScaling() {
         // Storage capacity: 10,000 * 4^(tier - 1), clamped at Integer.MAX_VALUE
-        assertEquals(
-            10000,
-            gregtech.common.tileentities.machines.multi.MTEAirFilterBase.calculateMaxPollutionCapacity(1));
-        assertEquals(
-            40000,
-            gregtech.common.tileentities.machines.multi.MTEAirFilterBase.calculateMaxPollutionCapacity(2));
-        assertEquals(
-            160000,
-            gregtech.common.tileentities.machines.multi.MTEAirFilterBase.calculateMaxPollutionCapacity(3));
-        assertEquals(
-            640000,
-            gregtech.common.tileentities.machines.multi.MTEAirFilterBase.calculateMaxPollutionCapacity(4));
-        assertEquals(
-            Integer.MAX_VALUE,
-            gregtech.common.tileentities.machines.multi.MTEAirFilterBase.calculateMaxPollutionCapacity(10));
-        assertEquals(
-            Integer.MAX_VALUE,
-            gregtech.common.tileentities.machines.multi.MTEAirFilterBase.calculateMaxPollutionCapacity(14));
+        assertEquals(10000, AirDuctNetwork.calculateMaxPollutionCapacity(1));
+        assertEquals(40000, AirDuctNetwork.calculateMaxPollutionCapacity(2));
+        assertEquals(160000, AirDuctNetwork.calculateMaxPollutionCapacity(3));
+        assertEquals(640000, AirDuctNetwork.calculateMaxPollutionCapacity(4));
+        assertEquals(Integer.MAX_VALUE, AirDuctNetwork.calculateMaxPollutionCapacity(10));
+        assertEquals(Integer.MAX_VALUE, AirDuctNetwork.calculateMaxPollutionCapacity(14));
     }
 
     @Test
