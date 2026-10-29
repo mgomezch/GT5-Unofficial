@@ -121,7 +121,9 @@ public class MTEAtmosphericReconditioner extends MTEBasicMachine implements IPol
     protected int mStoredPollution = 0;
 
     public int getMaxPollutionCapacity() {
-        return 10000 * (int) Math.pow(4, Math.max(0, mTier - 1));
+        int clampedTier = Math.max(1, Math.min(15, mTier));
+        long cap = 10000L * (1L << (2 * (clampedTier - 1)));
+        return (int) Math.min(Integer.MAX_VALUE, cap);
     }
 
     @Override

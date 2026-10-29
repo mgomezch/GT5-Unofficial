@@ -738,6 +738,14 @@ public class BlastFurnaceRecipes implements Runnable {
             .eut((int) TierEU.RECIPE_UMV)
             .metadata(COIL_HEAT, 13000)
             .addTo(blastFurnaceRecipes);
+
+        GTValues.RA.stdBuilder()
+            .itemInputs(Materials.Iron.getDust(1), Materials.Carbon.getDust(1))
+            .itemOutputs(Materials.Steel.getIngots(1), Materials.Ash.getDustTiny(1))
+            .duration(5 * SECONDS)
+            .eut((int) TierEU.RECIPE_MV)
+            .metadata(COIL_HEAT, 1000)
+            .addTo(blastFurnaceRecipes);
     }
 
     public void registerPrimitiveBlastFurnaceRecipes() {

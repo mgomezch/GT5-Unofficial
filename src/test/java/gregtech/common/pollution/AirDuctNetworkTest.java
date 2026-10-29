@@ -126,16 +126,25 @@ public class AirDuctNetworkTest {
 
     @Test
     void testScrubberTierCapacityScaling() {
-        // Storage capacity: 10,000 * 4^(tier - 1)
-        int capLV = 10000 * (int) Math.pow(4, 0); // tier 1
-        int capMV = 10000 * (int) Math.pow(4, 1); // tier 2
-        int capHV = 10000 * (int) Math.pow(4, 2); // tier 3
-        int capEV = 10000 * (int) Math.pow(4, 3); // tier 4
-
-        assertEquals(10000, capLV);
-        assertEquals(40000, capMV);
-        assertEquals(160000, capHV);
-        assertEquals(640000, capEV);
+        // Storage capacity: 10,000 * 4^(tier - 1), clamped at Integer.MAX_VALUE
+        assertEquals(
+            10000,
+            gregtech.common.tileentities.machines.multi.MTEAirFilterBase.calculateMaxPollutionCapacity(1));
+        assertEquals(
+            40000,
+            gregtech.common.tileentities.machines.multi.MTEAirFilterBase.calculateMaxPollutionCapacity(2));
+        assertEquals(
+            160000,
+            gregtech.common.tileentities.machines.multi.MTEAirFilterBase.calculateMaxPollutionCapacity(3));
+        assertEquals(
+            640000,
+            gregtech.common.tileentities.machines.multi.MTEAirFilterBase.calculateMaxPollutionCapacity(4));
+        assertEquals(
+            Integer.MAX_VALUE,
+            gregtech.common.tileentities.machines.multi.MTEAirFilterBase.calculateMaxPollutionCapacity(10));
+        assertEquals(
+            Integer.MAX_VALUE,
+            gregtech.common.tileentities.machines.multi.MTEAirFilterBase.calculateMaxPollutionCapacity(14));
     }
 
     @Test

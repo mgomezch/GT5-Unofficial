@@ -616,6 +616,19 @@ public class DistilleryRecipes implements Runnable {
             .duration(16 * TICKS)
             .eut(2400)
             .addTo(distillationTowerRecipes);
+
+        GTValues.RA.stdBuilder()
+            .itemOutputs(Materials.Ash.getDust(1))
+            .fluidInputs(Materials.LiquidPollution.getFluid(10))
+            .fluidOutputs(
+                Materials.SulfuricAcid.getFluid(15),
+                Materials.NitrogenDioxide.getGas(20),
+                Materials.CarbonDioxide.getGas(30),
+                Materials.CarbonMonoxide.getGas(20),
+                Materials.Methane.getGas(15))
+            .duration(1 * SECONDS)
+            .eut(TierEU.RECIPE_MV)
+            .addTo(distillationTowerRecipes);
     }
 
     public void universalDistillationTowerRecipes() {

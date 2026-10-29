@@ -248,9 +248,15 @@ public abstract class MTEAirFilterBase extends MTEEnhancedMultiBlockBase<MTEAirF
         return (d, r, f) -> d.offsetY == 0 && r.isNotRotated() && !f.isVerticallyFliped();
     }
 
+    public static int calculateMaxPollutionCapacity(int mufflerTier) {
+        int clampedTier = Math.max(1, Math.min(15, mufflerTier));
+        long cap = 10000L * (1L << (2 * (clampedTier - 1)));
+        return (int) Math.min(Integer.MAX_VALUE, cap);
+    }
+
     public int getMaxPollutionCapacity() {
         int mufflerTier = mMufflerHatches.isEmpty() ? 1 : Math.max(1, mMufflerHatches.get(0).mTier);
-        return 10000 * (int) Math.pow(4, Math.max(0, mufflerTier - 1));
+        return calculateMaxPollutionCapacity(mufflerTier);
     }
 
     @Override
@@ -312,11 +318,11 @@ public abstract class MTEAirFilterBase extends MTEEnhancedMultiBlockBase<MTEAirF
 
         long inputVoltage = getMaxInputVoltage();
         byte energyTier = (byte) Math.max(1, GTUtility.getTier(inputVoltage));
-        int overclocks = Math.max(0, energyTier - 1);
+        int overclocks = Math.max(0, Math.min(15, energyTier - 1));
 
-        int multiplier = 1 << (2 * overclocks);
-        long powerPerTick = TierEU.RECIPE_LV * (long) multiplier;
-        int maxProcess = 1000 * multiplier;
+        long multiplier = 1L << (2 * overclocks);
+        long powerPerTick = TierEU.RECIPE_LV * multiplier;
+        int maxProcess = (int) Math.min(Integer.MAX_VALUE, 1000L * multiplier);
 
         int toProcess = Math.min(mStoredPollution, maxProcess);
         int liquidToProduce = toProcess / 100;
@@ -467,10 +473,10 @@ public abstract class MTEAirFilterBase extends MTEEnhancedMultiBlockBase<MTEAirF
     public String[] getInfoData() {
         long inputVoltage = getMaxInputVoltage();
         byte energyTier = (byte) Math.max(1, GTUtility.getTier(inputVoltage));
-        int overclocks = Math.max(0, energyTier - 1);
-        int multiplier = 1 << (2 * overclocks);
-        int maxProcess = 1000 * multiplier;
-        int maxLiquid = 10 * multiplier;
+        int overclocks = Math.max(0, Math.min(15, energyTier - 1));
+        long multiplier = 1L << (2 * overclocks);
+        int maxProcess = (int) Math.min(Integer.MAX_VALUE, 1000L * multiplier);
+        int maxLiquid = maxProcess / 100;
 
         return new String[] {
             IGregTechDeviceInformation.encode(
