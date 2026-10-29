@@ -13,7 +13,6 @@ import net.minecraft.util.EnumChatFormatting;
 import net.minecraft.util.StatCollector;
 import net.minecraftforge.common.util.ForgeDirection;
 
-import gregtech.GTMod;
 import gregtech.api.enums.Dyes;
 import gregtech.api.enums.HarvestTool;
 import gregtech.api.enums.Materials;
@@ -62,7 +61,7 @@ public class MTEAirDuct extends MetaPipeEntity {
 
     @Override
     public boolean getGT6StyleConnection() {
-        return GTMod.proxy.gt6Pipe;
+        return false;
     }
 
     @Override
@@ -203,9 +202,10 @@ public class MTEAirDuct extends MetaPipeEntity {
     @Override
     public void onPostTick(IGregTechTileEntity aBaseMetaTileEntity, long aTick) {
         super.onPostTick(aBaseMetaTileEntity, aTick);
-        if (aBaseMetaTileEntity.isServerSide() && mCheckConnections) {
+        if (aBaseMetaTileEntity.isServerSide() && (mCheckConnections || aTick % 20 == 0)) {
+            byte oldConnections = mConnections;
             checkConnections();
-            if (network != null) {
+            if (mConnections != oldConnections && network != null) {
                 network.invalidate();
                 network = null;
             }
